@@ -77,15 +77,14 @@ def foldl(fn, elems, dtype=None, initializer=None, parallel_iterations=10, back_
 
 
 def static_map_fn(fn, inputs, axis):
-    with tf.variable_scope("static_map_fn"):
-        unstacked_inputs = tf.unstack(inputs, axis=axis)
+    unstacked_inputs = tf.unstack(inputs, axis=axis)
 
-        outputs = []
+    outputs = []
 
-        for val in unstacked_inputs:
-            outputs.append(fn(val))
+    for val in unstacked_inputs:
+        outputs.append(fn(val))
 
-        return tf.stack(outputs, axis=axis)
+    return tf.stack(outputs, axis=axis)
 
 
 # lstm_states: tuple of size 2, each element is [num_layers, batch_size, lstm_size]

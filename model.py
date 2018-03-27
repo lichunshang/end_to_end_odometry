@@ -39,26 +39,6 @@ def fc_model(inputs):
         return fc_12
 
 
-def se3_comp_over_timesteps(fc_timesteps):
-    with tf.variable_scope("se3_comp_over_timesteps"):
-        # position + orientation in quat
-        initial_pose = tf.constant([0, 0, 0, 1, 0, 0, 0], tf.float32)
-
-        poses = []
-        pose = initial_pose
-        fc_ypr_poses = tf.unstack(fc_timesteps[:, 0:6], axis=0)  # take the x, y, z, y, p, r
-        for d_ypr_pose in fc_ypr_poses:
-            pose = se3.se3_comp(pose, d_ypr_pose)
-            poses.append(pose)
-        return tf.stack(poses)
-
-
-def cudnn_lstm_unrolled(inputs, initial_state):
-    lstm = tf.contrib.cudnn_rnn.CudnnLSTM(cfg.lstm_layers, cfg.lstm_size)
-    outputs, final_state = lstm(inputs, initial_state=initial_state)
-    return outputs, final_state
-
-
 def cnn_over_timesteps(inputs):
     with tf.variable_scope("cnn_over_timesteps"):
         unstacked_inputs = tf.unstack(inputs, axis=0)
@@ -73,27 +53,70 @@ def cnn_over_timesteps(inputs):
         return tf.stack(outputs, axis=0)
 
 
-def build_model(inputs, lstm_init_state):
-    with tf.device("/gpu:0"):
-        with tf.variable_scope("cnn_unrolled", reuse=tf.AUTO_REUSE):
-            cnn_outputs = cnn_over_timesteps(inputs)
+def se3_comp_over_timesteps(inputs, initial_pose):
+    with tf.variable_scope("se3_comp_over_timesteps"):
+        # position + orientation in quat
 
-        cnn_outputs = tf.reshape(cnn_outputs, [cnn_outputs.shape[0], cnn_outputs.shape[1],
-                                               cnn_outputs.shape[2] * cnn_outputs.shape[3] * cnn_outputs.shape[4]])
+        poses = []
+        pose = initial_pose
+        fc_ypr_poses = tf.unstack(inputs[:, 0:6], axis=0)  # take the x, y, z, y, p, r
+        for d_ypr_pose in fc_ypr_poses:
+            pose = se3.se3_comp(pose, d_ypr_pose)
+            poses.append(pose)
+        return tf.stack(poses)
+
+
+def cnn_layer(inputs):
+    with tf.variable_scope("cnn_layer", reuse=tf.AUTO_REUSE):
+        outputs = cnn_over_timesteps(inputs)
+
+    outputs = tf.reshape(outputs,
+                         [outputs.shape[0], outputs.shape[1], outputs.shape[2] * outputs.shape[3] * outputs.shape[4]])
+
+    return outputs
+
+
+def rnn_layer(inputs, initial_state):
+    with tf.variable_scope("rnn_layer", reuse=tf.AUTO_REUSE):
+        initial_state = tuple(tf.unstack(initial_state))
+
+        lstm = tf.contrib.cudnn_rnn.CudnnLSTM(cfg.lstm_layers, cfg.lstm_size)
+        outputs, final_state = lstm(inputs, initial_state=initial_state)
+        return outputs, final_state
+
+
+def fc_layer(inputs):
+    with tf.variable_scope("fc_layer", reuse=tf.AUTO_REUSE):
+        fc_outputs = tools.static_map_fn(fc_model, inputs, axis=0)
+
+    return fc_outputs
+
+
+def se3_layer(inputs, initial_poses):
+    with tf.variable_scope("se3_layer", reuse=tf.AUTO_REUSE):
+        unstacked_inputs = tf.unstack(inputs, axis=1)
+        unstacked_initial_poses = tf.unstack(initial_poses, axis=1)
+
+        outputs = []
+
+        for fc_timesteps, initial_pose in zip(unstacked_inputs, unstacked_initial_poses):
+            outputs.append(se3_comp_over_timesteps(fc_timesteps, initial_pose))
+
+        return tf.stack(outputs, axis=1)
+
+
+def build_model(inputs, lstm_initial_state, initial_poses):
+    with tf.device("/gpu:0"):
+        cnn_outputs = cnn_layer(inputs)
 
     with tf.device("/gpu:0"):
-        # RNN Block
-        with tf.variable_scope("rnn_unrolled", reuse=tf.AUTO_REUSE):
-            lstm_init_state = tuple(tf.unstack(lstm_init_state))
-            lstm_outputs, lstm_states = cudnn_lstm_unrolled(cnn_outputs, lstm_init_state)
+        lstm_outputs, lstm_states = rnn_layer(cnn_outputs, lstm_initial_state)
 
     with tf.device("/gpu:0"):
-        with tf.variable_scope("fc_unrolled", reuse=tf.AUTO_REUSE):
-            fc_outputs = tools.static_map_fn(fc_model, lstm_outputs, axis=0)
+        fc_outputs = fc_layer(lstm_outputs)
 
     with tf.device("/gpu:0"):
-        with tf.variable_scope("se3_unrolled", reuse=tf.AUTO_REUSE):
-            # at this point the outputs from the fully connected layer are  [x, y, z, yaw, pitch, roll, 6 x covars]
-            se3_outputs = tools.static_map_fn(se3_comp_over_timesteps, fc_outputs, axis=1)
+        # at this point the outputs from the fully connected layer are  [x, y, z, yaw, pitch, roll, 6 x covars]
+        se3_outputs = se3_layer(fc_outputs, initial_poses)
 
     return fc_outputs, se3_outputs, lstm_states

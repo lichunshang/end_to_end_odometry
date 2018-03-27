@@ -12,6 +12,9 @@ inputs = tf.placeholder(tf.float32, name="inputs",
 # init LSTM states, 2 (cell + hidden states), 2 layers, batch size, and 1024 state size
 lstm_init_state = tf.placeholder(tf.float32, name="lstm_init_state", shape=[2, lstm_layers, batch_size, lstm_size])
 
+# init poses, initial position for each example in the batch
+initial_poses = tf.placeholder(tf.float32, name="initial_poses", shape=[batch_size, 7])
+
 # 7 for translation + quat
 se3_labels = tf.placeholder(tf.float32, name="se3_labels", shape=[timesteps, batch_size, 7])
 
