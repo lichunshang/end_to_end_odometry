@@ -1,3 +1,5 @@
 import data
+import tensorflow as tf
 
-data.StatefulDataGen("/home/lichunshang/Dev/KITTI/dataset/", ["00"])
+with tf.device("/cpu:0"):
+    data.StatefulDataGen("/home/lichunshang/Dev/KITTI/dataset/", ["00"])

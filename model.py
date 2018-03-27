@@ -106,15 +106,21 @@ def se3_layer(inputs, initial_poses):
 
 
 def build_training_model(inputs, lstm_initial_state, initial_poses):
+    print("Building training model")
+
+    print("Building CNN...")
     with tf.device("/gpu:0"):
         cnn_outputs = cnn_layer(inputs)
 
+    print("Building RNN...")
     with tf.device("/gpu:0"):
         lstm_outputs, lstm_states = rnn_layer(cnn_outputs, lstm_initial_state)
 
+    print("Building FC...")
     with tf.device("/gpu:0"):
         fc_outputs = fc_layer(lstm_outputs)
 
+    print("Building SE3...")
     with tf.device("/gpu:0"):
         # at this point the outputs from the fully connected layer are  [x, y, z, yaw, pitch, roll, 6 x covars]
         se3_outputs = se3_layer(fc_outputs, initial_poses)

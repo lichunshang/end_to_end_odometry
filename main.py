@@ -6,9 +6,6 @@ import tools
 from config import *
 import data
 
-with tf.device("/cpu:0"):
-    data_generator = data.StatefulDataGen("/home/lichunshang/Dev/KITTI/dataset/", ["00"])
-
 # =================== INPUTS ========================
 # All time major
 inputs = tf.placeholder(tf.float32, name="inputs",
@@ -33,11 +30,13 @@ fc_lr = tf.placeholder(tf.float32, name="fc_lr", shape=[])
 # =================== MODEL + LOSSES + Optimizer ========================
 fc_outputs, se3_outputs, lstm_states = model.build_training_model(inputs, lstm_init_state, initial_poses)
 
+print("Building losses...")
 with tf.device("/gpu:0"):
     with tf.variable_scope("Losses"):
         se3_losses = losses.se3_losses(se3_outputs, se3_labels, k)
         fc_losses = losses.fc_losses(fc_outputs, fc_labels)
 
+print("Building optimizer...")
 with tf.variable_scope("Optimizer"):
     with tf.device("/gpu:0"):
         se3_trainer = tf.train.AdamOptimizer(learning_rate=se3_lr).minimize(se3_outputs)
@@ -46,6 +45,7 @@ with tf.variable_scope("Optimizer"):
 
 # =================== TRAINING ========================
 with tf.Session() as sess:
+    print("Initializing variables...")
     sess.run(tf.global_variables_initializer())
 
     # Visualization
@@ -55,6 +55,10 @@ with tf.Session() as sess:
     se3_losses_history = []
     fc_losses_history = []
 
+    with tf.device("/cpu:0"):
+        data_generator = data.StatefulDataGen("/home/lichunshang/Dev/KITTI/dataset/", ["00"])
+
+    print("Start training loop...")
     for i_epoch in range(num_epochs):
 
         curr_lstm_states = np.zeros([2, lstm_layers, batch_size, lstm_size])
