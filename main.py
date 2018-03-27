@@ -1,10 +1,12 @@
+import data
+data_generator = data.StatefulDataGen("/home/lichunshang/Dev/KITTI/dataset/", ["00"])
+
 import model
 import losses
 import tools
 from config import *
 import tensorflow as tf
 import numpy as np
-import data
 
 # =================== INPUTS ========================
 # All time major
@@ -54,8 +56,6 @@ with tf.Session() as sess:
 
     se3_losses_history = []
     fc_losses_history = []
-
-    data_generator = data.StatefulDataGen("/home/lichunshang/Dev/KITTI/dataset/", ["00"])
 
     print("Start training loop...")
     for i_epoch in range(num_epochs):

@@ -123,8 +123,8 @@ class StatefulDataGen(object):
         batch = self.input_frames[i_b * n: (i_b + 1) * n, :, :, :, :]
         batch = np.divide(batch, 255.0, dtype=np.float32)  # ensure float32
 
-        se3_ground_truth = self.se3_ground_truth[i_b * n: (i_b + 1) * n, :, :]
-        fc_ground_truth = self.fc_ground_truth[i_b * n: (i_b + 1) * n, :, :]
+        se3_ground_truth = self.se3_ground_truth[i_b * n + 1: (i_b + 1) * n, :, :]
+        fc_ground_truth = self.fc_ground_truth[i_b * n + 1: (i_b + 1) * n, :, :]
         init_poses = se3_ground_truth[0, :, :]
 
         # decide if we should propagate states
