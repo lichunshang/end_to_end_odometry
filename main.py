@@ -52,7 +52,7 @@ with tf.Session() as sess:
     data_fc_labels = np.random.random([timesteps, batch_size, 6])
 
     for i_epoch in range(num_epochs):
-        curr_lstm_states = np.zeros([2, 2, batch_size, lstm_size])
+        curr_lstm_states = np.zeros([2, lstm_layers, batch_size, lstm_size])
 
         _se3_losses, _se3_trainer, _curr_lstm_states = sess.run(
             [se3_losses, se3_trainer, lstm_states, ],
