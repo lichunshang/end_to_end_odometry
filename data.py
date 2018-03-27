@@ -127,6 +127,8 @@ class StatefulDataGen(object):
         init_poses = se3_ground_truth[0, :, :]
 
         # decide if we should propagate states
+        for i in range(0, config.batch_size):
+            `   
         pass
         self.end_of_sequence_indices
 
