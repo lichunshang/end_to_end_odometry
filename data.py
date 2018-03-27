@@ -13,11 +13,13 @@ class StatefulDataGen(object):
     def __init__(self, base_dir, sequences):
         self.truncated_seq_sizes = []
         self.end_of_sequence_indices = []
+        self.curr_batch = 0
+        self.
 
         total_num_examples = 0
 
         for seq in sequences:
-            seq_data = pykitti.odometry(base_dir, seq, frames=range(0, 11))
+            seq_data = pykitti.odometry(base_dir, seq, frames=range(0, 20))
             num_frames = len(seq_data.poses)
 
             # less than timesteps number of frames will be discarded
@@ -44,7 +46,7 @@ class StatefulDataGen(object):
         self.input_frames = np.zeros(
             [frames_per_batch, config.batch_size, config.input_channels, config.input_height, config.input_width],
             dtype=np.uint8)
-        poses = np.zeros([frames_per_batch, config.batch_size, 4, 4], dtype=np.float32)
+        poses_wrt_g = np.zeros([frames_per_batch, config.batch_size, 4, 4], dtype=np.float32)  # ground truth poses
 
         num_image_loaded = 0
         for i_seq, seq in enumerate(sequences):
@@ -68,7 +70,7 @@ class StatefulDataGen(object):
                 pose = seq_data.poses[i_img]
 
                 self.input_frames[i, j] = img
-                poses[i, j] = pose
+                poses_wrt_g[i, j] = pose
                 num_image_loaded += 1
 
                 print(i_img)
@@ -78,7 +80,7 @@ class StatefulDataGen(object):
                     i = num_image_loaded % frames_per_batch
                     j = num_image_loaded // frames_per_batch
                     self.input_frames[i, j] = img
-                    poses[i, j] = pose
+                    poses_wrt_g[i, j] = pose
 
                     # save this index, so we know where the next sequence begins
                     self.end_of_sequence_indices.append((i, j,))
@@ -92,15 +94,15 @@ class StatefulDataGen(object):
         # make sure everything is fully loaded
         assert (num_image_loaded == frames_per_batch * config.batch_size)
 
-        # now convert all the ground truth from 4x4 to xyz + quat
+        # now convert all the ground truth from 4x4 to xyz + quat, this is after the SE3 layer
         self.se3_ground_truth = np.zeros([frames_per_batch, config.batch_size, 7], dtype=np.float32)
         for i in range(0, self.se3_ground_truth.shape[0]):
             for j in range(0, self.se3_ground_truth.shape[1]):
-                translation = transformations.translation_from_matrix(poses[i, j])
-                quat = transformations.quaternion_from_matrix(poses[i, j])
+                translation = transformations.translation_from_matrix(poses_wrt_g[i, j])
+                quat = transformations.quaternion_from_matrix(poses_wrt_g[i, j])
                 self.se3_ground_truth[i, j] = np.concatenate([translation, quat])
 
-        # extract the relative motion between frames
+        # extract the relative transformation between frames after the fully connected layer
         self.fc_ground_truth = np.zeros([frames_per_batch, config.batch_size, 6], dtype=np.float32)
         # going through rows, then columns
         for i in range(0, self.fc_ground_truth.shape[0]):
@@ -110,10 +112,17 @@ class StatefulDataGen(object):
                 if i % (config.timesteps + 1) == 0:
                     m = transformations.identity_matrix()
                 else:
-                    m = np.linalg.inv(poses[i - 1, j]) * poses[i, j] # double check
+                    m = np.dot(np.linalg.inv(poses_wrt_g[i - 1, j]), poses_wrt_g[i, j])  # double check
+
+                print(m)
+
                 translation = transformations.translation_from_matrix(m)
-                ypr = transformations.euler_from_matrix(m)
-                self.fc_ground_truth[i, j] = np.concatenate([translation, ypr]) #double check
+                ypr = transformations.euler_from_matrix(m, axes="rzyx")
+                self.fc_ground_truth[i, j] = np.concatenate([translation, ypr])  # double check
+
+        # print(poses)
+        # print(self.se3_ground_truth)
+        print(self.fc_ground_truth)
 
     def next_batch(self):
         pass
