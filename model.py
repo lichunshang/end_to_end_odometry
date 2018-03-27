@@ -105,7 +105,7 @@ def se3_layer(inputs, initial_poses):
         return tf.stack(outputs, axis=1)
 
 
-def build_model(inputs, lstm_initial_state, initial_poses):
+def build_training_model(inputs, lstm_initial_state, initial_poses):
     with tf.device("/gpu:0"):
         cnn_outputs = cnn_layer(inputs)
 

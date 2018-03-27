@@ -54,7 +54,7 @@ class StatefulDataGen(object):
 
             for i_img in range(length):
 
-                if i_img % 50 == 0:
+                if i_img % 100 == 0:
                     print("Loading sequence %s %.1f%% " % (seq, (i_img / length) * 100))
 
                 i = num_image_loaded % total_timesteps
@@ -113,7 +113,8 @@ class StatefulDataGen(object):
                 ypr = transformations.euler_from_matrix(m, axes="rzyx")
                 self.fc_ground_truth[i, j] = np.concatenate([translation, ypr])  # double check
 
-        print("All data loaded and configured!")
+        print("All data loaded, batches_size=%d, timesteps=%d, num_batches=%d" % (
+            config.batch_size, config.timesteps, self.total_batch_count))
 
     def next_batch(self):
         i_b = self.curr_batch_idx
@@ -139,6 +140,8 @@ class StatefulDataGen(object):
 
         return init_poses, reset_state, batch, fc_ground_truth, se3_ground_truth
 
+    def has_next_batch(self):
+        return self.curr_batch_idx < self.total_batch_count
+
     def next_epoch(self):
         self.curr_batch_idx = 0
-
