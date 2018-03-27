@@ -9,8 +9,8 @@ from config import *
 inputs = tf.placeholder(tf.float32, name="inputs",
                         shape=[timesteps + 1, batch_size, input_channels, input_width, input_height])
 
-# init LSTM states, 2 layers, 2 (cell + hidden states), batch size, and 1024 state size
-lstm_init_state = tf.placeholder(tf.float32, name="lstm_init_state", shape=[2, 2, batch_size, lstm_size])
+# init LSTM states, 2 (cell + hidden states), 2 layers, batch size, and 1024 state size
+lstm_init_state = tf.placeholder(tf.float32, name="lstm_init_state", shape=[2, lstm_layers, batch_size, lstm_size])
 
 # 7 for translation + quat
 se3_labels = tf.placeholder(tf.float32, name="se3_labels", shape=[timesteps, batch_size, 7])

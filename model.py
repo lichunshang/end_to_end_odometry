@@ -54,7 +54,7 @@ def se3_comp_over_timesteps(fc_timesteps):
 
 
 def cudnn_lstm_unrolled(inputs, initial_state):
-    lstm = tf.contrib.cudnn_rnn.CudnnLSTM(2, cfg.lstm_size)
+    lstm = tf.contrib.cudnn_rnn.CudnnLSTM(cfg.lstm_layers, cfg.lstm_size)
     outputs, final_state = lstm(inputs, initial_state=initial_state)
     return outputs, final_state
 
