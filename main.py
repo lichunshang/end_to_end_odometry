@@ -1,15 +1,15 @@
-import tensorflow as tf
 import model
 import losses
-import numpy as np
 import tools
 from config import *
+import tensorflow as tf
+import numpy as np
 import data
 
 # =================== INPUTS ========================
 # All time major
 inputs = tf.placeholder(tf.float32, name="inputs",
-                        shape=[timesteps + 1, batch_size, input_channels, input_width, input_height])
+                        shape=[timesteps + 1, batch_size, input_channels, input_height, input_width])
 
 # init LSTM states, 2 (cell + hidden states), 2 layers, batch size, and 1024 state size
 lstm_init_state = tf.placeholder(tf.float32, name="lstm_init_state", shape=[2, lstm_layers, batch_size, lstm_size])
@@ -55,8 +55,7 @@ with tf.Session() as sess:
     se3_losses_history = []
     fc_losses_history = []
 
-    with tf.device("/cpu:0"):
-        data_generator = data.StatefulDataGen("/home/lichunshang/Dev/KITTI/dataset/", ["00"])
+    data_generator = data.StatefulDataGen("/home/lichunshang/Dev/KITTI/dataset/", ["00"])
 
     print("Start training loop...")
     for i_epoch in range(num_epochs):
