@@ -116,25 +116,28 @@ class StatefulDataGen(object):
         print("All data loaded and configured!")
 
     def next_batch(self):
-        i = self.curr_batch_idx
+        i_b = self.curr_batch_idx
         n = config.timesteps + 1  # number of frames in an example
         # slice a batch from huge matrix of training data
-        batch = self.input_frames[i * n: (i + 1) * n, :, :, :, :]
+        batch = self.input_frames[i_b * n: (i_b + 1) * n, :, :, :, :]
         batch = np.divide(batch, 255.0, dtype=np.float32)  # ensure float32
 
-        se3_ground_truth = self.se3_ground_truth[i * n: (i + 1) * n, :, :]
-        fc_ground_truth = self.fc_ground_truth[i * n: (i + 1) * n, :, :]
+        se3_ground_truth = self.se3_ground_truth[i_b * n: (i_b + 1) * n, :, :]
+        fc_ground_truth = self.fc_ground_truth[i_b * n: (i_b + 1) * n, :, :]
         init_poses = se3_ground_truth[0, :, :]
 
         # decide if we should propagate states
-        for i in range(0, config.batch_size):
-            `   
-        pass
-        self.end_of_sequence_indices
+        i = self.curr_batch_idx * n
+        reset_state = np.zeros([config.batch_size], dtype=np.uint8)
+        for j in range(0, config.batch_size):
+            if (i, j,) in self.end_of_sequence_indices:
+                reset_state[j] = 1
+            else:
+                reset_state[j] = 0
 
         self.curr_batch_idx += 1
 
-        return init_poses, batch, fc_ground_truth, se3_ground_truth
+        return init_poses, reset_state, batch, fc_ground_truth, se3_ground_truth
 
     def next_epoch(self):
         self.curr_batch_idx = 0
