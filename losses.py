@@ -1,5 +1,6 @@
 import tensorflow as tf
 
+
 # assumes time major
 def se3_losses(outputs, labels, k):
     with tf.variable_scope("se3_losses"):
@@ -17,6 +18,7 @@ def se3_losses(outputs, labels, k):
 
         return tf.reduce_mean(loss)
 
+
 # assumes time major
 def fc_losses(outputs, labels_u):
     with tf.variable_scope("fc_losses"):
@@ -28,13 +30,13 @@ def fc_losses(outputs, labels_u):
         Q = tf.multiply(L, L)
 
         # determinant of a diagonal matrix is product of it diagonal
-        det_Q = tf.reduce_prod(Q, axis=2)
+        log_det_Q = tf.log(tf.reduce_prod(Q, axis=2) + 1e-8)
 
         # inverse of a diagonal matrix is elemental inverse
         inv_Q = tf.div(tf.constant(1, dtype=tf.float32), Q + 1e-8)
 
         # sum of determinants along the time
-        sum_det_Q = tf.reduce_sum(det_Q, axis=0)
+        sum_det_Q = tf.reduce_sum(log_det_Q, axis=0)
 
         # sum of diff_u' * inv_Q * diff_u
         s = tf.reduce_sum(tf.multiply(diff_u, tf.multiply(inv_Q, diff_u)), axis=(0, 2,))
