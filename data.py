@@ -145,3 +145,9 @@ class StatefulDataGen(object):
 
     def next_epoch(self):
         self.curr_batch_idx = 0
+
+    def curr_batch(self):
+        return self.curr_batch_idx
+
+    def total_batches(self):
+        return self.total_batch_count

@@ -8,6 +8,7 @@ import tools
 from config import *
 import tensorflow as tf
 import numpy as np
+import time
 
 # =================== INPUTS ========================
 # All time major
@@ -60,16 +61,29 @@ with tf.Session() as sess:
 
     print("Start training loop...")
     for i_epoch in range(num_epochs):
-        print("Epoch: %d" % i_epoch)
+        print("Training Epoch: %d ..." % i_epoch)
 
         data_generator.next_epoch()
         curr_lstm_states = np.zeros([2, lstm_layers, batch_size, lstm_size])
 
-        while (data_generator.has_next_batch()):
+        start_time = time.time()
+        _se3_losses = 0
+        _fc_losses = 0
+        while data_generator.has_next_batch():
             init_poses, reset_state, batch_data, \
             fc_ground_truth, se3_ground_truth = data_generator.next_batch()
 
             curr_lstm_states = tools.reset_select_lstm_state(curr_lstm_states, reset_state)
+
+            _fc_outputs, _fc_losses, _fc_trainer = sess.run(
+                [fc_outputs, fc_losses, fc_trainer],
+                feed_dict={
+                    inputs: batch_data,
+                    fc_labels: fc_ground_truth,
+                    lstm_init_state: curr_lstm_states,
+                    fc_lr: 0.001,
+                }
+            )
 
             _se3_outputs, _se3_losses, _se3_trainer, _curr_lstm_states = sess.run(
                 [se3_outputs, se3_losses, se3_trainer, lstm_states, ],
@@ -81,29 +95,15 @@ with tf.Session() as sess:
                     se3_lr: 0.001,
                 }
             )
-            se3_losses_history.append(_se3_losses)
-            # curr_lstm_states = _curr_lstm_states
 
-            _fc_outputs, _fc_losses, _fc_trainer, _curr_lstm_states = sess.run(
-                [fc_outputs, fc_losses, fc_trainer, lstm_states],
-                feed_dict={
-                    inputs: batch_data,
-                    fc_labels: fc_ground_truth,
-                    lstm_init_state: curr_lstm_states,
-                    # initial_poses: init_poses,
-                    fc_lr: 0.001,
-                }
-            )
+            se3_losses_history.append(_se3_losses)
             fc_losses_history.append(_fc_losses)
 
             curr_lstm_states = _curr_lstm_states
 
             # print stats
-            print("se_loss: %f, fc_loss: %f" % (_se3_losses, _fc_losses))
-            # print("se_loss: %f" % (_se3_losses))
-            # print("fc_loss: %f" % (_fc_losses))
-            # print("init_pose: ", init_poses)
-            # print("fc: ", _fc_outputs)
-            # print("fc gt: ", fc_ground_truth)
-            # print("se3: ", _se3_outputs)
-            # print()
+            print("batch %d/%d: se_loss: %.3f, fc_loss: %.3f" % (
+                data_generator.curr_batch(), data_generator.total_batches(), _se3_losses, _fc_losses))
+
+        print("Epoch %d, se_loss: %.3f, fc_loss: %.3f, time: %.2f" % (i_epoch, _se3_losses, _fc_losses,
+                                                                      time.time() - start_time))
