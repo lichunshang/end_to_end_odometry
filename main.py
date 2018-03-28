@@ -42,9 +42,9 @@ with tf.device("/gpu:0"):
 print("Building optimizer...")
 with tf.variable_scope("Optimizer"):
     with tf.device("/gpu:0"):
-        se3_trainer = tf.train.AdamOptimizer(learning_rate=se3_lr).minimize(se3_outputs)
+        se3_trainer = tf.train.AdamOptimizer(learning_rate=se3_lr).minimize(se3_losses)
     with tf.device("/gpu:0"):
-        fc_trainer = tf.train.AdamOptimizer(learning_rate=fc_lr).minimize(fc_outputs)
+        fc_trainer = tf.train.AdamOptimizer(learning_rate=fc_lr).minimize(fc_losses)
 
 # =================== TRAINING ========================
 with tf.Session() as sess:
@@ -71,37 +71,39 @@ with tf.Session() as sess:
 
             curr_lstm_states = tools.reset_select_lstm_state(curr_lstm_states, reset_state)
 
-            _se3_outputs, _se3_losses, _se3_trainer, _curr_lstm_states = sess.run(
-                [se3_outputs, se3_losses, se3_trainer, lstm_states, ],
-                feed_dict={
-                    inputs: batch_data,
-                    se3_labels: se3_ground_truth,
-                    lstm_init_state: curr_lstm_states,
-                    initial_poses: init_poses,
-                    se3_lr: 0.001,
-                }
-            )
-            se3_losses_history.append(_se3_losses)
-            curr_lstm_states = _curr_lstm_states
-
-            # _fc_outputs, _fc_losses, _fc_trainer, _curr_lstm_states = sess.run(
-            #     [fc_outputs, fc_losses, fc_trainer, lstm_states, ],
+            # _se3_outputs, _se3_losses, _se3_trainer, _curr_lstm_states = sess.run(
+            #     [se3_outputs, se3_losses, se3_trainer, lstm_states, ],
             #     feed_dict={
             #         inputs: batch_data,
-            #         fc_labels: fc_ground_truth,
+            #         se3_labels: se3_ground_truth,
             #         lstm_init_state: curr_lstm_states,
-            #         # initial_poses: init_poses,
-            #         fc_lr: 0.001,
+            #         initial_poses: init_poses,
+            #         se3_lr: 0.001,
             #     }
             # )
-            # fc_losses_history.append(_fc_losses)
-            #
+            # se3_losses_history.append(_se3_losses)
+            # curr_lstm_states = _curr_lstm_states
+
+            _fc_outputs, _fc_losses, _fc_trainer = sess.run(
+                [fc_outputs, fc_losses, fc_trainer],
+                feed_dict={
+                    inputs: batch_data,
+                    fc_labels: fc_ground_truth,
+                    # lstm_init_state: curr_lstm_states,
+                    # initial_poses: init_poses,
+                    fc_lr: 0.001,
+                }
+            )
+            fc_losses_history.append(_fc_losses)
+
             # curr_lstm_states = _curr_lstm_states
 
             # print stats
             # print("se_loss: %f, fc_loss: %f" % (_se3_losses, _fc_losses))
-            print("se_loss: %f" % (_se3_losses))
+            # print("se_loss: %f" % (_se3_losses))
+            print("fc_loss: %f" % (_fc_losses))
             print("init_pose: ", init_poses)
-            # print("fc: ", _fc_outputs)
-            print("se3: ", _se3_outputs)
+            print("fc: ", _fc_outputs)
+            print("fc gt: ", fc_ground_truth)
+            # print("se3: ", _se3_outputs)
             print()

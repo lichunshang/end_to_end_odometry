@@ -28,14 +28,16 @@ def cnn_model(inputs):
                                             stride=(1, 1), padding="same", scope="conv_5_1", data_format="NCHW")
 
         conv_6 = tf.contrib.layers.conv2d(conv_5_1, num_outputs=1024, kernel_size=(3, 3,),
-                                          stride=(2, 2), padding="same", scope="conv_6", data_format="NCHW")
+                                          stride=(2, 2), padding="same", scope="conv_6", data_format="NCHW",
+                                          activation_fn=None)
         return conv_6
 
 
 def fc_model(inputs):
     with tf.variable_scope("fc_model"):
+        # fc_1024 = tf.contrib.layers.fully_connected(inputs, 1024, scope="fc_1024", activation_fn=tf.nn.relu)
         fc_128 = tf.contrib.layers.fully_connected(inputs, 128, scope="fc_128", activation_fn=tf.nn.relu)
-        fc_12 = tf.contrib.layers.fully_connected(fc_128, 12, scope="fc_12", activation_fn=tf.nn.relu)
+        fc_12 = tf.contrib.layers.fully_connected(fc_128, 6, scope="fc_12", activation_fn=None)
         return fc_12
 
 
@@ -112,17 +114,17 @@ def build_training_model(inputs, lstm_initial_state, initial_poses):
     with tf.device("/gpu:0"):
         cnn_outputs = cnn_layer(inputs)
 
-    print("Building RNN...")
-    with tf.device("/gpu:0"):
-        lstm_outputs, lstm_states = rnn_layer(cnn_outputs, lstm_initial_state)
+    # print("Building RNN...")
+    # with tf.device("/gpu:0"):
+    #     lstm_outputs, lstm_states = rnn_layer(cnn_outputs, lstm_initial_state)
 
     print("Building FC...")
     with tf.device("/gpu:0"):
-        fc_outputs = fc_layer(lstm_outputs)
+        fc_outputs = fc_layer(cnn_outputs)
 
     print("Building SE3...")
     with tf.device("/gpu:0"):
         # at this point the outputs from the fully connected layer are  [x, y, z, yaw, pitch, roll, 6 x covars]
         se3_outputs = se3_layer(fc_outputs, initial_poses)
 
-    return fc_outputs, se3_outputs, lstm_states
+    return fc_outputs, se3_outputs, 0
