@@ -1,5 +1,4 @@
 import data
-
 data_generator = data.StatefulDataGen("/home/lichunshang/Dev/KITTI/dataset/", ["00"])
 
 import model
@@ -84,12 +83,12 @@ with tf.Session() as sess:
             # se3_losses_history.append(_se3_losses)
             # curr_lstm_states = _curr_lstm_states
 
-            _fc_outputs, _fc_losses, _fc_trainer = sess.run(
-                [fc_outputs, fc_losses, fc_trainer],
+            _fc_outputs, _fc_losses, _fc_trainer, _curr_lstm_states = sess.run(
+                [fc_outputs, fc_losses, fc_trainer, lstm_states],
                 feed_dict={
                     inputs: batch_data,
                     fc_labels: fc_ground_truth,
-                    # lstm_init_state: curr_lstm_states,
+                    lstm_init_state: curr_lstm_states,
                     # initial_poses: init_poses,
                     fc_lr: 0.001,
                 }
