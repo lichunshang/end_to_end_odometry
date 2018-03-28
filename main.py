@@ -1,6 +1,6 @@
 import data
 
-data_generator = data.StatefulDataGen("/home/lichunshang/Dev/KITTI/dataset/", ["00"])
+data_generator = data.StatefulDataGen("/home/lichunshang/Dev/KITTI/dataset/", ["01"])
 
 import model
 import losses
