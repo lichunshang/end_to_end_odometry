@@ -40,18 +40,6 @@ def quat_subtract(q1, q2):
 
         #should not need to wrap angle because acos should only produce values in -pi/2 to pi/2 range
         return tf.multiply(tf.constant(2, dtype=tf.float32), tf.acos(diff[:,:,0]))
-        '''
-        ang = tf.multiply(tf.constant(2, dtype=tf.float32), tf.acos(diff[:,:,0]))
-        
-        gtcond = tf.greater(ang, tf.constant(math.pi, dtype=tf.float32))
-
-        res = tf.where(gtcond, tf.subtract(ang, tf.constant(2*math.pi)), ang)
-
-        lscond = tf.less(res, tf.constant(-math.pi, dtype=tf.float32))
-
-        return tf.where(lscond, tf.add(res, tf.constant(2*math.pi, dtype=tf.float32)))
-        '''
-
 
 # input pose_ypr = [x, y, z, yaw, pitch, roll]
 # output pose_quat = [x, y, z, qr, qx, qy, qz]
