@@ -95,7 +95,7 @@ def fc_layer(inputs):
 def se3_layer(inputs, initial_poses):
     with tf.variable_scope("se3_layer", reuse=tf.AUTO_REUSE):
         unstacked_inputs = tf.unstack(inputs, axis=1)
-        unstacked_initial_poses = tf.unstack(initial_poses, axis=1)
+        unstacked_initial_poses = tf.unstack(initial_poses, axis=0)
 
         outputs = []
 
