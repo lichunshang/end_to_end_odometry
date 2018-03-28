@@ -31,11 +31,37 @@ def cnn_model(inputs):
                                           stride=(2, 2), padding="same", scope="conv_6", data_format="NCHW")
         return conv_6
 
+def cnn_model_lidar(inputs):
+    with tf.variable_scope("cnn_model"):
+        # The first kernel is a 1d convolution
+        conv_1 = tf.contrib.layers.conv2d(inputs, num_outputs=64, kernel_size=(7, 7,),
+                                          stride=(2, 2), padding="same", scope="conv_1", data_format="NCHW")
+        conv_2 = tf.contrib.layers.conv2d(conv_1, num_outputs=128, kernel_size=(5, 5,),
+                                          stride=(2, 2), padding="same", scope="conv_2", data_format="NCHW")
+
+        conv_3 = tf.contrib.layers.conv2d(conv_2, num_outputs=256, kernel_size=(5, 5,),
+                                          stride=(2, 2), padding="same", scope="conv_3", data_format="NCHW")
+        conv_3_1 = tf.contrib.layers.conv2d(conv_3, num_outputs=256, kernel_size=(3, 3,),
+                                            stride=(1, 1), padding="same", scope="conv_3_1", data_format="NCHW")
+
+        conv_4 = tf.contrib.layers.conv2d(conv_3_1, num_outputs=512, kernel_size=(3, 3,),
+                                          stride=(2, 2), padding="same", scope="conv_4", data_format="NCHW")
+        conv_4_1 = tf.contrib.layers.conv2d(conv_4, num_outputs=512, kernel_size=(3, 3,),
+                                            stride=(1, 1), padding="same", scope="conv_4_1", data_format="NCHW")
+
+        conv_5 = tf.contrib.layers.conv2d(conv_4_1, num_outputs=512, kernel_size=(3, 3,),
+                                          stride=(2, 2), padding="same", scope="conv_5", data_format="NCHW")
+        conv_5_1 = tf.contrib.layers.conv2d(conv_5, num_outputs=512, kernel_size=(3, 3,),
+                                            stride=(1, 1), padding="same", scope="conv_5_1", data_format="NCHW")
+
+        conv_6 = tf.contrib.layers.conv2d(conv_5_1, num_outputs=1024, kernel_size=(3, 3,),
+                                          stride=(2, 2), padding="same", scope="conv_6", data_format="NCHW", activation_fn=None)
+        return conv_6
 
 def fc_model(inputs):
     with tf.variable_scope("fc_model"):
         fc_128 = tf.contrib.layers.fully_connected(inputs, 128, scope="fc_128", activation_fn=tf.nn.relu)
-        fc_12 = tf.contrib.layers.fully_connected(fc_128, 12, scope="fc_12", activation_fn=tf.nn.relu)
+        fc_12 = tf.contrib.layers.fully_connected(fc_128, 12, scope="fc_12", activation_fn=None)
         return fc_12
 
 
