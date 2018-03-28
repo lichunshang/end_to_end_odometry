@@ -1,6 +1,6 @@
 import data
 
-data_generator = data.StatefulDataGen("/home/lichunshang/Dev/KITTI/dataset/", ["01"])
+data_generator = data.StatefulDataGen("/home/lichunshang/Dev/KITTI/dataset/", ["00"])
 
 import model
 import losses
@@ -102,8 +102,8 @@ with tf.Session() as sess:
             curr_lstm_states = _curr_lstm_states
 
             # print stats
-            print("batch %d/%d: se_loss: %.3f, fc_loss: %.3f" % (
+            print("batch %d/%d: se_loss: %f, fc_loss: %f" % (
                 data_generator.curr_batch(), data_generator.total_batches(), _se3_losses, _fc_losses))
 
-        print("Epoch %d, se_loss: %.3f, fc_loss: %.3f, time: %.2f" % (i_epoch, _se3_losses, _fc_losses,
+        print("Epoch %d, se_loss: %f, fc_loss: %f, time: %.2f" % (i_epoch, _se3_losses, _fc_losses,
                                                                       time.time() - start_time))

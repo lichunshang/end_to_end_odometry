@@ -10,7 +10,7 @@ class StatefulDataGen(object):
     # Note some frames at the end of the sequence, and the
     # last sequence might be omitted to fit the examples
     # of timesteps x batch size8
-    def __init__(self, base_dir, sequences, frames=None):
+    def __init__(self, base_dir, sequences, frames=range(4000, 4002)):
         self.truncated_seq_sizes = []
         self.end_of_sequence_indices = []
         self.curr_batch_idx = 0
