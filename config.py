@@ -7,6 +7,6 @@ input_channels = 1
 lstm_size = 256
 lstm_layers = 2
 
-num_epochs = 50
+num_epochs = 500
 
 k = 10

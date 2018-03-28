@@ -36,7 +36,7 @@ def cnn_model(inputs):
 def fc_model(inputs):
     with tf.variable_scope("fc_model"):
         fc_128 = tf.contrib.layers.fully_connected(inputs, 128, scope="fc_128", activation_fn=tf.nn.relu)
-        fc_12 = tf.contrib.layers.fully_connected(fc_128, 6, scope="fc_12", activation_fn=None)
+        fc_12 = tf.contrib.layers.fully_connected(fc_128, 12, scope="fc_12", activation_fn=None)
         return fc_12
 
 

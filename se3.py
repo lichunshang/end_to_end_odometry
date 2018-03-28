@@ -38,6 +38,7 @@ def comp_pose_pt(p, a):
 
         return tf.stack([ar_x, ar_y, ar_z])
 
+
 # input: q1 = [qr qx qy qz], q2 = [qr qx qy qz]
 # output: q = [qr qx qy qz]
 def quat_multiply(q1, q2):
@@ -50,6 +51,7 @@ def quat_multiply(q1, q2):
         z = r1 * z2 + z1 * r2 + x1 * y2 - y1 * x2
         n = tf.sqrt(r ** 2 + x ** 2 + y ** 2 + z ** 2)
         return tf.stack([r, x, y, z]) / n
+
 
 # input: p1 = [x y z qr qx qy qz], p2 = [x y z yaw pitch roll
 # output: p = [x y z qr qx qy qz]
