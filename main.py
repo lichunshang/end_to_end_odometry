@@ -41,9 +41,9 @@ with tf.device("/gpu:0"):
 print("Building optimizer...")
 with tf.variable_scope("Optimizer"):
     with tf.device("/gpu:0"):
-        se3_trainer = tf.train.AdamOptimizer(learning_rate=se3_lr).minimize(se3_outputs)
+        se3_trainer = tf.train.AdamOptimizer(learning_rate=se3_lr).minimize(se3_losses)
     with tf.device("/gpu:0"):
-        fc_trainer = tf.train.AdamOptimizer(learning_rate=fc_lr).minimize(fc_outputs)
+        fc_trainer = tf.train.AdamOptimizer(learning_rate=fc_lr).minimize(fc_losses)
 
 # =================== TRAINING ========================
 with tf.Session() as sess:

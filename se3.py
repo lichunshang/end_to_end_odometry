@@ -1,4 +1,56 @@
 import tensorflow as tf
+import math
+
+
+# given input tensors of shape containing normalized quaternions
+# q1 [:,:,4]
+# q2 [:,:,4]
+
+# returns
+# [:,:,4] the angular difference between each rotation
+def quat_multiply_norm(q1, q2):
+    with tf.variable_scope("quat_multiply"):
+        w1, x1, y1, z1 = tf.unstack(q1, axis=-1, num=4)
+        w2, x2, y2, z2 = tf.unstack(q2, axis=-1, num=4)
+
+        w = tf.multiply(w1, w2) - tf.multiply(x1, x2) - tf.multiply(y1, y2) - tf.multiply(z1, z2)
+        x = tf.multiply(w1, x2) + tf.multiply(x1, w2) + tf.multiply(y1, z2) - tf.multiply(z1, y2)
+        y = tf.multiply(w1, y2) + tf.multiply(y1, w2) + tf.multiply(z1, x2) - tf.multiply(x1, z2)
+        z = tf.multiply(w1, z2) + tf.multiply(z1, w2) + tf.multiply(x1, y2) - tf.multiply(y1, x2)
+
+        return tf.stack((w, x, y, z), axis=-1)
+
+
+def quat_conjugate(q):
+    with tf.variable_scope("quat_conjugate"):
+        w, x, y, z = tf.unstack(q, axis=-1, num=4)
+
+        return tf.stack((w, -x, -y, -z), axis=-1)
+
+
+# given input tensors of shape containing normalized quaternions
+# q1 [:,:,4]
+# q2 [:,:,4]
+
+# returns
+# [:,:,1] the angular difference between each rotation
+def quat_subtract(q1, q2):
+    with tf.variable_scope("quat_subtract"):
+        diff = quat_multiply_norm(q2, quat_conjugate(q1))
+
+        #should not need to wrap angle because acos should only produce values in -pi/2 to pi/2 range
+        return tf.multiply(tf.constant(2, dtype=tf.float32), tf.acos(diff[:,:,0]))
+        '''
+        ang = tf.multiply(tf.constant(2, dtype=tf.float32), tf.acos(diff[:,:,0]))
+        
+        gtcond = tf.greater(ang, tf.constant(math.pi, dtype=tf.float32))
+
+        res = tf.where(gtcond, tf.subtract(ang, tf.constant(2*math.pi)), ang)
+
+        lscond = tf.less(res, tf.constant(-math.pi, dtype=tf.float32))
+
+        return tf.where(lscond, tf.add(res, tf.constant(2*math.pi, dtype=tf.float32)))
+        '''
 
 
 # input pose_ypr = [x, y, z, yaw, pitch, roll]
@@ -38,6 +90,7 @@ def comp_pose_pt(p, a):
 
         return tf.stack([ar_x, ar_y, ar_z])
 
+
 # input: q1 = [qr qx qy qz], q2 = [qr qx qy qz]
 # output: q = [qr qx qy qz]
 def quat_multiply(q1, q2):
@@ -50,6 +103,7 @@ def quat_multiply(q1, q2):
         z = r1 * z2 + z1 * r2 + x1 * y2 - y1 * x2
         n = tf.sqrt(r ** 2 + x ** 2 + y ** 2 + z ** 2)
         return tf.stack([r, x, y, z]) / n
+
 
 # input: p1 = [x y z qr qx qy qz], p2 = [x y z yaw pitch roll
 # output: p = [x y z qr qx qy qz]
