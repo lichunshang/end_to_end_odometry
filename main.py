@@ -1,5 +1,7 @@
 import data
 
+# data_generator = data.StatefulDataGen("/home/lichunshang/Dev/KITTI/dataset/",
+#                                       ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09"])
 data_generator = data.StatefulDataGen("/home/lichunshang/Dev/KITTI/dataset/", ["01"])
 
 import model
@@ -56,6 +58,7 @@ with tf.Session() as sess:
     writer = tf.summary.FileWriter('graph_viz/')
     writer.add_graph(tf.get_default_graph())
 
+    total_batches = data_generator.total_batches()
     se3_losses_history = []
     fc_losses_history = []
 
@@ -102,8 +105,11 @@ with tf.Session() as sess:
             curr_lstm_states = _curr_lstm_states
 
             # print stats
-            print("batch %d/%d: se_loss: %.3f, fc_loss: %.3f" % (
+            print("batch %d/%d: se3_loss: %.3f, fc_loss: %.3f" % (
                 data_generator.curr_batch(), data_generator.total_batches(), _se3_losses, _fc_losses))
 
-        print("Epoch %d, se_loss: %.3f, fc_loss: %.3f, time: %.2f" % (i_epoch, _se3_losses, _fc_losses,
-                                                                      time.time() - start_time))
+        ave_se3_loss = sum(se3_losses_history[-1 - total_batches:-1]) / total_batches
+        ave_fc_loss = sum(fc_losses_history[-1 - total_batches:-1]) / total_batches
+
+        print("Epoch %d, ave_se3_loss: %.3f, ave_fc_loss: %.3f, time: %.2f" %
+              (i_epoch, ave_se3_loss, ave_fc_loss, time.time() - start_time))
