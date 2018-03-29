@@ -156,7 +156,7 @@ with tf.Session() as sess:
               (i_epoch, ave_se3_loss, ave_fc_loss, ave_val_loss, time.time() - start_time))
         print()
 
-    print("Saving results to %s" % results_dir_path)
     np.save(os.path.join(results_dir_path, "se3_losses_history"), se3_losses_history)
     np.save(os.path.join(results_dir_path, "fc_losses_history"), fc_losses_history)
     np.save(os.path.join(results_dir_path, "se3_val_losses_history"), se3_val_losses_history)
+    print("Saved results to %s" % results_dir_path)
