@@ -1,8 +1,11 @@
 import data
 
-# data_generator = data.StatefulDataGen("/home/lichunshang/Dev/KITTI/dataset/",
+print("Loading training data...")
+# train_data_gen = data.StatefulDataGen("/home/lichunshang/Dev/KITTI/dataset/",
 #                                       ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09"])
-data_generator = data.StatefulDataGen("/home/lichunshang/Dev/KITTI/dataset/", ["01"])
+train_data_gen = data.StatefulDataGen("/home/lichunshang/Dev/KITTI/dataset/", ["01"])
+print("Loading validation data...")
+val_data_gen = data.StatefulDataGen("/home/lichunshang/Dev/KITTI/dataset/", ["10"])
 
 import model
 import losses
@@ -58,7 +61,7 @@ with tf.Session() as sess:
     writer = tf.summary.FileWriter('graph_viz/')
     writer.add_graph(tf.get_default_graph())
 
-    total_batches = data_generator.total_batches()
+    total_batches = train_data_gen.total_batches()
     se3_losses_history = []
     fc_losses_history = []
 
@@ -66,15 +69,15 @@ with tf.Session() as sess:
     for i_epoch in range(num_epochs):
         print("Training Epoch: %d ..." % i_epoch)
 
-        data_generator.next_epoch()
+        train_data_gen.next_epoch()
         curr_lstm_states = np.zeros([2, lstm_layers, batch_size, lstm_size])
 
         start_time = time.time()
         _se3_losses = 0
         _fc_losses = 0
-        while data_generator.has_next_batch():
+        while train_data_gen.has_next_batch():
             init_poses, reset_state, batch_data, \
-            fc_ground_truth, se3_ground_truth = data_generator.next_batch()
+            fc_ground_truth, se3_ground_truth = train_data_gen.next_batch()
 
             curr_lstm_states = tools.reset_select_lstm_state(curr_lstm_states, reset_state)
 
@@ -106,7 +109,7 @@ with tf.Session() as sess:
 
             # print stats
             print("batch %d/%d: se3_loss: %.3f, fc_loss: %.3f" % (
-                data_generator.curr_batch(), data_generator.total_batches(), _se3_losses, _fc_losses))
+                train_data_gen.curr_batch(), train_data_gen.total_batches(), _se3_losses, _fc_losses))
 
         ave_se3_loss = sum(se3_losses_history[-1 - total_batches:-1]) / total_batches
         ave_fc_loss = sum(fc_losses_history[-1 - total_batches:-1]) / total_batches
