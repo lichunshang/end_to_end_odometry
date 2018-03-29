@@ -7,6 +7,8 @@ input_channels = 1
 lstm_size = 256
 lstm_layers = 2
 
-num_epochs = 200
+num_epochs = 3
 
 k = 10
+
+save_path = "/home/lichunshang/Dev/end_to_end_visual_odometry/results"

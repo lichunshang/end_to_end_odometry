@@ -151,3 +151,14 @@ class StatefulDataGen(object):
 
     def total_batches(self):
         return self.total_batch_count
+
+
+# lstm_states: tuple of size 2, each element is [num_layers, batch_size, lstm_size]
+# mask: vector of size batch_size, determines which example in the batch should have states reset
+def reset_select_lstm_state(lstm_states, mask):
+    # reset the lstm state for that example if indicated by the mask
+    for i in range(0, len(mask)):
+        if mask[i]:
+            lstm_states[0][:, i, :] = 0
+            lstm_states[1][:, i, :] = 0
+    return lstm_states

@@ -32,6 +32,7 @@ def cnn_model(inputs):
                                           activation_fn=None)
         return conv_6
 
+
 def cnn_model_lidar(inputs):
     with tf.variable_scope("cnn_model"):
         # The first kernel is a 1d convolution
@@ -56,8 +57,10 @@ def cnn_model_lidar(inputs):
                                             stride=(1, 1), padding="same", scope="conv_5_1", data_format="NCHW")
 
         conv_6 = tf.contrib.layers.conv2d(conv_5_1, num_outputs=1024, kernel_size=(3, 3,),
-                                          stride=(2, 2), padding="same", scope="conv_6", data_format="NCHW", activation_fn=None)
+                                          stride=(2, 2), padding="same", scope="conv_6", data_format="NCHW",
+                                          activation_fn=None)
         return conv_6
+
 
 def fc_model(inputs):
     with tf.variable_scope("fc_model"):
@@ -132,8 +135,36 @@ def se3_layer(inputs, initial_poses):
         return tf.stack(outputs, axis=1)
 
 
-def build_training_model(inputs, lstm_initial_state, initial_poses):
-    print("Building training model")
+def model_inputs():
+    # All time major
+    inputs = tf.placeholder(tf.float32, name="inputs",
+                            shape=[cfg.timesteps + 1, cfg.batch_size, cfg.input_channels, cfg.input_height,
+                                   cfg.input_width])
+
+    # init LSTM states, 2 (cell + hidden states), 2 layers, batch size, and 1024 state size
+    lstm_initial_state = tf.placeholder(tf.float32, name="lstm_init_state",
+                                        shape=[2, cfg.lstm_layers, cfg.batch_size, cfg.lstm_size])
+
+    # init poses, initial position for each example in the batch
+    initial_poses = tf.placeholder(tf.float32, name="initial_poses", shape=[cfg.batch_size, 7])
+
+    return inputs, lstm_initial_state, initial_poses,
+
+
+def model_labels():
+    # 7 for translation + quat
+    se3_labels = tf.placeholder(tf.float32, name="se3_labels", shape=[cfg.timesteps, cfg.batch_size, 7])
+
+    # 6 for translation + rpy, labels not needed for covars
+    fc_labels = tf.placeholder(tf.float32, name="se3_labels", shape=[cfg.timesteps, cfg.batch_size, 6])
+
+    return se3_labels, fc_labels
+
+
+def build_seq_training_model():
+    print("Building sequence to sequence training model")
+
+    inputs, lstm_initial_state, initial_poses = model_inputs()
 
     print("Building CNN...")
     with tf.device("/gpu:0"):
@@ -152,4 +183,4 @@ def build_training_model(inputs, lstm_initial_state, initial_poses):
         # at this point the outputs from the fully connected layer are  [x, y, z, yaw, pitch, roll, 6 x covars]
         se3_outputs = se3_layer(fc_outputs, initial_poses)
 
-    return fc_outputs, se3_outputs, lstm_states
+    return inputs, lstm_initial_state, initial_poses, fc_outputs, se3_outputs, lstm_states

@@ -7,6 +7,9 @@ from tensorflow.python.ops import tensor_array_ops
 from tensorflow.python.ops import variable_scope as vs
 from tensorflow.python.framework import tensor_shape
 import tensorflow as tf
+import config
+import os
+import datetime
 
 
 # TODO(yuanbyu, mrry): Handle stride to support sliding windows.
@@ -87,12 +90,10 @@ def static_map_fn(fn, inputs, axis):
     return tf.stack(outputs, axis=axis)
 
 
-# lstm_states: tuple of size 2, each element is [num_layers, batch_size, lstm_size]
-# mask: vector of size batch_size, determines which example in the batch should have states reset
-def reset_select_lstm_state(lstm_states, mask):
-    # reset the lstm state for that example if indicated by the mask
-    for i in range(0, len(mask)):
-        if mask[i]:
-            lstm_states[0][:, i, :] = 0
-            lstm_states[1][:, i, :] = 0
-    return lstm_states
+def create_results_dir(prepend):
+    dir_name = prepend + "_%s" % datetime.datetime.today().strftime('%Y%m%d-%H-%M-%S')
+    results_dir_path = os.path.join(config.save_path, dir_name)
+    if not os.path.exists(results_dir_path):
+        os.makedirs(results_dir_path)
+
+    return results_dir_path
