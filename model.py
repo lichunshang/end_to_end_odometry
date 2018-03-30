@@ -189,7 +189,7 @@ def build_seq_training_model():
 def build_pair_training_model():
     print("Building sequence to sequence training model")
 
-    inputs, _, _ = model_inputs(config.SeqTrainConfigs)
+    inputs, _, _ = model_inputs(config.PairTrainConfigs)
 
     print("Building CNN...")
     with tf.device("/gpu:0"):
