@@ -1,7 +1,7 @@
 import tensorflow as tf
 import se3
 import tools
-import config as cfg
+import config
 
 
 # CNN Block
@@ -106,7 +106,7 @@ def cnn_layer(inputs):
     return outputs
 
 
-def rnn_layer(inputs, initial_state):
+def rnn_layer(cfg, inputs, initial_state):
     with tf.variable_scope("rnn_layer", reuse=tf.AUTO_REUSE):
         initial_state = tuple(tf.unstack(initial_state))
 
@@ -135,7 +135,7 @@ def se3_layer(inputs, initial_poses):
         return tf.stack(outputs, axis=1)
 
 
-def model_inputs():
+def model_inputs(cfg):
     # All time major
     inputs = tf.placeholder(tf.float32, name="inputs",
                             shape=[cfg.timesteps + 1, cfg.batch_size, cfg.input_channels, cfg.input_height,
@@ -151,7 +151,7 @@ def model_inputs():
     return inputs, lstm_initial_state, initial_poses,
 
 
-def model_labels():
+def model_labels(cfg):
     # 7 for translation + quat
     se3_labels = tf.placeholder(tf.float32, name="se3_labels", shape=[cfg.timesteps, cfg.batch_size, 7])
 
@@ -164,7 +164,7 @@ def model_labels():
 def build_seq_training_model():
     print("Building sequence to sequence training model")
 
-    inputs, lstm_initial_state, initial_poses = model_inputs()
+    inputs, lstm_initial_state, initial_poses = model_inputs(config.SeqTrainConfigs)
 
     print("Building CNN...")
     with tf.device("/gpu:0"):
@@ -172,7 +172,7 @@ def build_seq_training_model():
 
     print("Building RNN...")
     with tf.device("/gpu:0"):
-        lstm_outputs, lstm_states = rnn_layer(cnn_outputs, lstm_initial_state)
+        lstm_outputs, lstm_states = rnn_layer(config.SeqTrainConfigs, cnn_outputs, lstm_initial_state)
 
     print("Building FC...")
     with tf.device("/gpu:0"):
@@ -184,3 +184,19 @@ def build_seq_training_model():
         se3_outputs = se3_layer(fc_outputs, initial_poses)
 
     return inputs, lstm_initial_state, initial_poses, fc_outputs, se3_outputs, lstm_states
+
+
+def build_pair_training_model():
+    print("Building sequence to sequence training model")
+
+    inputs, _, _ = model_inputs(config.SeqTrainConfigs)
+
+    print("Building CNN...")
+    with tf.device("/gpu:0"):
+        cnn_outputs = cnn_layer(inputs)
+
+    print("Building FC...")
+    with tf.device("/gpu:0"):
+        fc_outputs = fc_layer(cnn_outputs)
+
+    return inputs, fc_outputs

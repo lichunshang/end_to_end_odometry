@@ -20,7 +20,7 @@ cfg = SeqTrainConfigs
 
 # =================== MODEL + LOSSES + Optimizer ========================
 inputs, lstm_initial_state, initial_poses, fc_outputs, se3_outputs, lstm_states = model.build_seq_training_model()
-se3_labels, fc_labels = model.model_labels()
+se3_labels, fc_labels = model.model_labels(cfg)
 
 print("Building losses...")
 with tf.device("/gpu:0"):
