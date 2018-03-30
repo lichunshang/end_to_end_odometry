@@ -16,7 +16,7 @@ import numpy as np
 import time
 import tools
 
-cfg = SeqTrainConfigs
+cfg = PairTrainConfigs
 
 # =================== MODEL + LOSSES + Optimizer ========================
 inputs, lstm_initial_state, initial_poses, fc_outputs, se3_outputs, lstm_states = model.build_seq_training_model()
