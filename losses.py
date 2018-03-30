@@ -26,12 +26,12 @@ def pair_train_fc_losses(outputs, labels_u, k):
 
         # takes the the dot product and sum it up along time
         sum_diff_p_dot_p = tf.reduce_sum(tf.multiply(diff_p, diff_p), axis=(0, 2,))
-        sum_diff_q_dot_q = tf.reduce_sum(tf.multiply(diff_e, diff_e), axis=(0, 2,))
+        sum_diff_e_dot_e = tf.reduce_sum(tf.multiply(diff_e, diff_e), axis=(0, 2,))
 
         t = tf.cast(tf.shape(outputs)[0], tf.float32)
 
         # multiplies the sum by 1 / t
-        loss = (sum_diff_p_dot_p + k * sum_diff_q_dot_q) / t
+        loss = (sum_diff_p_dot_p + k * sum_diff_e_dot_e) / t
 
         return tf.reduce_mean(loss)
 

@@ -76,6 +76,7 @@ with tf.Session() as sess:
 
     total_batches = train_data_gen.total_batches()
     fc_losses_history = np.zeros([cfg.num_epochs, total_batches])
+    fc_val_losses_history = np.zeros([cfg.num_epochs, val_data_gen.total_batches()])
     best_val_loss = 9999999999
 
     print("Start training loop...")
@@ -88,7 +89,6 @@ with tf.Session() as sess:
         _fc_losses = 0
 
         epoch_fc_losses_history = []
-        fc_val_losses_history = np.zeros([cfg.num_epochs, val_data_gen.total_batches()])
 
         while train_data_gen.has_next_batch():
             init_poses, reset_state, batch_data, \
