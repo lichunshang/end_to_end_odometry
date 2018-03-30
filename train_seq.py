@@ -1,22 +1,22 @@
 import data
+import config
+
+cfg = config.SeqTrainConfigs
 
 print("Loading training data...")
 # train_data_gen = data.StatefulDataGen("/home/lichunshang/Dev/KITTI/dataset/",
 #                                       ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09"])
-train_data_gen = data.StatefulDataGen("/home/lichunshang/Dev/KITTI/dataset/", ["01"], frames=range(0, 100))
+train_data_gen = data.StatefulDataGen(cfg, "/home/lichunshang/Dev/KITTI/dataset/", ["01"], frames=range(0, 100))
 print("Loading validation data...")
-val_data_gen = data.StatefulDataGen("/home/lichunshang/Dev/KITTI/dataset/", ["10"], frames=range(0, 100))
+val_data_gen = data.StatefulDataGen(cfg, "/home/lichunshang/Dev/KITTI/dataset/", ["10"], frames=range(0, 100))
 
 import os
 import model
 import losses
-from config import *
 import tensorflow as tf
 import numpy as np
 import time
 import tools
-
-cfg = SeqTrainConfigs
 
 # =================== MODEL + LOSSES + Optimizer ========================
 inputs, lstm_initial_state, initial_poses, fc_outputs, se3_outputs, lstm_states = model.build_seq_training_model()
