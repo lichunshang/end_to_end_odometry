@@ -141,9 +141,13 @@ def model_inputs(cfg):
                             shape=[cfg.timesteps + 1, cfg.batch_size, cfg.input_channels, cfg.input_height,
                                    cfg.input_width])
 
-    # init LSTM states, 2 (cell + hidden states), 2 layers, batch size, and 1024 state size
-    lstm_initial_state = tf.placeholder(tf.float32, name="lstm_init_state",
-                                        shape=[2, cfg.lstm_layers, cfg.batch_size, cfg.lstm_size])
+    # accommodate the pairwise training
+    if hasattr(cfg, "lstm_layers"):
+        # init LSTM states, 2 (cell + hidden states), 2 layers, batch size, and 1024 state size
+        lstm_initial_state = tf.placeholder(tf.float32, name="lstm_init_state",
+                                            shape=[2, cfg.lstm_layers, cfg.batch_size, cfg.lstm_size])
+    else:
+        lstm_initial_state = None
 
     # init poses, initial position for each example in the batch
     initial_poses = tf.placeholder(tf.float32, name="initial_poses", shape=[cfg.batch_size, 7])

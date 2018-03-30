@@ -1,13 +1,13 @@
 save_path = "/home/lichunshang/Dev/end_to_end_visual_odometry/results"
 
 class TrainConfigs(object):
-    timesteps = -1
-    batch_size = -1
-    input_width = -1
-    input_height = -1
-    input_channels = -1
+    timesteps = 0
+    batch_size = 0
+    input_width = 0
+    input_height = 0
+    input_channels = 0
 
-class SeqTrainConfigs:
+class SeqTrainConfigs(TrainConfigs):
     timesteps = 8
     batch_size = 7
     input_width = 1280
@@ -21,7 +21,7 @@ class SeqTrainConfigs:
     k = 10
 
 
-class PairTrainConfigs:
+class PairTrainConfigs(TrainConfigs):
     timesteps = 1
     batch_size = 1
 
