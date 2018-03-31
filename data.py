@@ -16,10 +16,13 @@ class StatefulDataGen(object):
         self.curr_batch_idx = 0
         self.cfg = config
 
+        if not frames:
+            frames = [None] * len(sequences)
+
         total_num_examples = 0
 
-        for seq in sequences:
-            seq_data = pykitti.odometry(base_dir, seq, frames=frames)
+        for i_seq, seq in enumerate(sequences):
+            seq_data = pykitti.odometry(base_dir, seq, frames=frames[i_seq])
             num_frames = len(seq_data.poses)
 
             # less than timesteps number of frames will be discarded
@@ -51,9 +54,11 @@ class StatefulDataGen(object):
 
         num_image_loaded = 0
         for i_seq, seq in enumerate(sequences):
-            seq_data = pykitti.odometry(base_dir, seq, frames=frames)
+            seq_data = pykitti.odometry(base_dir, seq, frames=frames[i_seq])
             length = self.truncated_seq_sizes[i_seq]
 
+            i = -1
+            j = -1
             for i_img in range(length):
 
                 if i_img % 100 == 0:
@@ -74,19 +79,21 @@ class StatefulDataGen(object):
                 poses_wrt_g[i, j] = pose
                 num_image_loaded += 1
 
-                # if at end of a sequence
+                # insert the extra image at the end of the batch, note the number of
+                # frames per batch of batch size 1 is timesteps + 1
                 if i_img != 0 and i_img != length - 1 and i_img % self.cfg.timesteps == 0:
                     i = num_image_loaded % total_timesteps
                     j = num_image_loaded // total_timesteps
                     self.input_frames[i, j] = img
                     poses_wrt_g[i, j] = pose
 
-                    # save this index, so we know where the next sequence begins
-                    self.end_of_sequence_indices.append((i, j,))
-
                     num_image_loaded += 1
 
                 gc.collect()  # force garbage collection
+
+            # If the batch has the last frame in a sequence, the following frame
+            # in the next batch must have a reset for lstm state
+            self.end_of_sequence_indices.append((i + 1, j,))
 
         # make sure the all of examples are fully loaded, just to detect bugs
         assert (num_image_loaded == total_timesteps * self.cfg.batch_size)

@@ -6,9 +6,9 @@ cfg = config.SeqTrainConfigs
 print("Loading training data...")
 # train_data_gen = data.StatefulDataGen("/home/lichunshang/Dev/KITTI/dataset/",
 #                                       ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09"])
-train_data_gen = data.StatefulDataGen(cfg, "/home/lichunshang/Dev/KITTI/dataset/", ["01"], frames=range(0, 100))
+train_data_gen = data.StatefulDataGen(cfg, "/home/lichunshang/Dev/KITTI/dataset/", ["00", "01"], frames=[None, None])
 print("Loading validation data...")
-val_data_gen = data.StatefulDataGen(cfg, "/home/lichunshang/Dev/KITTI/dataset/", ["10"], frames=range(0, 100))
+val_data_gen = data.StatefulDataGen(cfg, "/home/lichunshang/Dev/KITTI/dataset/", ["10"], frames=[None])
 
 import os
 import model
@@ -75,8 +75,8 @@ restore_model_file = None
 # just for restoring pre trained cnn weights
 cnn_variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, "^cnn_layer.*")
 cnn_init_tf_saver = tf.train.Saver(cnn_variables)
-cnn_init_model_file = \
-    "/home/lichunshang/Dev/end_to_end_visual_odometry/results/train_pair_20180330-22-45-02/model_checkpoint"
+cnn_init_model_file = None
+    # "/home/lichunshang/Dev/end_to_end_visual_odometry/results/train_pair_20180330-22-45-02/model_checkpoint"
 
 # =================== TRAINING ========================
 with tf.Session() as sess:
