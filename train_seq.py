@@ -161,6 +161,7 @@ with tf.Session() as sess:
         se3_val_losses_history[i_epoch, :] = epoch_se3_val_losses
 
         if ave_val_loss < best_val_loss:
+            best_val_loss = ave_val_loss
             tf_saved_path = tf_saver.save(sess, os.path.join(results_dir_path, "model_checkpoint"))
             print("Best val loss, model saved.")
 
