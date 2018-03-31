@@ -29,5 +29,5 @@ class PairTrainConfigs(TrainConfigs):
     input_height = 384
     input_channels = 1
 
-    num_epochs = 3
+    num_epochs = 100
     k = 1
