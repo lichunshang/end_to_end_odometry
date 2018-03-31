@@ -5,3 +5,4 @@ __pycache__/*
 /results/*
 train_data
 test_data
+*.pyc

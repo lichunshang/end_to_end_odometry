@@ -115,7 +115,7 @@ class StatefulDataGen(object):
                 ypr = transformations.euler_from_matrix(m, axes="rzyx")
                 self.fc_ground_truth[i, j] = np.concatenate([translation, ypr])  # double check
 
-        print("All data loaded, batches_size=%d, timesteps=%d, num_batches=%d" % (
+        print("All data loaded, batche_size=%d, timesteps=%d, num_batches=%d" % (
             self.cfg.batch_size, self.cfg.timesteps, self.total_batch_count))
 
     def next_batch(self):

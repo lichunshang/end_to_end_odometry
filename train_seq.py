@@ -72,9 +72,19 @@ results_dir_path = tools.create_results_dir("train_seq")
 tf_saver = tf.train.Saver()
 restore_model_file = None
 
+# just for restoring pre trained cnn weights
+cnn_variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, "^cnn_layer.*")
+cnn_init_tf_saver = tf.train.Saver(cnn_variables)
+cnn_init_model_file = \
+    "/home/lichunshang/Dev/end_to_end_visual_odometry/results/train_pair_20180330-22-45-02/model_checkpoint"
+
 # =================== TRAINING ========================
 with tf.Session() as sess:
-    if restore_model_file:
+    if cnn_init_model_file:
+        print("Taking initialization weights from %s..." % cnn_init_model_file)
+        sess.run(tf.global_variables_initializer())
+        cnn_init_tf_saver.restore(sess, cnn_init_model_file)
+    elif restore_model_file:
         print("Restoring model weights from %s..." % restore_model_file)
         tf_saver.restore(sess, restore_model_file)
     else:
@@ -151,7 +161,7 @@ with tf.Session() as sess:
         se3_val_losses_history[i_epoch, :] = epoch_se3_val_losses
 
         if ave_val_loss < best_val_loss:
-            tf_saved_path = tf_saver.save(sess, os.path.join(results_dir_path))
+            tf_saved_path = tf_saver.save(sess, os.path.join(results_dir_path, "model_checkpoint"))
             print("Best val loss, model saved.")
 
         print("Epoch %d, ave_se3_loss: %.3f, ave_fc_loss: %.3f, ave_val_loss: %f, time: %.2f" %

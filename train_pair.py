@@ -4,8 +4,8 @@ import config
 cfg = config.PairTrainConfigs
 
 print("Loading training data...")
-# train_data_gen = data.StatefulDataGen("/home/lichunshang/Dev/KITTI/dataset/",
-#                                       ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09"])
+# train_data_gen = data.StatefulDataGen(cfg, "/home/lichunshang/Dev/KITTI/dataset/",
+#                                       ["00"])
 train_data_gen = data.StatefulDataGen(cfg, "/home/lichunshang/Dev/KITTI/dataset/", ["01"], frames=range(0, 100))
 print("Loading validation data...")
 val_data_gen = data.StatefulDataGen(cfg, "/home/lichunshang/Dev/KITTI/dataset/", ["10"], frames=range(0, 100))
@@ -44,7 +44,7 @@ def calc_val_loss(sess):
         init_poses, reset_state, batch_data, fc_ground_truth, _ = val_data_gen.next_batch()
 
         _fc_losses = sess.run(
-            [fc_losses],
+            fc_losses,
             feed_dict={
                 inputs: batch_data,
                 fc_labels: fc_ground_truth,
@@ -57,7 +57,7 @@ def calc_val_loss(sess):
 
 
 # =================== SAVING/LOADING DATA ========================
-results_dir_path = tools.create_results_dir("train_seq")
+results_dir_path = tools.create_results_dir("train_pair")
 tf_saver = tf.train.Saver()
 restore_model_file = None
 
@@ -115,7 +115,7 @@ with tf.Session() as sess:
         fc_val_losses_history[i_epoch, :] = epoch_fc_val_losses
 
         if ave_val_loss < best_val_loss:
-            tf_saved_path = tf_saver.save(sess, os.path.join(results_dir_path))
+            tf_saved_path = tf_saver.save(sess, os.path.join(results_dir_path, "model_checkpoint"))
             print("Best val loss, model saved.")
 
         print("Epoch %d, ave_fc_loss: %.3f, ave_val_loss: %f, time: %.2f" %

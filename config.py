@@ -23,7 +23,7 @@ class SeqTrainConfigs(TrainConfigs):
 
 class PairTrainConfigs(TrainConfigs):
     timesteps = 1
-    batch_size = 1
+    batch_size = 50
 
     input_width = 1280
     input_height = 384

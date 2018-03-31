@@ -69,6 +69,13 @@ def fc_model(inputs):
         return fc_12
 
 
+def pair_train_fc_layer(inputs):
+    with tf.variable_scope("pair_train_fc_model", reuse=tf.AUTO_REUSE):
+        fc_128 = tf.contrib.layers.fully_connected(inputs, 128, scope="fc_128", activation_fn=tf.nn.relu)
+        fc_6 = tf.contrib.layers.fully_connected(fc_128, 6, scope="fc_6", activation_fn=None)
+        return fc_6
+
+
 def cnn_over_timesteps(inputs):
     with tf.variable_scope("cnn_over_timesteps"):
         unstacked_inputs = tf.unstack(inputs, axis=0)
@@ -115,9 +122,9 @@ def rnn_layer(cfg, inputs, initial_state):
         return outputs, final_state
 
 
-def fc_layer(inputs):
+def fc_layer(inputs, fc_model_fn=fc_model):
     with tf.variable_scope("fc_layer", reuse=tf.AUTO_REUSE):
-        fc_outputs = tools.static_map_fn(fc_model, inputs, axis=0)
+        fc_outputs = tools.static_map_fn(fc_model_fn, inputs, axis=0)
 
     return fc_outputs
 
@@ -201,6 +208,6 @@ def build_pair_training_model():
 
     print("Building FC...")
     with tf.device("/gpu:0"):
-        fc_outputs = fc_layer(cnn_outputs)
+        fc_outputs = fc_layer(cnn_outputs, pair_train_fc_layer)
 
     return inputs, fc_outputs
