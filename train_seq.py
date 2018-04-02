@@ -19,7 +19,7 @@ import time
 import tools
 
 # =================== MODEL + LOSSES + Optimizer ========================
-inputs, lstm_initial_state, initial_poses, fc_outputs, se3_outputs, lstm_states = model.build_seq_training_model()
+inputs, lstm_initial_state, initial_poses, is_training, fc_outputs, se3_outputs, lstm_states = model.build_seq_training_model()
 se3_labels, fc_labels = model.model_labels(cfg)
 
 print("Building losses...")
@@ -58,6 +58,7 @@ def calc_val_loss(sess):
                 lstm_initial_state: curr_lstm_states,
                 initial_poses: init_poses,
                 se3_labels: se3_ground_truth,
+                is_training: False
             }
         )
 
@@ -128,6 +129,7 @@ with tf.Session() as sess:
                     fc_labels: fc_ground_truth,
                     lstm_initial_state: curr_lstm_states,
                     fc_lr: 0.001,
+                    is_training: True
                 }
             )
 
@@ -139,6 +141,7 @@ with tf.Session() as sess:
                     lstm_initial_state: curr_lstm_states,
                     initial_poses: init_poses,
                     se3_lr: 0.001,
+                    is_training: True
                 }
             )
 

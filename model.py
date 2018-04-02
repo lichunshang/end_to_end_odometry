@@ -5,32 +5,51 @@ import config
 
 
 # CNN Block
-def cnn_model(inputs):
+# is_training to control whether to apply dropout
+def cnn_model(inputs, is_training):
     with tf.variable_scope("cnn_model"):
         conv_1 = tf.contrib.layers.conv2d(inputs, num_outputs=64, kernel_size=(7, 7,),
                                           stride=(2, 2), padding="same", scope="conv_1", data_format="NCHW")
-        conv_2 = tf.contrib.layers.conv2d(conv_1, num_outputs=128, kernel_size=(5, 5,),
+        dropout_conv_1 = tf.contrib.layers.dropout(conv_1, keep_prob=1.0, is_training=is_training,
+                                                   scope="dropout_conv_1")
+        conv_2 = tf.contrib.layers.conv2d(dropout_conv_1, num_outputs=128, kernel_size=(5, 5,),
                                           stride=(2, 2), padding="same", scope="conv_2", data_format="NCHW")
+        dropout_conv_2 = tf.contrib.layers.dropout(conv_2, keep_prob=1.0, is_training=is_training,
+                                                   scope="dropout_conv_2")
 
-        conv_3 = tf.contrib.layers.conv2d(conv_2, num_outputs=256, kernel_size=(5, 5,),
+        conv_3 = tf.contrib.layers.conv2d(dropout_conv_2, num_outputs=256, kernel_size=(5, 5,),
                                           stride=(2, 2), padding="same", scope="conv_3", data_format="NCHW")
-        conv_3_1 = tf.contrib.layers.conv2d(conv_3, num_outputs=256, kernel_size=(3, 3,),
+        dropout_conv_3 = tf.contrib.layers.dropout(conv_3, keep_prob=0.9, is_training=is_training,
+                                                   scope="dropout_conv_3")
+        conv_3_1 = tf.contrib.layers.conv2d(dropout_conv_3, num_outputs=256, kernel_size=(3, 3,),
                                             stride=(1, 1), padding="same", scope="conv_3_1", data_format="NCHW")
+        dropout_conv_3_1 = tf.contrib.layers.dropout(conv_3_1, keep_prob=0.9, is_training=is_training,
+                                                     scope="dropout_conv_3_1")
 
-        conv_4 = tf.contrib.layers.conv2d(conv_3_1, num_outputs=512, kernel_size=(3, 3,),
+        conv_4 = tf.contrib.layers.conv2d(dropout_conv_3_1, num_outputs=512, kernel_size=(3, 3,),
                                           stride=(2, 2), padding="same", scope="conv_4", data_format="NCHW")
-        conv_4_1 = tf.contrib.layers.conv2d(conv_4, num_outputs=512, kernel_size=(3, 3,),
+        dropout_conv_4 = tf.contrib.layers.dropout(conv_4, keep_prob=0.8, is_training=is_training,
+                                                   scope="dropout_conv_4")
+        conv_4_1 = tf.contrib.layers.conv2d(dropout_conv_4, num_outputs=512, kernel_size=(3, 3,),
                                             stride=(1, 1), padding="same", scope="conv_4_1", data_format="NCHW")
+        dropout_conv_4_1 = tf.contrib.layers.dropout(conv_4_1, keep_prob=0.8, is_training=is_training,
+                                                     scope="dropout_conv_4_1")
 
-        conv_5 = tf.contrib.layers.conv2d(conv_4_1, num_outputs=512, kernel_size=(3, 3,),
+        conv_5 = tf.contrib.layers.conv2d(dropout_conv_4_1, num_outputs=512, kernel_size=(3, 3,),
                                           stride=(2, 2), padding="same", scope="conv_5", data_format="NCHW")
-        conv_5_1 = tf.contrib.layers.conv2d(conv_5, num_outputs=512, kernel_size=(3, 3,),
+        dropout_conv_5 = tf.contrib.layers.dropout(conv_5, keep_prob=0.7, is_training=is_training,
+                                                   scope="dropout_conv_5")
+        conv_5_1 = tf.contrib.layers.conv2d(dropout_conv_5, num_outputs=512, kernel_size=(3, 3,),
                                             stride=(1, 1), padding="same", scope="conv_5_1", data_format="NCHW")
+        dropout_conv_5_1 = tf.contrib.layers.dropout(conv_5_1, keep_prob=0.7, is_training=is_training,
+                                                     scope="dropout_conv_5_1")
 
-        conv_6 = tf.contrib.layers.conv2d(conv_5_1, num_outputs=1024, kernel_size=(3, 3,),
+        conv_6 = tf.contrib.layers.conv2d(dropout_conv_5_1, num_outputs=1024, kernel_size=(3, 3,),
                                           stride=(2, 2), padding="same", scope="conv_6", data_format="NCHW",
                                           activation_fn=None)
-        return conv_6
+        dropout_conv_6 = tf.contrib.layers.dropout(conv_6, keep_prob=0.6, is_training=is_training,
+                                                   scope="dropout_conv_6")
+        return dropout_conv_6
 
 
 def cnn_model_lidar(inputs):
@@ -76,7 +95,7 @@ def pair_train_fc_layer(inputs):
         return fc_6
 
 
-def cnn_over_timesteps(inputs):
+def cnn_over_timesteps(inputs, is_training):
     with tf.variable_scope("cnn_over_timesteps"):
         unstacked_inputs = tf.unstack(inputs, axis=0)
 
@@ -85,7 +104,7 @@ def cnn_over_timesteps(inputs):
         for i in range(len(unstacked_inputs) - 1):
             # stack images along channels
             image_stacked = tf.concat((unstacked_inputs[i], unstacked_inputs[i + 1]), axis=1)
-            outputs.append(cnn_model(image_stacked))
+            outputs.append(cnn_model(image_stacked, is_training))
 
         return tf.stack(outputs, axis=0)
 
@@ -103,9 +122,9 @@ def se3_comp_over_timesteps(inputs, initial_pose):
         return tf.stack(poses)
 
 
-def cnn_layer(inputs):
+def cnn_layer(inputs, is_training):
     with tf.variable_scope("cnn_layer", reuse=tf.AUTO_REUSE):
-        outputs = cnn_over_timesteps(inputs)
+        outputs = cnn_over_timesteps(inputs, is_training)
 
     outputs = tf.reshape(outputs,
                          [outputs.shape[0], outputs.shape[1], outputs.shape[2] * outputs.shape[3] * outputs.shape[4]])
@@ -159,7 +178,10 @@ def model_inputs(cfg):
     # init poses, initial position for each example in the batch
     initial_poses = tf.placeholder(tf.float32, name="initial_poses", shape=[cfg.batch_size, 7])
 
-    return inputs, lstm_initial_state, initial_poses,
+    # is training
+    is_training = tf.placeholder(tf.bool, name="is_training", shape=[])
+
+    return inputs, lstm_initial_state, initial_poses, is_training
 
 
 def model_labels(cfg):
@@ -175,7 +197,7 @@ def model_labels(cfg):
 def build_seq_training_model():
     print("Building sequence to sequence training model")
 
-    inputs, lstm_initial_state, initial_poses = model_inputs(config.SeqTrainConfigs)
+    inputs, lstm_initial_state, initial_poses, is_training = model_inputs(config.SeqTrainConfigs)
 
     print("Building CNN...")
     with tf.device("/gpu:0"):
@@ -194,13 +216,13 @@ def build_seq_training_model():
         # at this point the outputs from the fully connected layer are  [x, y, z, yaw, pitch, roll, 6 x covars]
         se3_outputs = se3_layer(fc_outputs, initial_poses)
 
-    return inputs, lstm_initial_state, initial_poses, fc_outputs, se3_outputs, lstm_states
+    return inputs, lstm_initial_state, initial_poses, is_training, fc_outputs, se3_outputs, lstm_states
 
 
 def build_pair_training_model():
     print("Building sequence to sequence training model")
 
-    inputs, _, _ = model_inputs(config.PairTrainConfigs)
+    inputs, _, _, is_training = model_inputs(config.PairTrainConfigs)
 
     print("Building CNN...")
     with tf.device("/gpu:0"):
@@ -210,4 +232,4 @@ def build_pair_training_model():
     with tf.device("/gpu:0"):
         fc_outputs = fc_layer(cnn_outputs, pair_train_fc_layer)
 
-    return inputs, fc_outputs
+    return inputs, is_training, fc_outputs

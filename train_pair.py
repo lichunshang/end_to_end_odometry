@@ -19,7 +19,7 @@ import time
 import tools
 
 # =================== MODEL + LOSSES + Optimizer ========================
-inputs, fc_outputs = model.build_pair_training_model()
+inputs, is_training, fc_outputs = model.build_pair_training_model()
 _, fc_labels = model.model_labels(cfg)
 
 print("Building losses...")
@@ -48,6 +48,7 @@ def calc_val_loss(sess):
             feed_dict={
                 inputs: batch_data,
                 fc_labels: fc_ground_truth,
+                is_training: False
             }
         )
 
@@ -100,6 +101,7 @@ with tf.Session() as sess:
                     inputs: batch_data,
                     fc_labels: fc_ground_truth,
                     fc_lr: 0.001,
+                    is_training: True
                 }
             )
 
