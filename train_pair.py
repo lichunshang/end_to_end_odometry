@@ -121,7 +121,6 @@ with tf.Session() as sess:
             best_val_loss = ave_val_loss
             tf_saver.save(sess, os.path.join(results_dir_path, "model_best_val_checkpoint"))
             tools.printf("Best val loss, model saved.")
-
         elif i_epoch % 10 == 0:
             tf_saver.save(sess, os.path.join(results_dir_path, "model_epoch_checkpoint"))
             tools.printf("Checkpoint saved")

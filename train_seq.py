@@ -1,13 +1,14 @@
 import data
 import config
+import tools
 
 cfg = config.SeqTrainConfigs
 
-print("Loading training data...")
-# train_data_gen = data.StatefulDataGen("/home/lichunshang/Dev/KITTI/dataset/",
-#                                       ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09"])
-train_data_gen = data.StatefulDataGen(cfg, "/home/lichunshang/Dev/KITTI/dataset/", ["00", "01"], frames=[None, None])
-print("Loading validation data...")
+tools.printf("Loading training data...")
+train_data_gen = data.StatefulDataGen("/home/lichunshang/Dev/KITTI/dataset/",
+                                      ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09"])
+# train_data_gen = data.StatefulDataGen(cfg, "/home/lichunshang/Dev/KITTI/dataset/", ["00", "01"], frames=[None, None])
+tools.printf("Loading validation data...")
 val_data_gen = data.StatefulDataGen(cfg, "/home/lichunshang/Dev/KITTI/dataset/", ["10"], frames=[None])
 
 import os
@@ -22,13 +23,13 @@ import tools
 inputs, lstm_initial_state, initial_poses, is_training, fc_outputs, se3_outputs, lstm_states = model.build_seq_training_model()
 se3_labels, fc_labels = model.model_labels(cfg)
 
-print("Building losses...")
+tools.printf("Building losses...")
 with tf.device("/gpu:0"):
     with tf.variable_scope("Losses"):
         se3_losses = losses.se3_losses(se3_outputs, se3_labels, cfg.k)
         fc_losses = losses.fc_losses(fc_outputs, fc_labels)
 
-print("Building optimizer...")
+tools.printf("Building optimizer...")
 with tf.variable_scope("Optimizer"):
     # dynamic learning rates
     se3_lr = tf.placeholder(tf.float32, name="se3_lr", shape=[])
@@ -82,14 +83,14 @@ cnn_init_model_file = None
 # =================== TRAINING ========================
 with tf.Session() as sess:
     if cnn_init_model_file:
-        print("Taking initialization weights from %s..." % cnn_init_model_file)
+        tools.printf("Taking initialization weights from %s..." % cnn_init_model_file)
         sess.run(tf.global_variables_initializer())
         cnn_init_tf_saver.restore(sess, cnn_init_model_file)
     elif restore_model_file:
-        print("Restoring model weights from %s..." % restore_model_file)
+        tools.printf("Restoring model weights from %s..." % restore_model_file)
         tf_saver.restore(sess, restore_model_file)
     else:
-        print("Initializing variables...")
+        tools.printf("Initializing variables...")
         sess.run(tf.global_variables_initializer())
 
     # Visualization
@@ -102,9 +103,9 @@ with tf.Session() as sess:
     se3_val_losses_history = np.zeros([cfg.num_epochs, val_data_gen.total_batches()])
     best_val_loss = 9999999999
 
-    print("Start training loop...")
+    tools.printf("Start training loop...")
     for i_epoch in range(cfg.num_epochs):
-        print("Training Epoch: %d ..." % i_epoch)
+        tools.printf("Training Epoch: %d ..." % i_epoch)
 
         train_data_gen.next_epoch()
         curr_lstm_states = np.zeros([2, cfg.lstm_layers, cfg.batch_size, cfg.lstm_size])
@@ -151,7 +152,7 @@ with tf.Session() as sess:
             curr_lstm_states = _curr_lstm_states
 
             # print stats
-            print("batch %d/%d: se3_loss: %.3f, fc_loss: %.3f" % (
+            tools.printf("batch %d/%d: se3_loss: %.3f, fc_loss: %.3f" % (
                 train_data_gen.curr_batch(), train_data_gen.total_batches(), _se3_losses, _fc_losses))
 
         ave_se3_loss = sum(epoch_se3_losses_history) / total_batches
@@ -165,14 +166,18 @@ with tf.Session() as sess:
 
         if ave_val_loss < best_val_loss:
             best_val_loss = ave_val_loss
-            tf_saved_path = tf_saver.save(sess, os.path.join(results_dir_path, "model_checkpoint"))
-            print("Best val loss, model saved.")
+            tf_saver.save(sess, os.path.join(results_dir_path, "model_best_val_checkpoint"))
+            tools.printf("Best val loss, model saved.")
+        elif i_epoch % 10 == 0:
+            tf_saver.save(sess, os.path.join(results_dir_path, "model_epoch_checkpoint"))
+            tools.printf("Checkpoint saved")
 
-        print("Epoch %d, ave_se3_loss: %.3f, ave_fc_loss: %.3f, ave_val_loss: %f, time: %.2f" %
+        tools.printf("Epoch %d, ave_se3_loss: %.3f, ave_fc_loss: %.3f, ave_val_loss: %f, time: %.2f" %
               (i_epoch, ave_se3_loss, ave_fc_loss, ave_val_loss, time.time() - start_time))
-        print()
+        tools.printf()
 
     np.save(os.path.join(results_dir_path, "se3_losses_history"), se3_losses_history)
     np.save(os.path.join(results_dir_path, "fc_losses_history"), fc_losses_history)
     np.save(os.path.join(results_dir_path, "se3_val_losses_history"), se3_val_losses_history)
-    print("Saved results to %s" % results_dir_path)
+    tf_saver.save(sess, os.path.join(results_dir_path, "model_epoch_checkpoint"))
+    tools.printf("Saved results to %s" % results_dir_path)
