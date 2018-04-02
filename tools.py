@@ -100,7 +100,7 @@ def create_results_dir(prepend):
     return results_dir_path
 
 
-def printf(string):
+def printf(string=""):
     sys.stdout.write(string)
     sys.stdout.write("\n")
     sys.stdout.flush()

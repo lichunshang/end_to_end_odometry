@@ -94,7 +94,7 @@ with tf.Session() as sess:
 
         while train_data_gen.has_next_batch():
             init_poses, reset_state, batch_data, \
-            fc_ground_truth, _ = train_data_gen.next_batch()
+            fc_ground_truth, _ = train_data_gen.next_batch_random()
 
             _fc_outputs, _fc_losses, _fc_trainer = sess.run(
                 [fc_outputs, fc_losses, fc_trainer],

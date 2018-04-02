@@ -4,6 +4,7 @@ import config
 import gc
 import transformations
 import tools
+import random
 
 
 class StatefulDataGen(object):
@@ -15,6 +16,7 @@ class StatefulDataGen(object):
         self.truncated_seq_sizes = []
         self.end_of_sequence_indices = []
         self.curr_batch_idx = 0
+        self.unused_batch_indices = []
         self.cfg = config
 
         if not frames:
@@ -123,8 +125,10 @@ class StatefulDataGen(object):
                 ypr = transformations.euler_from_matrix(m, axes="rzyx")
                 self.fc_ground_truth[i, j] = np.concatenate([translation, ypr])  # double check
 
-        tools.printf("All data loaded, batche_size=%d, timesteps=%d, num_batches=%d" % (
+        tools.printf("All data loaded, batch_size=%d, timesteps=%d, num_batches=%d" % (
             self.cfg.batch_size, self.cfg.timesteps, self.total_batch_count))
+
+        self.next_epoch()
 
     def next_batch(self):
         i_b = self.curr_batch_idx
@@ -150,11 +154,31 @@ class StatefulDataGen(object):
 
         return init_poses, reset_state, batch, fc_ground_truth, se3_ground_truth
 
+    def next_batch_random(self):
+        i_b = self.unused_batch_indices.pop()
+        n = self.cfg.timesteps + 1  # number of frames in an example
+        # slice a batch from huge matrix of training data
+        batch = self.input_frames[i_b * n: (i_b + 1) * n, :, :, :, :]
+        batch = np.divide(batch, 255.0, dtype=np.float32)  # ensure float32
+
+        se3_ground_truth = self.se3_ground_truth[i_b * n + 1: (i_b + 1) * n, :, :]
+        fc_ground_truth = self.fc_ground_truth[i_b * n + 1: (i_b + 1) * n, :, :]
+        init_poses = self.se3_ground_truth[i_b * n, :, :]
+
+        reset_state = np.ones([self.cfg.batch_size], dtype=np.uint8)
+        self.curr_batch_idx += 1
+
+        return init_poses, reset_state, batch, fc_ground_truth, se3_ground_truth
+
     def has_next_batch(self):
         return self.curr_batch_idx < self.total_batch_count
 
     def next_epoch(self):
         self.curr_batch_idx = 0
+
+        # used for next_batch_random
+        self.unused_batch_indices = range(0, self.total_batch_count)
+        random.shuffle(self.unused_batch_indices)
 
     def curr_batch(self):
         return self.curr_batch_idx
