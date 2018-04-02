@@ -177,7 +177,7 @@ class StatefulDataGen(object):
         self.curr_batch_idx = 0
 
         # used for next_batch_random
-        self.unused_batch_indices = range(0, self.total_batch_count)
+        self.unused_batch_indices = list(range(0, self.total_batch_count))
         random.shuffle(self.unused_batch_indices)
 
     def curr_batch(self):

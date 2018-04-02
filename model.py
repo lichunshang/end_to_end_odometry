@@ -19,35 +19,35 @@ def cnn_model(inputs, is_training):
 
         conv_3 = tf.contrib.layers.conv2d(dropout_conv_2, num_outputs=256, kernel_size=(5, 5,),
                                           stride=(2, 2), padding="same", scope="conv_3", data_format="NCHW")
-        dropout_conv_3 = tf.contrib.layers.dropout(conv_3, keep_prob=0.9, is_training=is_training,
+        dropout_conv_3 = tf.contrib.layers.dropout(conv_3, keep_prob=1, is_training=is_training,
                                                    scope="dropout_conv_3")
         conv_3_1 = tf.contrib.layers.conv2d(dropout_conv_3, num_outputs=256, kernel_size=(3, 3,),
                                             stride=(1, 1), padding="same", scope="conv_3_1", data_format="NCHW")
-        dropout_conv_3_1 = tf.contrib.layers.dropout(conv_3_1, keep_prob=0.9, is_training=is_training,
+        dropout_conv_3_1 = tf.contrib.layers.dropout(conv_3_1, keep_prob=1, is_training=is_training,
                                                      scope="dropout_conv_3_1")
 
         conv_4 = tf.contrib.layers.conv2d(dropout_conv_3_1, num_outputs=512, kernel_size=(3, 3,),
                                           stride=(2, 2), padding="same", scope="conv_4", data_format="NCHW")
-        dropout_conv_4 = tf.contrib.layers.dropout(conv_4, keep_prob=0.8, is_training=is_training,
+        dropout_conv_4 = tf.contrib.layers.dropout(conv_4, keep_prob=0.9, is_training=is_training,
                                                    scope="dropout_conv_4")
         conv_4_1 = tf.contrib.layers.conv2d(dropout_conv_4, num_outputs=512, kernel_size=(3, 3,),
                                             stride=(1, 1), padding="same", scope="conv_4_1", data_format="NCHW")
-        dropout_conv_4_1 = tf.contrib.layers.dropout(conv_4_1, keep_prob=0.8, is_training=is_training,
+        dropout_conv_4_1 = tf.contrib.layers.dropout(conv_4_1, keep_prob=0.9, is_training=is_training,
                                                      scope="dropout_conv_4_1")
 
         conv_5 = tf.contrib.layers.conv2d(dropout_conv_4_1, num_outputs=512, kernel_size=(3, 3,),
                                           stride=(2, 2), padding="same", scope="conv_5", data_format="NCHW")
-        dropout_conv_5 = tf.contrib.layers.dropout(conv_5, keep_prob=0.7, is_training=is_training,
+        dropout_conv_5 = tf.contrib.layers.dropout(conv_5, keep_prob=0.8, is_training=is_training,
                                                    scope="dropout_conv_5")
         conv_5_1 = tf.contrib.layers.conv2d(dropout_conv_5, num_outputs=512, kernel_size=(3, 3,),
                                             stride=(1, 1), padding="same", scope="conv_5_1", data_format="NCHW")
-        dropout_conv_5_1 = tf.contrib.layers.dropout(conv_5_1, keep_prob=0.7, is_training=is_training,
+        dropout_conv_5_1 = tf.contrib.layers.dropout(conv_5_1, keep_prob=0.8, is_training=is_training,
                                                      scope="dropout_conv_5_1")
 
         conv_6 = tf.contrib.layers.conv2d(dropout_conv_5_1, num_outputs=1024, kernel_size=(3, 3,),
                                           stride=(2, 2), padding="same", scope="conv_6", data_format="NCHW",
                                           activation_fn=None)
-        dropout_conv_6 = tf.contrib.layers.dropout(conv_6, keep_prob=0.6, is_training=is_training,
+        dropout_conv_6 = tf.contrib.layers.dropout(conv_6, keep_prob=0.7, is_training=is_training,
                                                    scope="dropout_conv_6")
         return dropout_conv_6
 

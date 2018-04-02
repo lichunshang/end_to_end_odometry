@@ -119,13 +119,18 @@ with tf.Session() as sess:
 
         if ave_val_loss < best_val_loss:
             best_val_loss = ave_val_loss
-            tf_saved_path = tf_saver.save(sess, os.path.join(results_dir_path, "model_checkpoint"))
+            tf_saver.save(sess, os.path.join(results_dir_path, "model_best_val_checkpoint"))
             tools.printf("Best val loss, model saved.")
 
+        elif i_epoch % 10 == 0:
+            tf_saver.save(sess, os.path.join(results_dir_path, "model_epoch_checkpoint"))
+            tools.printf("Checkpoint saved")
+
         tools.printf("Epoch %d, ave_fc_loss: %.3f, ave_val_loss: %f, time: %.2f" %
-              (i_epoch, ave_fc_loss, ave_val_loss, time.time() - start_time))
+                     (i_epoch, ave_fc_loss, ave_val_loss, time.time() - start_time))
         tools.printf()
 
     np.save(os.path.join(results_dir_path, "fc_losses_history"), fc_losses_history)
     np.save(os.path.join(results_dir_path, "fc_val_losses_history"), fc_val_losses_history)
+    tf_saver.save(sess, os.path.join(results_dir_path, "model_epoch_checkpoint"))
     tools.printf("Saved results to %s" % results_dir_path)
