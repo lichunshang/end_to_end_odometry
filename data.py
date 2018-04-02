@@ -3,6 +3,7 @@ import numpy as np
 import config
 import gc
 import transformations
+import tools
 
 
 class StatefulDataGen(object):
@@ -62,7 +63,7 @@ class StatefulDataGen(object):
             for i_img in range(length):
 
                 if i_img % 100 == 0:
-                    print("Loading sequence %s %.1f%% " % (seq, (i_img / length) * 100))
+                    tools.printf("Loading sequence %s %.1f%% " % (seq, (i_img / length) * 100))
 
                 i = num_image_loaded % total_timesteps
                 j = num_image_loaded // total_timesteps
@@ -122,7 +123,7 @@ class StatefulDataGen(object):
                 ypr = transformations.euler_from_matrix(m, axes="rzyx")
                 self.fc_ground_truth[i, j] = np.concatenate([translation, ypr])  # double check
 
-        print("All data loaded, batche_size=%d, timesteps=%d, num_batches=%d" % (
+        tools.printf("All data loaded, batche_size=%d, timesteps=%d, num_batches=%d" % (
             self.cfg.batch_size, self.cfg.timesteps, self.total_batch_count))
 
     def next_batch(self):

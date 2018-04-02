@@ -9,6 +9,7 @@ from tensorflow.python.framework import tensor_shape
 import tensorflow as tf
 import config
 import os
+import sys
 import datetime
 
 
@@ -97,3 +98,9 @@ def create_results_dir(prepend):
         os.makedirs(results_dir_path)
 
     return results_dir_path
+
+
+def printf(string):
+    sys.stdout.write(string)
+    sys.stdout.write("\n")
+    sys.stdout.flush()
