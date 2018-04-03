@@ -104,3 +104,4 @@ def printf(string=""):
     sys.stdout.write(string)
     sys.stdout.write("\n")
     sys.stdout.flush()
+    
