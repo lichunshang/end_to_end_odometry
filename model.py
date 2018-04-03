@@ -132,12 +132,12 @@ def cnn_layer(inputs, is_training):
     return outputs
 
 
-def rnn_layer(cfg, inputs, initial_state, is_training):
+def rnn_layer(cfg, inputs, initial_state):
     with tf.variable_scope("rnn_layer", reuse=tf.AUTO_REUSE):
         initial_state = tuple(tf.unstack(initial_state))
 
         lstm = tf.contrib.cudnn_rnn.CudnnLSTM(cfg.lstm_layers, cfg.lstm_size)
-        outputs, final_state = lstm(inputs, initial_state=initial_state, is_training=is_training)
+        outputs, final_state = lstm(inputs, initial_state=initial_state, training=True)
         return outputs, final_state
 
 
@@ -205,7 +205,7 @@ def build_seq_training_model():
 
     print("Building RNN...")
     with tf.device("/gpu:0"):
-        lstm_outputs, lstm_states = rnn_layer(config.SeqTrainConfigs, cnn_outputs, lstm_initial_state, is_training)
+        lstm_outputs, lstm_states = rnn_layer(config.SeqTrainConfigs, cnn_outputs, lstm_initial_state)
 
     print("Building FC...")
     with tf.device("/gpu:0"):

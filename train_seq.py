@@ -5,9 +5,9 @@ import tools
 cfg = config.SeqTrainConfigs
 
 tools.printf("Loading training data...")
-train_data_gen = data.StatefulDataGen("/home/lichunshang/Dev/KITTI/dataset/",
+train_data_gen = data.StatefulDataGen(cfg, "/home/lichunshang/Dev/KITTI/dataset/",
                                       ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09"])
-# train_data_gen = data.StatefulDataGen(cfg, "/home/lichunshang/Dev/KITTI/dataset/", ["00", "01"], frames=[None, None])
+# train_data_gen = data.StatefulDataGen(cfg, "/home/lichunshang/Dev/KITTI/dataset/", ["01"], frames=[range(0, 100)])
 tools.printf("Loading validation data...")
 val_data_gen = data.StatefulDataGen(cfg, "/home/lichunshang/Dev/KITTI/dataset/", ["10"], frames=[None])
 
@@ -77,8 +77,9 @@ restore_model_file = None
 # just for restoring pre trained cnn weights
 cnn_variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, "^cnn_layer.*")
 cnn_init_tf_saver = tf.train.Saver(cnn_variables)
-cnn_init_model_file = None
-    # "/home/lichunshang/Dev/end_to_end_visual_odometry/results/train_pair_20180330-22-45-02/model_checkpoint"
+cnn_init_model_file = "/home/lichunshang/Dev/end_to_end_visual_odometry/results/" \
+                      "train_pair_20180402-12-21-24_seq_00_to_05_randomized_dropout(0.9, 0.8, 0.7)/" \
+                      "model_best_val_checkpoint"
 
 # =================== TRAINING ========================
 with tf.Session() as sess:
@@ -101,6 +102,8 @@ with tf.Session() as sess:
     se3_losses_history = np.zeros([cfg.num_epochs, total_batches])
     fc_losses_history = np.zeros([cfg.num_epochs, total_batches])
     se3_val_losses_history = np.zeros([cfg.num_epochs, val_data_gen.total_batches()])
+    fc_lr_set = 0.001
+    se3_lr_set = 0.001
     best_val_loss = 9999999999
 
     tools.printf("Start training loop...")
@@ -129,7 +132,7 @@ with tf.Session() as sess:
                     inputs: batch_data,
                     fc_labels: fc_ground_truth,
                     lstm_initial_state: curr_lstm_states,
-                    fc_lr: 0.001,
+                    fc_lr: fc_lr_set,
                     is_training: True
                 }
             )
@@ -141,7 +144,7 @@ with tf.Session() as sess:
                     se3_labels: se3_ground_truth,
                     lstm_initial_state: curr_lstm_states,
                     initial_poses: init_poses,
-                    se3_lr: 0.001,
+                    se3_lr: se3_lr_set,
                     is_training: True
                 }
             )
@@ -168,12 +171,12 @@ with tf.Session() as sess:
             best_val_loss = ave_val_loss
             tf_saver.save(sess, os.path.join(results_dir_path, "model_best_val_checkpoint"))
             tools.printf("Best val loss, model saved.")
-        elif i_epoch % 10 == 0:
+        elif i_epoch % 5 == 0:
             tf_saver.save(sess, os.path.join(results_dir_path, "model_epoch_checkpoint"))
             tools.printf("Checkpoint saved")
 
         tools.printf("Epoch %d, ave_se3_loss: %.3f, ave_fc_loss: %.3f, ave_val_loss: %f, time: %.2f" %
-              (i_epoch, ave_se3_loss, ave_fc_loss, ave_val_loss, time.time() - start_time))
+                     (i_epoch, ave_se3_loss, ave_fc_loss, ave_val_loss, time.time() - start_time))
         tools.printf()
 
     np.save(os.path.join(results_dir_path, "se3_losses_history"), se3_losses_history)
