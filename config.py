@@ -1,7 +1,9 @@
+import tools
+
 save_path = "/home/cs4li/Dev/end_to_end_visual_odometry/results"
 
 
-class TrainConfigs(object):
+class Configs(object):
     timesteps = 0
     batch_size = 0
     input_width = 0
@@ -9,8 +11,8 @@ class TrainConfigs(object):
     input_channels = 0
 
 
-class SeqTrainConfigs(TrainConfigs):
-    timesteps = 16
+class SeqTrainConfigs(Configs):
+    timesteps = 32
     batch_size = 1
     input_width = 1280
     input_height = 384
@@ -20,10 +22,10 @@ class SeqTrainConfigs(TrainConfigs):
     lstm_layers = 2
 
     num_epochs = 50
-    k = 10
+    k = 1
 
 
-class PairTrainConfigs(TrainConfigs):
+class PairTrainConfigs(Configs):
     timesteps = 1
     batch_size = 30
 
@@ -33,3 +35,9 @@ class PairTrainConfigs(TrainConfigs):
 
     num_epochs = 50
     k = 1
+
+
+def print_configs(cfg):
+    for attr in dir(cfg):
+        if not callable(getattr(cfg, attr)) and not attr.startswith("__"):
+            tools.printf("%s: %s" % (attr, getattr(cfg, attr)))

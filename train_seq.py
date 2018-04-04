@@ -9,6 +9,9 @@ import numpy as np
 import time
 
 # =================== CONFIGURATIONS ========================
+cfg = config.SeqTrainConfigs
+config.print_configs(cfg)
+
 lr_set = 0.001
 start_epoch = 0
 alpha_schedule = {0: 0.99,  # epoch: alpha
@@ -16,8 +19,6 @@ alpha_schedule = {0: 0.99,  # epoch: alpha
                   20: 0.5,
                   30: 0.1,
                   40: 0.025}
-
-cfg = config.SeqTrainConfigs
 
 # =================== MODEL + LOSSES + Optimizer ========================
 inputs, lstm_initial_state, initial_poses, is_training, fc_outputs, se3_outputs, lstm_states = model.build_seq_training_model()
@@ -35,17 +36,16 @@ tools.printf("Building optimizer...")
 with tf.variable_scope("Optimizer"):
     # dynamic learning rates
     lr = tf.placeholder(tf.float32, name="se3_lr", shape=[])
-    with tf.device("/gpu:0"):
-        trainer = tf.train.AdamOptimizer(learning_rate=lr).minimize(total_losses, colocate_gradients_with_ops=True)
+    trainer = tf.train.AdamOptimizer(learning_rate=lr).minimize(total_losses, colocate_gradients_with_ops=True)
 
 # ================ LOADING DATASET ===================
 
 tools.printf("Loading training data...")
 # train_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/",
 #                                       ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09"])
-train_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["01"], frames=[range(0, 10)])
+train_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["01"], frames=[None])
 tools.printf("Loading validation data...")
-val_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["10"], frames=[range(0, 10)])
+val_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["10"], frames=[None])
 
 
 # for evaluating validation loss
@@ -104,8 +104,11 @@ with tf.Session(config=config) as sess:
         sess.run(tf.global_variables_initializer())
 
     # Visualization
+    run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+    run_metadata = tf.RunMetadata()
     writer = tf.summary.FileWriter('graph_viz/')
     writer.add_graph(tf.get_default_graph())
+    writer.flush()
 
     total_batches = train_data_gen.total_batches()
     total_losses_history = np.zeros([cfg.num_epochs, total_batches])
@@ -125,9 +128,9 @@ with tf.Session(config=config) as sess:
         curr_lstm_states = np.zeros([2, cfg.lstm_layers, cfg.batch_size, cfg.lstm_size])
         start_time = time.time()
         _total_losses = 0
-        epoch_total_losses_history = []
-        epoch_fc_losses_history = []
-        epoch_se3_losses_history = []
+        epoch_total_losses_history = [0.0] * train_data_gen.total_batches()
+        epoch_fc_losses_history = [0.0] * train_data_gen.total_batches()
+        epoch_se3_losses_history = [0.0] * train_data_gen.total_batches()
 
         if i_epoch in alpha_schedule.keys():
             alpha_set = alpha_schedule[i_epoch]
@@ -136,13 +139,15 @@ with tf.Session(config=config) as sess:
         train_data_gen.next_epoch()
 
         while train_data_gen.has_next_batch():
+            j_batch = train_data_gen.curr_batch() - 1
+            # get inputs
             init_poses, reset_state, batch_data, \
             fc_ground_truth, se3_ground_truth = train_data_gen.next_batch()
-
             curr_lstm_states = data.reset_select_lstm_state(curr_lstm_states, reset_state)
 
+            # Run training session
             _total_losses, _fc_losses, _se3_losses, _trainer, _curr_lstm_states = sess.run(
-                [total_losses, fc_losses, se3_losses, trainer, lstm_states, ],
+                [total_losses, fc_losses, se3_losses, trainer, lstm_states],
                 feed_dict={
                     inputs: batch_data,
                     se3_labels: se3_ground_truth,
@@ -151,19 +156,22 @@ with tf.Session(config=config) as sess:
                     initial_poses: init_poses,
                     lr: lr_set,
                     alpha: alpha_set,
-                    is_training: True
-                }
+                    is_training: True,
+                },
+                options=run_options,
+                run_metadata=run_metadata
             )
-
-            epoch_total_losses_history.append(_total_losses)
-            epoch_fc_losses_history.append(_fc_losses)
-            epoch_se3_losses_history.append(_se3_losses)
-
             curr_lstm_states = _curr_lstm_states
 
+            # for tensorboard
+            writer.add_run_metadata(run_metadata, 'epochid=%d_batchid=%d' % (i_epoch, j_batch))
+
             # print stats
-            tools.printf("batch %d/%d: total_loss: %.3f" % (
-                train_data_gen.curr_batch(), train_data_gen.total_batches(), _total_losses))
+            epoch_total_losses_history[j_batch] = _total_losses
+            epoch_fc_losses_history[j_batch] = _fc_losses
+            epoch_se3_losses_history[j_batch] = _se3_losses
+            tools.printf("batch %d/%d: total_loss: %.3f, fc_loss: %.3f, se3_loss:%.3f" % (
+                train_data_gen.curr_batch(), train_data_gen.total_batches(), _total_losses, _fc_losses, _se3_losses))
 
         # accumulate training history
         ave_total_loss = sum(epoch_total_losses_history) / total_batches
@@ -190,6 +198,8 @@ with tf.Session(config=config) as sess:
             tf_saver.save(sess, os.path.join(results_dir_path, "model_epoch_checkpoint"))
             tools.printf("Checkpoint saved")
 
+        writer.flush()
+
         tools.printf(
             "Epoch %d, ave_total_loss: %.3f, ave_fc_loss: %.3f, ave_fc_loss: %.3f, ave_val_loss(se3): %f, time: %.2f" %
             (i_epoch, ave_total_loss, ave_fc_loss, ave_se3_loss, ave_val_loss, time.time() - start_time))
@@ -201,3 +211,4 @@ with tf.Session(config=config) as sess:
     np.save(os.path.join(results_dir_path, "val_losses_history_se3"), val_losses_history)
     tf_saver.save(sess, os.path.join(results_dir_path, "model_epoch_checkpoint"))
     tools.printf("Saved results to %s" % results_dir_path)
+    writer.close()
