@@ -36,6 +36,17 @@ def pair_train_fc_losses(outputs, labels_u, k):
         return tf.reduce_mean(loss)
 
 
+# reduce_prod for tensor length 6, x shape is [time length, batch size, 6]
+def reduce_prod_6(x):
+    r = tf.multiply(x[:, :, 0], x[:, :, 1])
+    r = tf.multiply(r, x[:, :, 2])
+    r = tf.multiply(r, x[:, :, 3])
+    r = tf.multiply(r, x[:, :, 4])
+    r = tf.multiply(r, x[:, :, 5])
+
+    return r
+
+
 # assumes time major
 def fc_losses(outputs, labels_u):
     with tf.variable_scope("fc_losses"):
@@ -47,7 +58,8 @@ def fc_losses(outputs, labels_u):
         Q = tf.multiply(L, L)
 
         # determinant of a diagonal matrix is product of it diagonal
-        log_det_Q = tf.log(tf.reduce_prod(Q, axis=2) + 1e-8)
+        # log_det_Q = tf.log(tf.reduce_prod(Q, axis=2) + 1e-8)
+        log_det_Q = tf.log(reduce_prod_6(Q) + 1e-8)
 
         # inverse of a diagonal matrix is elemental inverse
         inv_Q = tf.div(tf.constant(1, dtype=tf.float32), Q + 1e-8)

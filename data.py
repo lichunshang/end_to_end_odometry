@@ -92,8 +92,6 @@ class StatefulDataGen(object):
 
                     num_image_loaded += 1
 
-                gc.collect()  # force garbage collection
-
             # If the batch has the last frame in a sequence, the following frame
             # in the next batch must have a reset for lstm state
             self.end_of_sequence_indices.append((i + 1, j,))
@@ -129,6 +127,7 @@ class StatefulDataGen(object):
             self.cfg.batch_size, self.cfg.timesteps, self.total_batch_count))
 
         self.next_epoch()
+        gc.collect()  # force garbage collection
 
     def next_batch(self):
         i_b = self.curr_batch_idx

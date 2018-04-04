@@ -1,23 +1,23 @@
 import data
 import config
 import tools
-
-cfg = config.SeqTrainConfigs
-
-tools.printf("Loading training data...")
-train_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/",
-                                      ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09"])
-# train_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["01"], frames=[range(0, 100)])
-tools.printf("Loading validation data...")
-val_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["10"], frames=[None])
-
 import os
 import model
 import losses
 import tensorflow as tf
 import numpy as np
 import time
-import tools
+
+# =================== CONFIGURATIONS ========================
+lr_set = 0.001
+start_epoch = 0
+alpha_schedule = {0: 0.99,  # epoch: alpha
+                  10: 0.9,
+                  20: 0.5,
+                  30: 0.1,
+                  40: 0.025}
+
+cfg = config.SeqTrainConfigs
 
 # =================== MODEL + LOSSES + Optimizer ========================
 inputs, lstm_initial_state, initial_poses, is_training, fc_outputs, se3_outputs, lstm_states = model.build_seq_training_model()
@@ -36,7 +36,16 @@ with tf.variable_scope("Optimizer"):
     # dynamic learning rates
     lr = tf.placeholder(tf.float32, name="se3_lr", shape=[])
     with tf.device("/gpu:0"):
-        trainer = tf.train.AdamOptimizer(learning_rate=lr).minimize(total_losses)
+        trainer = tf.train.AdamOptimizer(learning_rate=lr).minimize(total_losses, colocate_gradients_with_ops=True)
+
+# ================ LOADING DATASET ===================
+
+tools.printf("Loading training data...")
+train_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/",
+                                      ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09"])
+# train_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["01"], frames=[range(0, 100)])
+tools.printf("Loading validation data...")
+val_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["10"], frames=[None])
 
 
 # for evaluating validation loss
@@ -79,16 +88,10 @@ cnn_init_tf_saver = tf.train.Saver(cnn_variables)
 cnn_init_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/" \
                       "train_pair_20180402-12-21-24_seq_00_to_05_randomized_dropout(0.9, 0.8, 0.7)/" \
                       "model_best_val_checkpoint"
-# =================== TRAINING PARAMS ========================
-lr_set = 0.001
-start_epoch = 0
-alpha_schedule = {0: 0.99,  # epoch: alpha
-                  10: 0.9,
-                  20: 0.5,
-                  30: 0.1,
-                  40: 0.025}
+
 # =================== TRAINING ========================
-with tf.Session() as sess:
+config = tf.ConfigProto(allow_soft_placement=True)
+with tf.Session(config=config) as sess:
     if cnn_init_model_file:
         tools.printf("Taking initialization weights from %s..." % cnn_init_model_file)
         sess.run(tf.global_variables_initializer())
@@ -111,7 +114,7 @@ with tf.Session() as sess:
     alpha_set = -1
 
     tools.printf("Start training loop...")
-    tools.printf("lr: %f" % lr)
+    tools.printf("lr: %f" % lr_set)
     tools.printf("start_epoch: %f" % start_epoch)
     tools.printf("alpha_schedule: %s" % alpha_schedule)
     for i_epoch in range(start_epoch, cfg.num_epochs):
