@@ -1,4 +1,4 @@
-save_path = "/home/lichunshang/Dev/end_to_end_visual_odometry/results"
+save_path = "/home/cs4li/Dev/end_to_end_visual_odometry/results"
 
 class TrainConfigs(object):
     timesteps = 0
