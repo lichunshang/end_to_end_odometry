@@ -20,6 +20,23 @@ def se3_losses(outputs, labels, k):
         return tf.reduce_mean(loss)
 
 
+def pair_train_fc_losses(outputs, labels_u, k):
+    with tf.variable_scope("pair_train_fc_losses"):
+        diff_p = outputs[:, :, 0:3] - labels_u[:, :, 0:3]
+        diff_e = outputs[:, :, 3:6] - labels_u[:, :, 3:6]
+
+        # takes the the dot product and sum it up along time
+        sum_diff_p_dot_p = tf.reduce_sum(tf.multiply(diff_p, diff_p), axis=(0, 2,))
+        sum_diff_e_dot_e = tf.reduce_sum(tf.multiply(diff_e, diff_e), axis=(0, 2,))
+
+        t = tf.cast(tf.shape(outputs)[0], tf.float32)
+
+        # multiplies the sum by 1 / t
+        loss = (sum_diff_p_dot_p + k * sum_diff_e_dot_e) / t
+
+        return tf.reduce_mean(loss)
+
+
 # assumes time major
 def fc_losses(outputs, labels_u):
     with tf.variable_scope("fc_losses"):
