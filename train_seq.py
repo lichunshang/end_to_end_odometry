@@ -41,11 +41,11 @@ with tf.variable_scope("Optimizer"):
 # ================ LOADING DATASET ===================
 
 tools.printf("Loading training data...")
-train_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/",
-                                      ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09"])
-# train_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["01"], frames=[range(0, 100)])
+# train_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/",
+#                                       ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09"])
+train_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["01"], frames=[range(0, 10)])
 tools.printf("Loading validation data...")
-val_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["10"], frames=[None])
+val_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["10"], frames=[range(0, 10)])
 
 
 # for evaluating validation loss
@@ -109,6 +109,8 @@ with tf.Session(config=config) as sess:
 
     total_batches = train_data_gen.total_batches()
     total_losses_history = np.zeros([cfg.num_epochs, total_batches])
+    fc_losses_history = np.zeros([cfg.num_epochs, total_batches])
+    se3_losses_history = np.zeros([cfg.num_epochs, total_batches])
     val_losses_history = np.zeros([cfg.num_epochs, val_data_gen.total_batches()])
     best_val_loss = 9999999999
     alpha_set = -1
@@ -124,6 +126,8 @@ with tf.Session(config=config) as sess:
         start_time = time.time()
         _total_losses = 0
         epoch_total_losses_history = []
+        epoch_fc_losses_history = []
+        epoch_se3_losses_history = []
 
         if i_epoch in alpha_schedule.keys():
             alpha_set = alpha_schedule[i_epoch]
@@ -137,8 +141,8 @@ with tf.Session(config=config) as sess:
 
             curr_lstm_states = data.reset_select_lstm_state(curr_lstm_states, reset_state)
 
-            _total_losses, trainer, _curr_lstm_states = sess.run(
-                [total_losses, trainer, lstm_states, ],
+            _total_losses, _fc_losses, _se3_losses, _trainer, _curr_lstm_states = sess.run(
+                [total_losses, fc_losses, se3_losses, trainer, lstm_states, ],
                 feed_dict={
                     inputs: batch_data,
                     se3_labels: se3_ground_truth,
@@ -152,6 +156,8 @@ with tf.Session(config=config) as sess:
             )
 
             epoch_total_losses_history.append(_total_losses)
+            epoch_fc_losses_history.append(_fc_losses)
+            epoch_se3_losses_history.append(_se3_losses)
 
             curr_lstm_states = _curr_lstm_states
 
@@ -159,26 +165,39 @@ with tf.Session(config=config) as sess:
             tools.printf("batch %d/%d: total_loss: %.3f" % (
                 train_data_gen.curr_batch(), train_data_gen.total_batches(), _total_losses))
 
+        # accumulate training history
         ave_total_loss = sum(epoch_total_losses_history) / total_batches
+        ave_fc_loss = sum(epoch_fc_losses_history) / total_batches
+        ave_se3_loss = sum(epoch_se3_losses_history) / total_batches
 
         total_losses_history[i_epoch, :] = epoch_total_losses_history
+        fc_losses_history[i_epoch, :] = epoch_fc_losses_history
+        se3_losses_history[i_epoch, :] = epoch_se3_losses_history
 
         epoch_val_losses, ave_val_loss = calc_val_loss(sess)
         val_losses_history[i_epoch, :] = epoch_val_losses
 
+        # check for best results
         if ave_val_loss < best_val_loss:
             best_val_loss = ave_val_loss
             tf_saver.save(sess, os.path.join(results_dir_path, "model_best_val_checkpoint"))
             tools.printf("Best val loss, model saved.")
         elif i_epoch % 5 == 0:
+            np.save(os.path.join(results_dir_path, "total_losses_history"), total_losses_history)
+            np.save(os.path.join(results_dir_path, "fc_losses_history"), fc_losses_history)
+            np.save(os.path.join(results_dir_path, "se3_losses_history"), se3_losses_history)
+            np.save(os.path.join(results_dir_path, "val_losses_history_se3"), val_losses_history)
             tf_saver.save(sess, os.path.join(results_dir_path, "model_epoch_checkpoint"))
             tools.printf("Checkpoint saved")
 
-        tools.printf("Epoch %d, ave_total_loss: %.3f, ave_val_loss(se3): %f, time: %.2f" %
-                     (i_epoch, ave_total_loss, ave_val_loss, time.time() - start_time))
+        tools.printf(
+            "Epoch %d, ave_total_loss: %.3f, ave_fc_loss: %.3f, ave_fc_loss: %.3f, ave_val_loss(se3): %f, time: %.2f" %
+            (i_epoch, ave_total_loss, ave_fc_loss, ave_se3_loss, ave_val_loss, time.time() - start_time))
         tools.printf()
 
     np.save(os.path.join(results_dir_path, "total_losses_history"), total_losses_history)
+    np.save(os.path.join(results_dir_path, "fc_losses_history"), fc_losses_history)
+    np.save(os.path.join(results_dir_path, "se3_losses_history"), se3_losses_history)
     np.save(os.path.join(results_dir_path, "val_losses_history_se3"), val_losses_history)
     tf_saver.save(sess, os.path.join(results_dir_path, "model_epoch_checkpoint"))
     tools.printf("Saved results to %s" % results_dir_path)
