@@ -2,25 +2,63 @@
 
 import pykitti
 import numpy as np
+from scipy.stats import binned_statistic
 import pickle
 
 base_dir = "/media/bapskiko/SpinDrive/kitti/dataset/"
-sequences = ["00", "01", "02", "03"]
+sequences = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]
 
 # channel, height, width
 img_shape = [64, 1152]
 img_channels = [2]
 
+enc_angles = np.linspace(-np.pi, np.pi, num=(img_shape[1] + 1), endpoint=False)
+
 for seq in sequences:
     data = pykitti.odometry(base_dir, seq)
-
     length = [len(data.poses)]
-
     images = np.zeros(length + img_channels + img_shape, dtype=np.float32)
+    scan_idx = 0
 
     #first need to convert each xyz
     for scan in data.velo:
-        bin_stats = np.zeros()
+        theta = np.arctan2(scan[:, 1], scan[:, 0])
+        xy = np.sqrt(np.square(scan[:, 0]) + np.square(scan[:, 1]))
+        az = np.arctan2(scan[:, 2], xy)
 
-        for pt in scan:
-            print(pt)
+        velo_start = np.min(az)
+        velo_end = np.max(az)
+        spacing = (velo_end - velo_start) / 63
+        az = np.rint((az - velo_start)/spacing).astype(np.int16)
+
+        dist = np.sqrt(np.square(xy) + np.square(scan[:,2]))
+
+        for i in range(0, 64):
+            if len(theta[az == i]) == 0:
+                images[scan_idx, 0, 63 - i, :] = np.max(dist)
+                images[scan_idx, 1, 63 - i, :] = 0
+            else:
+                strip_mean = binned_statistic(theta[az == i], [dist[az == i], scan[az == i, 3]], statistic='mean', bins=enc_angles)
+                mask = np.isnan(strip_mean.statistic[0])
+
+                for j in range(0, 2):
+                    images[scan_idx, j, 63-i, mask] = np.interp(np.flatnonzero(mask), np.flatnonzero(~mask), strip_mean.statistic[j, ~mask])
+                    images[scan_idx, j, 63-i, ~mask] = strip_mean.statistic[j, ~mask]
+
+        if scan_idx % 100 == 0:
+            print("Loading sequence %s %.1f%% " % (seq, (scan_idx / len(data.poses)) * 100))
+
+        scan_idx = scan_idx + 1
+
+    # save sequence to a pickle
+    range_out = open("/home/bapskiko/git/end_to_end_visual_odometry/pickles/" + str(seq) + "_range.pik", "wb")
+    int_out = open("/home/bapskiko/git/end_to_end_visual_odometry/pickles/" + str(seq) + "_intensity.pik", "wb")
+
+    for i in range(0, len(data.poses)):
+        pickle.dump(images[i, 0, :, :].astype(np.float16), range_out)
+        pickle.dump(images[i, 0, :, :].astype(np.float16), int_out)
+        if i % 100 == 0:
+            print("Saving sequence %s %.1f%% " % (seq, (i / len(data.poses)) * 100))
+
+    range_out.close()
+    int_out.close()
