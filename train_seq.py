@@ -20,6 +20,8 @@ alpha_schedule = {0: 0.99,  # epoch: alpha
                   30: 0.1,
                   40: 0.025}
 
+tensorboard_meta = False
+
 # =================== MODEL + LOSSES + Optimizer ========================
 inputs, lstm_initial_state, initial_poses, is_training, fc_outputs, se3_outputs, lstm_states = model.build_seq_training_model()
 se3_labels, fc_labels = model.model_labels(cfg)
@@ -36,7 +38,7 @@ tools.printf("Building optimizer...")
 with tf.variable_scope("Optimizer"):
     # dynamic learning rates
     lr = tf.placeholder(tf.float32, name="se3_lr", shape=[])
-    trainer = tf.train.AdamOptimizer(learning_rate=lr).minimize(total_losses, colocate_gradients_with_ops=True)
+    trainer = tf.train.AdamOptimizer(learning_rate=lr).minimize(total_losses, colocate_gradients_with_ops=False)
 
 # ================ LOADING DATASET ===================
 
@@ -90,8 +92,8 @@ cnn_init_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/" \
                       "model_best_val_checkpoint"
 
 # =================== TRAINING ========================
-config = tf.ConfigProto(allow_soft_placement=True)
-with tf.Session(config=config) as sess:
+# config = tf.ConfigProto(allow_soft_placement=True)
+with tf.Session(config=None) as sess:
     if cnn_init_model_file:
         tools.printf("Taking initialization weights from %s..." % cnn_init_model_file)
         sess.run(tf.global_variables_initializer())
@@ -104,8 +106,12 @@ with tf.Session(config=config) as sess:
         sess.run(tf.global_variables_initializer())
 
     # Visualization
-    run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
-    run_metadata = tf.RunMetadata()
+    if tensorboard_meta:
+        run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+        run_metadata = tf.RunMetadata()
+    else:
+        run_options = None
+        run_metadata = None
     writer = tf.summary.FileWriter('graph_viz/')
     writer.add_graph(tf.get_default_graph())
     writer.flush()
@@ -164,7 +170,7 @@ with tf.Session(config=config) as sess:
             curr_lstm_states = _curr_lstm_states
 
             # for tensorboard
-            writer.add_run_metadata(run_metadata, 'epochid=%d_batchid=%d' % (i_epoch, j_batch))
+            if tensorboard_meta: writer.add_run_metadata(run_metadata, 'epochid=%d_batchid=%d' % (i_epoch, j_batch))
 
             # print stats
             epoch_total_losses_history[j_batch] = _total_losses
@@ -198,7 +204,7 @@ with tf.Session(config=config) as sess:
             tf_saver.save(sess, os.path.join(results_dir_path, "model_epoch_checkpoint"))
             tools.printf("Checkpoint saved")
 
-        writer.flush()
+        if tensorboard_meta: writer.flush()
 
         tools.printf(
             "Epoch %d, ave_total_loss: %.3f, ave_fc_loss: %.3f, ave_fc_loss: %.3f, ave_val_loss(se3): %f, time: %.2f" %
@@ -211,4 +217,4 @@ with tf.Session(config=config) as sess:
     np.save(os.path.join(results_dir_path, "val_losses_history_se3"), val_losses_history)
     tf_saver.save(sess, os.path.join(results_dir_path, "model_epoch_checkpoint"))
     tools.printf("Saved results to %s" % results_dir_path)
-    writer.close()
+    if tensorboard_meta: writer.close()
