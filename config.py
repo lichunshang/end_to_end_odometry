@@ -12,7 +12,7 @@ class Configs(object):
 
 
 class SeqTrainConfigs(Configs):
-    timesteps = 32
+    timesteps = 28
     batch_size = 1
     input_width = 1280
     input_height = 384

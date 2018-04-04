@@ -204,7 +204,7 @@ def build_seq_training_model():
         cnn_outputs = cnn_layer(inputs, is_training)
 
     print("Building RNN...")
-    with tf.device("/gpu:1"):
+    with tf.device("/gpu:0"):
         lstm_outputs, lstm_states = rnn_layer(config.SeqTrainConfigs, cnn_outputs, lstm_initial_state)
 
     print("Building FC...")
