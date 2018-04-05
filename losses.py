@@ -10,7 +10,7 @@ def se3_losses(outputs, labels, k):
 
         # takes the the dot product and sum it up along time
         sum_diff_p_dot_p = tf.reduce_sum(tf.multiply(diff_p, diff_p), axis=(0, 2,))
-        sum_diff_q_dot_q = tf.reduce_sum(tf.multiply(diff_q, diff_q), axis=(0,))
+        sum_diff_q_dot_q = tf.reduce_sum(tf.multiply(diff_q, diff_q), axis=(0, 2, ))
 
         t = tf.cast(tf.shape(outputs)[0], tf.float32)
 

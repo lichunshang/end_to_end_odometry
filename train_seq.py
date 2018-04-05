@@ -14,11 +14,12 @@ config.print_configs(cfg)
 
 lr_set = 0.001
 start_epoch = 0
-alpha_schedule = {0: 0.99,  # epoch: alpha
-                  10: 0.9,
-                  20: 0.5,
-                  30: 0.1,
-                  40: 0.025}
+# alpha_schedule = {0: 0.99,  # epoch: alpha
+#                   10: 0.9,
+#                   20: 0.5,
+#                   30: 0.1,
+#                   40: 0.025}
+alpha_schedule = {0: 0.99},  # epoch: alpha
 
 tensorboard_meta = False
 
@@ -43,11 +44,11 @@ with tf.variable_scope("Optimizer"):
 # ================ LOADING DATASET ===================
 
 tools.printf("Loading training data...")
-train_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/",
-                                      ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09"])
-# train_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["01"], frames=[None])
+# train_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/",
+#                                       ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09"])
+train_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["03"], frames=[None])
 tools.printf("Loading validation data...")
-val_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["10"], frames=[None])
+val_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["03"], frames=[None])
 
 
 # for evaluating validation loss
@@ -87,6 +88,7 @@ restore_model_file = None
 # just for restoring pre trained cnn weights
 cnn_variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, "^cnn_layer.*")
 cnn_init_tf_saver = tf.train.Saver(cnn_variables)
+# cnn_init_model_file = None
 cnn_init_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/" \
                       "train_pair_20180402-12-21-24_seq_00_to_05_randomized_dropout(0.9, 0.8, 0.7)/" \
                       "model_best_val_checkpoint"
@@ -207,7 +209,7 @@ with tf.Session(config=None) as sess:
         if tensorboard_meta: writer.flush()
 
         tools.printf(
-            "Epoch %d, ave_total_loss: %.3f, ave_fc_loss: %.3f, ave_fc_loss: %.3f, ave_val_loss(se3): %f, time: %.2f" %
+            "Epoch %d, ave_total_loss: %.3f, ave_fc_loss: %.3f, ave_se3_loss: %.3f, ave_val_loss(se3): %f, time: %.2f" %
             (i_epoch, ave_total_loss, ave_fc_loss, ave_se3_loss, ave_val_loss, time.time() - start_time))
         tools.printf()
 

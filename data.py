@@ -121,6 +121,7 @@ class StatefulDataGen(object):
 
                 translation = transformations.translation_from_matrix(m)
                 ypr = transformations.euler_from_matrix(m, axes="rzyx")
+                assert(np.all(np.abs(ypr) < np.pi))
                 self.fc_ground_truth[i, j] = np.concatenate([translation, ypr])  # double check
 
         tools.printf("All data loaded, batch_size=%d, timesteps=%d, num_batches=%d" % (
