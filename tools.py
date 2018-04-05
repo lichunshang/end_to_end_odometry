@@ -97,6 +97,10 @@ def create_results_dir(prepend):
     if not os.path.exists(results_dir_path):
         os.makedirs(results_dir_path)
 
+    best_val_path = os.path.join(results_dir_path, "best_val")
+    if not os.path.exists(best_val_path):
+        os.makedirs(best_val_path)
+
     return results_dir_path
 
 

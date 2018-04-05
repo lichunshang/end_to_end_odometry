@@ -13,12 +13,12 @@ cfg = config.SeqTrainConfigs
 config.print_configs(cfg)
 
 lr_set = 0.001
-start_epoch = 0
+start_epoch = 21
 alpha_schedule = {0: 0.99,  # epoch: alpha
-                  10: 0.9,
-                  20: 0.5,
-                  30: 0.1,
-                  40: 0.025}
+                  20: 0.9,
+                  40: 0.5,
+                  60: 0.1,
+                  80: 0.025}
 # alpha_schedule = {0: 0.99}  # epoch: alpha
 
 tensorboard_meta = False
@@ -82,16 +82,19 @@ def calc_val_loss(sess):
 
 # =================== SAVING/LOADING DATA ========================
 results_dir_path = tools.create_results_dir("train_seq")
-tf_saver = tf.train.Saver()
-restore_model_file = None
+tf_saver = tf.train.Saver(max_to_keep=3)
+tf_best_saver = tf.train.Saver(max_to_keep=2)
+restore_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/" \
+                     "train_seq_20180405-12-25-20_seq_all_cnn_init_stopped_at_epoch_20/" \
+                     "model_epoch_checkpoint"
 
 # just for restoring pre trained cnn weights
 cnn_variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, "^cnn_layer.*")
 cnn_init_tf_saver = tf.train.Saver(cnn_variables)
-# cnn_init_model_file = None
-cnn_init_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/" \
-                      "train_pair_20180402-12-21-24_seq_00_to_05_randomized_dropout(0.9, 0.8, 0.7)/" \
-                      "model_best_val_checkpoint"
+cnn_init_model_file = None
+# cnn_init_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/" \
+#                       "train_pair_20180402-12-21-24_seq_00_to_05_randomized_dropout(0.9, 0.8, 0.7)/" \
+#                       "model_best_val_checkpoint"
 
 # =================== TRAINING ========================
 # config = tf.ConfigProto(allow_soft_placement=True)
@@ -196,14 +199,15 @@ with tf.Session(config=None) as sess:
         # check for best results
         if ave_val_loss < best_val_loss:
             best_val_loss = ave_val_loss
-            tf_saver.save(sess, os.path.join(results_dir_path, "model_best_val_checkpoint"))
+            tf_best_saver.save(sess, os.path.join(results_dir_path, "best_val", "model_best_val_checkpoint"),
+                               global_step=i_epoch)
             tools.printf("Best val loss, model saved.")
         elif i_epoch % 5 == 0:
             np.save(os.path.join(results_dir_path, "total_losses_history"), total_losses_history)
             np.save(os.path.join(results_dir_path, "fc_losses_history"), fc_losses_history)
             np.save(os.path.join(results_dir_path, "se3_losses_history"), se3_losses_history)
             np.save(os.path.join(results_dir_path, "val_losses_history_se3"), val_losses_history)
-            tf_saver.save(sess, os.path.join(results_dir_path, "model_epoch_checkpoint"))
+            tf_saver.save(sess, os.path.join(results_dir_path, "model_epoch_checkpoint"), global_step=i_epoch)
             tools.printf("Checkpoint saved")
 
         if tensorboard_meta: writer.flush()
@@ -217,6 +221,5 @@ with tf.Session(config=None) as sess:
     np.save(os.path.join(results_dir_path, "fc_losses_history"), fc_losses_history)
     np.save(os.path.join(results_dir_path, "se3_losses_history"), se3_losses_history)
     np.save(os.path.join(results_dir_path, "val_losses_history_se3"), val_losses_history)
-    tf_saver.save(sess, os.path.join(results_dir_path, "model_epoch_checkpoint"))
+    tf_saver.save(sess, os.path.join(results_dir_path, "model_epoch_checkpoint"), global_step=i_epoch)
     tools.printf("Saved results to %s" % results_dir_path)
-    if tensorboard_meta: writer.close()

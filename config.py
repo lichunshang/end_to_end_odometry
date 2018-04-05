@@ -21,7 +21,7 @@ class SeqTrainConfigs(Configs):
     lstm_size = 256
     lstm_layers = 2
 
-    num_epochs = 50
+    num_epochs = 100
     k = 1
 
 
