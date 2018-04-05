@@ -14,12 +14,12 @@ config.print_configs(cfg)
 
 lr_set = 0.001
 start_epoch = 0
-# alpha_schedule = {0: 0.99,  # epoch: alpha
-#                   10: 0.9,
-#                   20: 0.5,
-#                   30: 0.1,
-#                   40: 0.025}
-alpha_schedule = {0: 0.99},  # epoch: alpha
+alpha_schedule = {0: 0.99,  # epoch: alpha
+                  10: 0.9,
+                  20: 0.5,
+                  30: 0.1,
+                  40: 0.025}
+# alpha_schedule = {0: 0.99}  # epoch: alpha
 
 tensorboard_meta = False
 
@@ -31,7 +31,7 @@ tools.printf("Building losses...")
 with tf.device("/gpu:0"):
     with tf.variable_scope("Losses"):
         se3_losses = losses.se3_losses(se3_outputs, se3_labels, cfg.k)
-        fc_losses = losses.fc_losses(fc_outputs, fc_labels)
+        fc_losses = losses.pair_train_fc_losses(fc_outputs, fc_labels, cfg.k)
         alpha = tf.placeholder(tf.float32, name="alpha", shape=[])  # between 0 and 1, larger favors fc loss
         total_losses = (1 - alpha) * se3_losses + alpha * fc_losses
 
@@ -44,11 +44,11 @@ with tf.variable_scope("Optimizer"):
 # ================ LOADING DATASET ===================
 
 tools.printf("Loading training data...")
-# train_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/",
-#                                       ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09"])
-train_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["03"], frames=[None])
+train_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/",
+                                      ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09"])
+# train_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["03"], frames=[None])
 tools.printf("Loading validation data...")
-val_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["03"], frames=[None])
+val_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["10"], frames=[None])
 
 
 # for evaluating validation loss
