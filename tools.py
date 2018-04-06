@@ -112,24 +112,49 @@ def printf(string=""):
 
 
 class Losses(object):
-    def __init__(self, name, epochs, batches, path):
+    def __init__(self, name, epochs, batches):
         self.name = name
         self.storage = np.zeros([epochs, batches], dtype=np.float32)
-        self.path = path
 
     def log(self, i_epoch, i_batch, val):
         self.storage[i_epoch, i_batch] = val
 
-    def write_to_disk(self):
-        np.save(os.path.join(self.path, self.name), self.storage)
+    def write_to_disk(self, path):
+        np.save(os.path.join(self.name), self.storage)
+
+    def get_val(self, i_epoch, i_batch):
+        return self.storage[i_epoch, i_batch]
+
+    def get_ave(self, i_epoch):
+        return np.average(self.storage[i_epoch, :])
 
 
 class LossesSet(object):
-    def __init__(self, losses_names, epochs, batches, path):
+    def __init__(self, losses_names, epochs, batches):
         self.dict = {}
         for name in losses_names:
-            self.dict[name] = Losses(name, epochs, batches, path)
+            self.dict[name] = Losses(name, epochs, batches)
 
-    def log_entries(self, losses_vals, i_epoch, i_batch):
-        for key in losses_vals:
-            self.dict[key].log(i_epoch, i_batch, losses_vals[key])
+    def log(self, losses_vals_map, i_epoch, i_batch):
+        for key in self.dict:
+            self.dict[key].log(i_epoch, i_batch, losses_vals_map[key])
+
+    def batch_string(self, i_epoch, i_batch):
+        string = ""
+        for name in self.dict:
+            val = self.dict[name].get_val(i_epoch, i_batch)
+            string += "%s: %.3f," % (name, val)
+
+        return string
+
+    def epoch_string(self, i_epoch):
+        string = ""
+        for name in self.dict:
+            val = self.dict[name].get_ave(i_epoch)
+            string += "ave_%s: %.3f," % (name, val)
+
+        return string
+
+    def write_to_disk(self, path):
+        for key in self.dict:
+            self.dict[key].write_to_disk(path)

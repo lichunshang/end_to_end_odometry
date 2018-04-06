@@ -18,7 +18,7 @@ def se3_losses(outputs, labels, k):
         # multiplies the sum by 1 / t
         loss = (sum_diff_p_dot_p + k * sum_diff_q_dot_q) / t
 
-        return tf.reduce_mean(loss)
+        return tf.reduce_mean(loss), sum_diff_p_dot_p / t, sum_diff_q_dot_q / t
 
 
 def pair_train_fc_losses(outputs, labels_u, k):
@@ -35,7 +35,7 @@ def pair_train_fc_losses(outputs, labels_u, k):
         # multiplies the sum by 1 / t
         loss = (sum_diff_p_dot_p + k * sum_diff_e_dot_e) / t
 
-        return tf.reduce_mean(loss)
+        return tf.reduce_mean(loss), sum_diff_p_dot_p / t, sum_diff_e_dot_e / t
 
 
 # reduce_prod for tensor length 6, x shape is [time length, batch size, 6]
