@@ -11,6 +11,7 @@ import config
 import os
 import sys
 import datetime
+import numpy as np
 
 
 # TODO(yuanbyu, mrry): Handle stride to support sliding windows.
@@ -108,4 +109,27 @@ def printf(string=""):
     sys.stdout.write(string)
     sys.stdout.write("\n")
     sys.stdout.flush()
-    
+
+
+class Losses(object):
+    def __init__(self, name, epochs, batches, path):
+        self.name = name
+        self.storage = np.zeros([epochs, batches], dtype=np.float32)
+        self.path = path
+
+    def log(self, i_epoch, i_batch, val):
+        self.storage[i_epoch, i_batch] = val
+
+    def write_to_disk(self):
+        np.save(os.path.join(self.path, self.name), self.storage)
+
+
+class LossesSet(object):
+    def __init__(self, losses_names, epochs, batches, path):
+        self.dict = {}
+        for name in losses_names:
+            self.dict[name] = Losses(name, epochs, batches, path)
+
+    def log_entries(self, losses_vals, i_epoch, i_batch):
+        for key in losses_vals:
+            self.dict[key].log(i_epoch, i_batch, losses_vals[key])

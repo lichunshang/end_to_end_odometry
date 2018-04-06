@@ -14,12 +14,12 @@ config.print_configs(cfg)
 
 lr_set = 0.001
 start_epoch = 0
-alpha_schedule = {0: 0.99,  # epoch: alpha
-                  20: 0.9,
-                  40: 0.5,
-                  60: 0.1,
-                  80: 0.025}
-# alpha_schedule = {0: 0.99}  # epoch: alpha
+# alpha_schedule = {0: 0.99,  # epoch: alpha
+#                   20: 0.9,
+#                   40: 0.5,
+#                   60: 0.1,
+#                   80: 0.025}
+alpha_schedule = {0: 0.25}
 
 tensorboard_meta = False
 
@@ -126,10 +126,12 @@ with tf.Session(config=None) as sess:
     writer.flush()
 
     total_batches = train_data_gen.total_batches()
+
     total_losses_history = np.zeros([cfg.num_epochs, total_batches])
     fc_losses_history = np.zeros([cfg.num_epochs, total_batches])
     se3_losses_history = np.zeros([cfg.num_epochs, total_batches])
     val_losses_history = np.zeros([cfg.num_epochs, val_data_gen.total_batches()])
+
     best_val_loss = 9999999999
     alpha_set = -1
 
@@ -137,6 +139,8 @@ with tf.Session(config=None) as sess:
     tools.printf("lr: %f" % lr_set)
     tools.printf("start_epoch: %f" % start_epoch)
     tools.printf("alpha_schedule: %s" % alpha_schedule)
+
+    i_epoch = 0
     for i_epoch in range(start_epoch, cfg.num_epochs):
         tools.printf("Training Epoch: %d ..." % i_epoch)
 
