@@ -127,11 +127,9 @@ with tf.Session(config=None) as sess:
 
     # Set up for training
     total_batches = train_data_gen.total_batches()
-    train_losses_log_set = tools.LossesSet(
-        ["total_losses", "fc_losses", "se3_losses",
-         "fc_xyz_losses", "fc_ypr_losses", "se3_xyz_losses", "se3_quat_losses"],
-        cfg.num_epochs, train_data_gen.total_batches())
-    val_losses_log = tools.Losses("se3_val_losses", cfg.num_epochs, val_data_gen.total_batches())
+    train_losses_log_set = tools.LossesSet(["total", "fc", "se3", "fc_xyz", "fc_ypr", "se3_xyz", "se3_quat"],
+                                           cfg.num_epochs, train_data_gen.total_batches())
+    val_losses_log = tools.Losses("se3_val", cfg.num_epochs, val_data_gen.total_batches())
 
     tools.printf("Start training loop...")
     tools.printf("lr: %f" % lr_set)
@@ -184,9 +182,9 @@ with tf.Session(config=None) as sess:
             if tensorboard_meta: writer.add_run_metadata(run_metadata, 'epochid=%d_batchid=%d' % (i_epoch, j_batch))
 
             train_losses_log_set.log({
-                "total_losses": _total_losses, "fc_losses": _fc_losses, "se3_losses": _se3_losses,
-                "fc_xyz_losses": _fc_xyz_losses, "fc_ypr_losses": _fc_ypr_losses,
-                "se3_xyz_losses": _se3_xyz_losses, "se3_quat_losses": _se3_quat_losses
+                "total": _total_losses, "fc": _fc_losses, "se3": _se3_losses,
+                "fc_xyz": _fc_xyz_losses, "fc_ypr": _fc_ypr_losses,
+                "se3_xyz": _se3_xyz_losses, "se3_quat": _se3_quat_losses
             }, i_epoch, j_batch)
 
             # print stats
