@@ -44,9 +44,9 @@ with tf.variable_scope("Optimizer"):
 # ================ LOADING DATASET ===================
 
 tools.printf("Loading training data...")
-train_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/",
-                                      ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09"])
-# train_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["03"], frames=[None])
+# train_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/",
+#                                       ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09"])
+train_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["03"], frames=[None])
 tools.printf("Loading validation data...")
 val_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["10"], frames=[None])
 
@@ -75,7 +75,7 @@ def calc_val_loss(sess, i_epoch, losses_log):
         )
 
         curr_lstm_states = _curr_lstm_states
-        losses_log.log({"se3_val_losses": _se3_losses}, i_epoch, val_data_gen.curr_batch() - 1)
+        losses_log.log(i_epoch, val_data_gen.curr_batch() - 1, _se3_losses)
 
     return losses_log
 
@@ -154,7 +154,7 @@ with tf.Session(config=None) as sess:
         train_data_gen.next_epoch()
 
         while train_data_gen.has_next_batch():
-            j_batch = train_data_gen.curr_batch() - 1
+            j_batch = train_data_gen.curr_batch()
             # get inputs
             init_poses, reset_state, batch_data, \
             fc_ground_truth, se3_ground_truth = train_data_gen.next_batch()
@@ -196,7 +196,7 @@ with tf.Session(config=None) as sess:
 
         tools.printf("Evaluating validation loss...")
         val_losses_log = calc_val_loss(sess, i_epoch, val_losses_log)
-        ave_val_loss = val_losses_log.get_ave()
+        ave_val_loss = val_losses_log.get_ave(i_epoch)
 
         # check for best results
         if ave_val_loss < best_val_loss:
@@ -217,7 +217,7 @@ with tf.Session(config=None) as sess:
 
         if tensorboard_meta: writer.flush()
 
-        tools.printf("Epoch %d, %s ave_val_loss(se3): %f, time: %.2f\n" %
+        tools.printf("Epoch %d complete...\n%s ave_val_loss(se3): %f\ntime: %.2f\n" %
                      (i_epoch, train_losses_log_set.epoch_string(i_epoch), ave_val_loss, time.time() - start_time))
 
     tools.printf("Final save...")

@@ -12,6 +12,7 @@ import os
 import sys
 import datetime
 import numpy as np
+import collections
 
 
 # TODO(yuanbyu, mrry): Handle stride to support sliding windows.
@@ -120,7 +121,7 @@ class Losses(object):
         self.storage[i_epoch, i_batch] = val
 
     def write_to_disk(self, path):
-        np.save(os.path.join(self.name), self.storage)
+        np.save(os.path.join(path, self.name), self.storage)
 
     def get_val(self, i_epoch, i_batch):
         return self.storage[i_epoch, i_batch]
@@ -131,7 +132,7 @@ class Losses(object):
 
 class LossesSet(object):
     def __init__(self, losses_names, epochs, batches):
-        self.dict = {}
+        self.dict = collections.OrderedDict()
         for name in losses_names:
             self.dict[name] = Losses(name, epochs, batches)
 
@@ -143,7 +144,7 @@ class LossesSet(object):
         string = ""
         for name in self.dict:
             val = self.dict[name].get_val(i_epoch, i_batch)
-            string += "%s: %.3f," % (name, val)
+            string += "%s: %.3f, " % (name, val)
 
         return string
 
@@ -151,7 +152,7 @@ class LossesSet(object):
         string = ""
         for name in self.dict:
             val = self.dict[name].get_ave(i_epoch)
-            string += "ave_%s: %.3f," % (name, val)
+            string += "ave_%s: %.3f, " % (name, val)
 
         return string
 

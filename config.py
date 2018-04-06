@@ -21,9 +21,9 @@ class SeqTrainConfigs(Configs):
     lstm_size = 256
     lstm_layers = 2
 
-    num_epochs = 100
-    k_fc = 1
-    k_se3 = 1
+    num_epochs = 2
+    k_fc = 20
+    k_se3 = 500
 
 
 class PairTrainConfigs(Configs):
