@@ -14,12 +14,12 @@ config.print_configs(cfg)
 
 lr_set = 0.001
 start_epoch = 0
-# alpha_schedule = {0: 0.99,  # epoch: alpha
-#                   10: 0.9,
-#                   20: 0.5,
-#                   30: 0.1,
-#                   40: 0.025}
-alpha_schedule = {0: 0.99},  # epoch: alpha
+alpha_schedule = {0: 0.99,  # epoch: alpha
+                  20: 0.9,
+                  40: 0.5,
+                  60: 0.1,
+                  80: 0.025}
+# alpha_schedule = {0: 0.99}  # epoch: alpha
 
 tensorboard_meta = False
 
@@ -31,7 +31,7 @@ tools.printf("Building losses...")
 with tf.device("/gpu:0"):
     with tf.variable_scope("Losses"):
         se3_losses = losses.se3_losses(se3_outputs, se3_labels, cfg.k)
-        fc_losses = losses.fc_losses(fc_outputs, fc_labels)
+        fc_losses = losses.pair_train_fc_losses(fc_outputs, fc_labels, cfg.k)
         alpha = tf.placeholder(tf.float32, name="alpha", shape=[])  # between 0 and 1, larger favors fc loss
         total_losses = (1 - alpha) * se3_losses + alpha * fc_losses
 
@@ -44,11 +44,11 @@ with tf.variable_scope("Optimizer"):
 # ================ LOADING DATASET ===================
 
 tools.printf("Loading training data...")
-# train_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/",
-#                                       ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09"])
-train_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["03"], frames=[None])
+train_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/",
+                                      ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09"])
+# train_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["03"], frames=[None])
 tools.printf("Loading validation data...")
-val_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["03"], frames=[None])
+val_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["10"], frames=[None])
 
 
 # for evaluating validation loss
@@ -82,8 +82,15 @@ def calc_val_loss(sess):
 
 # =================== SAVING/LOADING DATA ========================
 results_dir_path = tools.create_results_dir("train_seq")
-tf_saver = tf.train.Saver()
+tf_checkpoint_saver = tf.train.Saver(max_to_keep=3)
+tf_best_saver = tf.train.Saver(max_to_keep=2)
+
+restore_variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, "^(cnn_layer|rnn_layer|fc_layer).*")
+tf_restore_saver = tf.train.Saver(restore_variables)
 restore_model_file = None
+# restore_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/" \
+#                      "train_seq_20180405-17-40-26_seq_all_cnn_init_stopped_at_epoch_60_no_covar/" \
+#                      "model_epoch_checkpoint-55"
 
 # just for restoring pre trained cnn weights
 cnn_variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, "^cnn_layer.*")
@@ -102,7 +109,7 @@ with tf.Session(config=None) as sess:
         cnn_init_tf_saver.restore(sess, cnn_init_model_file)
     elif restore_model_file:
         tools.printf("Restoring model weights from %s..." % restore_model_file)
-        tf_saver.restore(sess, restore_model_file)
+        tf_restore_saver.restore(sess, restore_model_file)
     else:
         tools.printf("Initializing variables...")
         sess.run(tf.global_variables_initializer())
@@ -190,20 +197,25 @@ with tf.Session(config=None) as sess:
         fc_losses_history[i_epoch, :] = epoch_fc_losses_history
         se3_losses_history[i_epoch, :] = epoch_se3_losses_history
 
+        tools.printf("Evaluating validation loss...")
         epoch_val_losses, ave_val_loss = calc_val_loss(sess)
         val_losses_history[i_epoch, :] = epoch_val_losses
 
         # check for best results
         if ave_val_loss < best_val_loss:
+            tools.printf("Saving best result...")
             best_val_loss = ave_val_loss
-            tf_saver.save(sess, os.path.join(results_dir_path, "model_best_val_checkpoint"))
+            tf_best_saver.save(sess, os.path.join(results_dir_path, "best_val", "model_best_val_checkpoint"),
+                               global_step=i_epoch)
             tools.printf("Best val loss, model saved.")
-        elif i_epoch % 5 == 0:
+        if i_epoch % 5 == 0:
+            tools.printf("Saving checkpoint...")
             np.save(os.path.join(results_dir_path, "total_losses_history"), total_losses_history)
             np.save(os.path.join(results_dir_path, "fc_losses_history"), fc_losses_history)
             np.save(os.path.join(results_dir_path, "se3_losses_history"), se3_losses_history)
             np.save(os.path.join(results_dir_path, "val_losses_history_se3"), val_losses_history)
-            tf_saver.save(sess, os.path.join(results_dir_path, "model_epoch_checkpoint"))
+            tf_checkpoint_saver.save(sess, os.path.join(results_dir_path, "model_epoch_checkpoint"),
+                                     global_step=i_epoch)
             tools.printf("Checkpoint saved")
 
         if tensorboard_meta: writer.flush()
@@ -213,10 +225,10 @@ with tf.Session(config=None) as sess:
             (i_epoch, ave_total_loss, ave_fc_loss, ave_se3_loss, ave_val_loss, time.time() - start_time))
         tools.printf()
 
+    tools.printf("Final save...")
     np.save(os.path.join(results_dir_path, "total_losses_history"), total_losses_history)
     np.save(os.path.join(results_dir_path, "fc_losses_history"), fc_losses_history)
     np.save(os.path.join(results_dir_path, "se3_losses_history"), se3_losses_history)
     np.save(os.path.join(results_dir_path, "val_losses_history_se3"), val_losses_history)
-    tf_saver.save(sess, os.path.join(results_dir_path, "model_epoch_checkpoint"))
+    tf_checkpoint_saver.save(sess, os.path.join(results_dir_path, "model_epoch_checkpoint"), global_step=i_epoch)
     tools.printf("Saved results to %s" % results_dir_path)
-    if tensorboard_meta: writer.close()

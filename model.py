@@ -209,7 +209,7 @@ def build_seq_training_model():
 
     print("Building FC...")
     with tf.device("/gpu:0"):
-        fc_outputs = fc_layer(lstm_outputs)
+        fc_outputs = fc_layer(lstm_outputs, pair_train_fc_layer)
 
     print("Building SE3...")
     with tf.device("/gpu:0"):

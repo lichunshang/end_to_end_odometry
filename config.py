@@ -13,7 +13,7 @@ class Configs(object):
 
 class SeqTrainConfigs(Configs):
     timesteps = 4
-    batch_size = 6
+    batch_size = 7
     input_width = 1280
     input_height = 384
     input_channels = 1
@@ -21,7 +21,7 @@ class SeqTrainConfigs(Configs):
     lstm_size = 256
     lstm_layers = 2
 
-    num_epochs = 50
+    num_epochs = 100
     k = 1
 
 
