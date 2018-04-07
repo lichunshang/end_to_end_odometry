@@ -85,12 +85,11 @@ results_dir_path = tools.create_results_dir("train_seq")
 tf_checkpoint_saver = tf.train.Saver(max_to_keep=3)
 tf_best_saver = tf.train.Saver(max_to_keep=2)
 
-restore_variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, "^(cnn_layer|rnn_layer|fc_layer).*")
-tf_restore_saver = tf.train.Saver(restore_variables)
+tf_restore_saver = tf.train.Saver()
 restore_model_file = None
 # restore_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/" \
-#                      "train_seq_20180405-17-40-26_seq_all_cnn_init_stopped_at_epoch_60_no_covar/" \
-#                      "model_epoch_checkpoint-55"
+#                      "train_seq_20180406-17-59-50_seq_all_cnn_init_cosine_dist/" \
+#                      "model_epoch_checkpoint-49"
 
 # just for restoring pre trained cnn weights
 cnn_variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, "^cnn_layer.*")
