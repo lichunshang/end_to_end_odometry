@@ -11,6 +11,8 @@ import config
 import os
 import sys
 import datetime
+import numpy as np
+import collections
 
 
 # TODO(yuanbyu, mrry): Handle stride to support sliding windows.
@@ -97,6 +99,10 @@ def create_results_dir(prepend):
     if not os.path.exists(results_dir_path):
         os.makedirs(results_dir_path)
 
+    best_val_path = os.path.join(results_dir_path, "best_val")
+    if not os.path.exists(best_val_path):
+        os.makedirs(best_val_path)
+
     return results_dir_path
 
 
@@ -104,3 +110,52 @@ def printf(string=""):
     sys.stdout.write(string)
     sys.stdout.write("\n")
     sys.stdout.flush()
+
+
+class Losses(object):
+    def __init__(self, name, epochs, batches):
+        self.name = name
+        self.storage = np.zeros([epochs, batches], dtype=np.float32)
+
+    def log(self, i_epoch, i_batch, val):
+        self.storage[i_epoch, i_batch] = val
+
+    def write_to_disk(self, path):
+        np.save(os.path.join(path, self.name), self.storage)
+
+    def get_val(self, i_epoch, i_batch):
+        return self.storage[i_epoch, i_batch]
+
+    def get_ave(self, i_epoch):
+        return np.average(self.storage[i_epoch, :])
+
+
+class LossesSet(object):
+    def __init__(self, losses_names, epochs, batches):
+        self.dict = collections.OrderedDict()
+        for name in losses_names:
+            self.dict[name] = Losses(name, epochs, batches)
+
+    def log(self, losses_vals_map, i_epoch, i_batch):
+        for key in self.dict:
+            self.dict[key].log(i_epoch, i_batch, losses_vals_map[key])
+
+    def batch_string(self, i_epoch, i_batch):
+        string = ""
+        for name in self.dict:
+            val = self.dict[name].get_val(i_epoch, i_batch)
+            string += "%s: %.3f, " % (name, val)
+
+        return string
+
+    def epoch_string(self, i_epoch):
+        string = ""
+        for name in self.dict:
+            val = self.dict[name].get_ave(i_epoch)
+            string += "ave_%s: %.3f, " % (name, val)
+
+        return string
+
+    def write_to_disk(self, path):
+        for key in self.dict:
+            self.dict[key].write_to_disk(path)

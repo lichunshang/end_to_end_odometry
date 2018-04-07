@@ -1,23 +1,25 @@
 import tensorflow as tf
 import se3
 
+
 # assumes time major
 def se3_losses(outputs, labels, k):
     with tf.variable_scope("se3_losses"):
         diff_p = outputs[:, :, 0:3] - labels[:, :, 0:3]
-        diff_q = outputs[:, :, 3:] - labels[:, :, 3:]
-        #diff_q = se3.quat_subtract(outputs[:, :, 3:], labels[:, :, 3:])
+        # diff_q = outputs[:, :, 3:] - labels[:, :, 3:]
+        diff_q = tf.subtract(tf.constant(1.0, dtype=tf.float32), tf.reduce_sum(tf.multiply(outputs[:, :, 3:], labels[:, :, 3:]), 2))
 
         # takes the the dot product and sum it up along time
         sum_diff_p_dot_p = tf.reduce_sum(tf.multiply(diff_p, diff_p), axis=(0, 2,))
-        sum_diff_q_dot_q = tf.reduce_sum(tf.multiply(diff_q, diff_q), axis=(0,))
+        #sum_diff_q_dot_q = tf.reduce_sum(tf.multiply(diff_q, diff_q), axis=(0, 2,))
+        sum_diff_q_dot_q = tf.reduce_sum(diff_q, 0)
 
         t = tf.cast(tf.shape(outputs)[0], tf.float32)
 
         # multiplies the sum by 1 / t
         loss = (sum_diff_p_dot_p + k * sum_diff_q_dot_q) / t
 
-        return tf.reduce_mean(loss)
+        return tf.reduce_mean(loss), tf.reduce_mean(sum_diff_p_dot_p / t), tf.reduce_mean(sum_diff_q_dot_q / t)
 
 
 def pair_train_fc_losses(outputs, labels_u, k):
@@ -34,7 +36,18 @@ def pair_train_fc_losses(outputs, labels_u, k):
         # multiplies the sum by 1 / t
         loss = (sum_diff_p_dot_p + k * sum_diff_e_dot_e) / t
 
-        return tf.reduce_mean(loss)
+        return tf.reduce_mean(loss), tf.reduce_mean(sum_diff_p_dot_p / t), tf.reduce_mean(sum_diff_e_dot_e / t)
+
+
+# reduce_prod for tensor length 6, x shape is [time length, batch size, 6]
+def reduce_prod_6(x):
+    r = tf.multiply(x[:, :, 0], x[:, :, 1])
+    r = tf.multiply(r, x[:, :, 2])
+    r = tf.multiply(r, x[:, :, 3])
+    r = tf.multiply(r, x[:, :, 4])
+    r = tf.multiply(r, x[:, :, 5])
+
+    return r
 
 
 # assumes time major
