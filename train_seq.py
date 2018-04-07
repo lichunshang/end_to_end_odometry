@@ -223,3 +223,5 @@ with tf.Session(config=None) as sess:
     val_losses_log.write_to_disk(results_dir_path)
     tf_checkpoint_saver.save(sess, os.path.join(results_dir_path, "model_epoch_checkpoint"), global_step=i_epoch)
     tools.printf("Saved results to %s" % results_dir_path)
+
+    sess.close()
