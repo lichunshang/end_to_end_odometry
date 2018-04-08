@@ -29,6 +29,7 @@ for i in range(len(filenames)):
     if found_files[i]:
         plt.figure()
         data = np.load(results_path + filenames[i])
+        data = data[~(data==0).all(1)]
         data = np.mean(data, axis=1)
         plt.semilogy(data)
         plt.title(filenames[i])
