@@ -19,7 +19,8 @@ start_epoch = 0
 #                   40: 0.5,
 #                   60: 0.1,
 #                   80: 0.025}
-alpha_schedule = {0: 0.25}
+alpha_schedule = {0: 0.99,
+                  50: 0.25}
 
 tensorboard_meta = False
 
