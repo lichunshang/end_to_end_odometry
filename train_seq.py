@@ -25,7 +25,7 @@ alpha_schedule = {0: 0.99,
 tensorboard_meta = False
 
 # =================== MODEL + LOSSES + Optimizer ========================
-inputs, lstm_initial_state, initial_poses, is_training, fc_outputs, se3_outputs, lstm_states = model.build_seq_training_model()
+inputs, lstm_initial_state, initial_poses, is_training, fc_outputs, se3_outputs, lstm_states = model.build_seq_model(cfg)
 se3_labels, fc_labels = model.model_labels(cfg)
 
 tools.printf("Building losses...")

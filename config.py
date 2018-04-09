@@ -38,6 +38,17 @@ class PairTrainConfigs(Configs):
     k = 1
 
 
+class CamEvalConfig(Configs):
+    timesteps = 8
+    batch_size = 1
+    input_width = 1280
+    input_height = 384
+    input_channels = 1
+
+    lstm_size = 256
+    lstm_layers = 2
+
+
 def print_configs(cfg):
     for attr in dir(cfg):
         if not callable(getattr(cfg, attr)) and not attr.startswith("__"):
