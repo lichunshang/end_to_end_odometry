@@ -28,14 +28,14 @@ class SeqTrainConfigs(Configs):
 
 class PairTrainConfigs(Configs):
     timesteps = 1
-    batch_size = 30
+    batch_size = 32
 
     input_width = 1280
     input_height = 384
     input_channels = 1
 
-    num_epochs = 100
-    k = 1
+    num_epochs = 50
+    k = 50
 
 
 class CamEvalConfig(Configs):

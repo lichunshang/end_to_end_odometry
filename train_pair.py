@@ -6,7 +6,7 @@ cfg = config.PairTrainConfigs
 
 tools.printf("Loading training data...")
 train_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/",
-                                      ["00", "01", "02", "03", "04", "05"])
+                                      ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09"])
 # train_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["01"], frames=[range(0, 100)])
 tools.printf("Loading validation data...")
 val_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["10"], frames=[None])
@@ -26,7 +26,7 @@ _, fc_labels = model.model_labels(cfg)
 tools.printf("Building losses...")
 with tf.device("/gpu:0"):
     with tf.variable_scope("Losses"):
-        fc_losses = losses.pair_train_fc_losses(fc_outputs, fc_labels, cfg.k)
+        fc_losses, fc_xyz_losses, fc_ypr_losses = losses.pair_train_fc_losses(fc_outputs, fc_labels, cfg.k)
 
 tools.printf("Building optimizer...")
 with tf.variable_scope("Optimizer"):
@@ -60,7 +60,7 @@ def calc_val_loss(sess):
 
 # =================== SAVING/LOADING DATA ========================
 results_dir_path = tools.create_results_dir("train_pair")
-tf_saver = tf.train.Saver()
+tf_saver = tf.train.Saver(max_to_keep=3)
 restore_model_file = None
 
 # =================== TRAINING ========================
@@ -96,8 +96,8 @@ with tf.Session() as sess:
             init_poses, reset_state, batch_data, \
             fc_ground_truth, _ = train_data_gen.next_batch_random()
 
-            _fc_outputs, _fc_losses, _fc_trainer = sess.run(
-                [fc_outputs, fc_losses, fc_trainer],
+            _fc_outputs, _fc_losses, _fc_trainer, _fc_xyz_losses, _fc_ypr_losses, = sess.run(
+                [fc_outputs, fc_losses, fc_trainer, fc_xyz_losses, fc_ypr_losses, ],
                 feed_dict={
                     inputs: batch_data,
                     fc_labels: fc_ground_truth,
@@ -109,8 +109,9 @@ with tf.Session() as sess:
             epoch_fc_losses_history.append(_fc_losses)
 
             # print stats
-            tools.printf("batch %d/%d: fc_loss: %.3f" % (
-                train_data_gen.curr_batch(), train_data_gen.total_batches(), _fc_losses))
+            tools.printf("batch %d/%d: fc_loss: %.3f, fc_xyz_losses: %.3f, fc_ypr_losses: %.3f" % (
+                train_data_gen.curr_batch(), train_data_gen.total_batches(),
+                _fc_losses, _fc_xyz_losses, _fc_ypr_losses))
 
         ave_fc_loss = sum(epoch_fc_losses_history) / total_batches
         fc_losses_history[i_epoch, :] = epoch_fc_losses_history
