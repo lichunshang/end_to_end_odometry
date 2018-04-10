@@ -2,6 +2,7 @@ import tensorflow as tf
 import se3
 import math as m
 
+
 # assumes time major
 def se3_losses(outputs, labels, k):
     with tf.variable_scope("se3_losses"):
@@ -31,12 +32,13 @@ def pair_train_fc_losses(outputs, labels_u, k):
         too_big = tf.greater(diff_e, tf.constant(m.pi, dtype=tf.float32))
         too_small = tf.less(diff_e, tf.constant(-m.pi, dtype=tf.float32))
 
-        wrapped_diff_e = tf.where(too_big, tf.subtract(diff_e, tf.constant(2*m.pi, dtype=tf.float32)),
-                                tf.where(too_small, tf.add(diff_e, tf.constant(2*m.pi, dtype=tf.float32)), diff_e))
+        wrapped_diff_e = tf.where(too_big, tf.subtract(diff_e, tf.constant(2 * m.pi, dtype=tf.float32)),
+                                  tf.where(too_small, tf.add(diff_e, tf.constant(2 * m.pi, dtype=tf.float32)), diff_e))
 
         # takes the the dot product and sum it up along time
-        sum_diff_p_dot_p = tf.reduce_sum(tf.multiply(diff_p, diff_p), axis=(0, 2,))
-        #sum_diff_e_dot_e = tf.reduce_sum(tf.multiply(diff_e, diff_e), axis=(0, 2,))
+        diff_p_sq = tf.multiply(diff_p, diff_p)
+        sum_diff_p_dot_p = tf.reduce_sum(diff_p_sq, axis=(0, 2,))
+        # sum_diff_e_dot_e = tf.reduce_sum(tf.multiply(diff_e, diff_e), axis=(0, 2,))
         sum_diff_e_dot_e = tf.reduce_sum(tf.multiply(wrapped_diff_e, wrapped_diff_e), axis=(0, 2,))
 
         t = tf.cast(tf.shape(outputs)[0], tf.float32)
@@ -44,7 +46,13 @@ def pair_train_fc_losses(outputs, labels_u, k):
         # multiplies the sum by 1 / t
         loss = (sum_diff_p_dot_p + k * sum_diff_e_dot_e) / t
 
-        return tf.reduce_mean(loss), tf.reduce_mean(sum_diff_p_dot_p / t), tf.reduce_mean(sum_diff_e_dot_e / t)
+        # return xyz losses
+        x_loss = tf.reduce_mean(diff_p_sq[:, :, 0])
+        y_loss = tf.reduce_mean(diff_p_sq[:, :, 1])
+        z_loss = tf.reduce_mean(diff_p_sq[:, :, 2])
+
+        return tf.reduce_mean(loss), tf.reduce_mean(sum_diff_p_dot_p / t), tf.reduce_mean(sum_diff_e_dot_e / t), \
+               x_loss, y_loss, z_loss
 
 
 # reduce_prod for tensor length 6, x shape is [time length, batch size, 6]

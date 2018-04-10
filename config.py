@@ -34,8 +34,8 @@ class PairTrainConfigs(Configs):
     input_height = 384
     input_channels = 3
 
-    num_epochs = 50
-    k = 50
+    num_epochs = 75
+    k = 100
 
 
 class CamEvalConfig(Configs):

@@ -25,14 +25,15 @@ alpha_schedule = {0: 0.99,
 tensorboard_meta = False
 
 # =================== MODEL + LOSSES + Optimizer ========================
-inputs, lstm_initial_state, initial_poses, is_training, fc_outputs, se3_outputs, lstm_states = model.build_seq_model(cfg)
+inputs, lstm_initial_state, initial_poses, is_training, fc_outputs, se3_outputs, lstm_states = model.build_seq_model(
+    cfg)
 se3_labels, fc_labels = model.model_labels(cfg)
 
 tools.printf("Building losses...")
 with tf.device("/gpu:0"):
     with tf.variable_scope("Losses"):
         se3_losses, se3_xyz_losses, se3_quat_losses = losses.se3_losses(se3_outputs, se3_labels, cfg.k_se3)
-        fc_losses, fc_xyz_losses, fc_ypr_losses = losses.pair_train_fc_losses(fc_outputs, fc_labels, cfg.k_fc)
+        fc_losses, fc_xyz_losses, fc_ypr_losses, _, _, _ = losses.pair_train_fc_losses(fc_outputs, fc_labels, cfg.k_fc)
         alpha = tf.placeholder(tf.float32, name="alpha", shape=[])  # between 0 and 1, larger favors fc loss
         total_losses = (1 - alpha) * se3_losses + alpha * fc_losses
 
