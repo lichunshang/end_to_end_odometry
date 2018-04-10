@@ -68,7 +68,8 @@ tf_init_saver = tf.train.Saver(cnn_variables)
 init_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/" \
                   "flownet_weights/flownet_s_weights"
 
-tf_saver = tf.train.Saver(max_to_keep=5)
+tf_saver = tf.train.Saver(max_to_keep=3)
+tf_best_val_saver = tf.train.Saver(max_to_keep=2)
 restore_model_file = None
 
 # =================== TRAINING ========================
@@ -135,11 +136,12 @@ with tf.Session() as sess:
 
         if ave_val_loss < best_val_loss:
             best_val_loss = ave_val_loss
-            tf_saver.save(sess, os.path.join(results_dir_path, "model_best_val_checkpoint"), global_step=i_epoch)
-            np.save(os.path.join(results_dir_path, "fc_losses_history"), fc_losses_history)
-            np.save(os.path.join(results_dir_path, "fc_val_losses_history"), fc_val_losses_history)
+            tf_best_val_saver.save(sess, os.path.join(results_dir_path, "best_val", "model_best_val_checkpoint"),
+                                   global_step=i_epoch)
+            np.save(os.path.join(results_dir_path, "best_val", "fc_losses_history"), fc_losses_history)
+            np.save(os.path.join(results_dir_path, "best_val", "fc_val_losses_history"), fc_val_losses_history)
             tools.printf("Best val loss, model saved.")
-        elif i_epoch % 10 == 0:
+        if i_epoch % 5 == 0:
             tf_saver.save(sess, os.path.join(results_dir_path, "model_epoch_checkpoint"), global_step=i_epoch)
             np.save(os.path.join(results_dir_path, "fc_losses_history"), fc_losses_history)
             np.save(os.path.join(results_dir_path, "fc_val_losses_history"), fc_val_losses_history)
