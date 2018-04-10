@@ -20,7 +20,7 @@ import time
 import tools
 
 # =================== MODEL + LOSSES + Optimizer ========================
-inputs, is_training, fc_outputs = model.build_pair_training_model()
+inputs, is_training, fc_outputs = model.build_pair_model(cfg)
 _, fc_labels = model.model_labels(cfg)
 
 tools.printf("Building losses...")

@@ -194,10 +194,10 @@ def model_labels(cfg):
     return se3_labels, fc_labels
 
 
-def build_seq_training_model():
+def build_seq_model(cfg):
     print("Building sequence to sequence training model")
 
-    inputs, lstm_initial_state, initial_poses, is_training = model_inputs(config.SeqTrainConfigs)
+    inputs, lstm_initial_state, initial_poses, is_training = model_inputs(cfg)
 
     print("Building CNN...")
     with tf.device("/gpu:0"):
@@ -205,7 +205,7 @@ def build_seq_training_model():
 
     print("Building RNN...")
     with tf.device("/gpu:0"):
-        lstm_outputs, lstm_states = rnn_layer(config.SeqTrainConfigs, cnn_outputs, lstm_initial_state)
+        lstm_outputs, lstm_states = rnn_layer(cfg, cnn_outputs, lstm_initial_state)
 
     print("Building FC...")
     with tf.device("/gpu:0"):
@@ -219,10 +219,10 @@ def build_seq_training_model():
     return inputs, lstm_initial_state, initial_poses, is_training, fc_outputs, se3_outputs, lstm_states
 
 
-def build_pair_training_model():
+def build_pair_model(cfg):
     print("Building sequence to sequence training model")
 
-    inputs, _, _, is_training = model_inputs(config.PairTrainConfigs)
+    inputs, _, _, is_training = model_inputs(cfg)
 
     print("Building CNN...")
     with tf.device("/gpu:0"):
