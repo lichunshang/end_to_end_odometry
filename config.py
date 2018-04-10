@@ -28,11 +28,11 @@ class SeqTrainConfigs(Configs):
 
 class PairTrainConfigs(Configs):
     timesteps = 1
-    batch_size = 32
+    batch_size = 28
 
     input_width = 1280
     input_height = 384
-    input_channels = 1
+    input_channels = 3
 
     num_epochs = 50
     k = 50
