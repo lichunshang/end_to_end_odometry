@@ -33,7 +33,8 @@ tools.printf("Building losses...")
 with tf.device("/gpu:0"):
     with tf.variable_scope("Losses"):
         se3_losses, se3_xyz_losses, se3_quat_losses = losses.se3_losses(se3_outputs, se3_labels, cfg.k_se3)
-        fc_losses, fc_xyz_losses, fc_ypr_losses, _, _, _ = losses.pair_train_fc_losses(fc_outputs, fc_labels, cfg.k_fc)
+        fc_losses, fc_xyz_losses, fc_ypr_losses, \
+        x_loss, y_loss, z_loss = losses.pair_train_fc_losses(fc_outputs, fc_labels, cfg.k_fc)
         alpha = tf.placeholder(tf.float32, name="alpha", shape=[])  # between 0 and 1, larger favors fc loss
         total_losses = (1 - alpha) * se3_losses + alpha * fc_losses
 
@@ -128,8 +129,9 @@ with tf.Session(config=None) as sess:
 
     # Set up for training
     total_batches = train_data_gen.total_batches()
-    train_losses_log_set = tools.LossesSet(["total", "fc", "se3", "fc_xyz", "fc_ypr", "se3_xyz", "se3_quat"],
-                                           cfg.num_epochs, train_data_gen.total_batches())
+    train_losses_log_set = tools.LossesSet(
+        ["total", "fc", "se3", "fc_xyz", "fc_ypr", "se3_xyz", "se3_quat", "x", "y", "z"],
+        cfg.num_epochs, train_data_gen.total_batches())
     val_losses_log = tools.Losses("se3_val", cfg.num_epochs, val_data_gen.total_batches())
 
     tools.printf("Start training loop...")
@@ -161,9 +163,10 @@ with tf.Session(config=None) as sess:
 
             # Run training session
             _trainer, _curr_lstm_states, _total_losses, _fc_losses, _se3_losses, \
-            _fc_xyz_losses, _fc_ypr_losses, _se3_xyz_losses, _se3_quat_losses = sess.run(
+            _fc_xyz_losses, _fc_ypr_losses, _se3_xyz_losses, _se3_quat_losses, \
+            _x_loss, _y_loss, _z_loss = sess.run(
                 [trainer, lstm_states, total_losses, fc_losses, se3_losses,
-                 fc_xyz_losses, fc_ypr_losses, se3_xyz_losses, se3_quat_losses],
+                 fc_xyz_losses, fc_ypr_losses, se3_xyz_losses, se3_quat_losses, x_loss, y_loss, z_loss],
                 feed_dict={
                     inputs: batch_data,
                     se3_labels: se3_ground_truth,
@@ -185,7 +188,8 @@ with tf.Session(config=None) as sess:
             train_losses_log_set.log({
                 "total": _total_losses, "fc": _fc_losses, "se3": _se3_losses,
                 "fc_xyz": _fc_xyz_losses, "fc_ypr": _fc_ypr_losses,
-                "se3_xyz": _se3_xyz_losses, "se3_quat": _se3_quat_losses
+                "se3_xyz": _se3_xyz_losses, "se3_quat": _se3_quat_losses,
+                "x": _x_loss, "y": _y_loss, "z": _z_loss
             }, i_epoch, j_batch)
 
             # print stats

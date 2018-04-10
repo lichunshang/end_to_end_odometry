@@ -16,7 +16,7 @@ class SeqTrainConfigs(Configs):
     batch_size = 4
     input_width = 1280
     input_height = 384
-    input_channels = 1
+    input_channels = 3
 
     lstm_size = 256
     lstm_layers = 2

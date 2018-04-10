@@ -47,9 +47,9 @@ def pair_train_fc_losses(outputs, labels_u, k):
         loss = (sum_diff_p_dot_p + k * sum_diff_e_dot_e) / t
 
         # return xyz losses
-        x_loss = tf.reduce_mean(diff_p_sq[:, :, 0])
-        y_loss = tf.reduce_mean(diff_p_sq[:, :, 1])
-        z_loss = tf.reduce_mean(diff_p_sq[:, :, 2])
+        x_loss = tf.reduce_mean(tf.sqrt(diff_p_sq[:, :, 0]))
+        y_loss = tf.reduce_mean(tf.sqrt(diff_p_sq[:, :, 1]))
+        z_loss = tf.reduce_mean(tf.sqrt(diff_p_sq[:, :, 2]))
 
         return tf.reduce_mean(loss), tf.reduce_mean(sum_diff_p_dot_p / t), tf.reduce_mean(sum_diff_e_dot_e / t), \
                x_loss, y_loss, z_loss
