@@ -38,7 +38,7 @@ class PairTrainConfigs(Configs):
     k = 100
 
 
-class CamEvalConfig(Configs):
+class SeqCamEvalConfig(Configs):
     timesteps = 8
     batch_size = 1
     input_width = 1280
@@ -47,6 +47,13 @@ class CamEvalConfig(Configs):
 
     lstm_size = 256
     lstm_layers = 2
+
+class PairCamEvalConfig(Configs):
+    timesteps = 1
+    batch_size = 1
+    input_width = 1280
+    input_height = 384
+    input_channels = 3
 
 
 def print_configs(cfg):

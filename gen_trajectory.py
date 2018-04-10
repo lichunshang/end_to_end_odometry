@@ -14,7 +14,7 @@ if kitti_seq in ["11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21
 else:
     save_ground_truth = True
 
-cfg = config.CamEvalConfig
+cfg = config.SeqCamEvalConfig
 
 tools.printf("Building eval model....")
 inputs, lstm_initial_state, initial_poses, \
@@ -64,13 +64,6 @@ with tf.Session() as sess:
         )
         curr_lstm_states = _curr_lstm_states
         init_pose = _se3_outputs[0]
-
-        # print(curr_lstm_states)
-        # print(init_pose)
-
-        #
-        # print(_se3_outputs)
-        # print(se3_ground_truth)
 
         prediction[j_batch + 1, :] = _se3_outputs[-1, -1]
         ground_truth[j_batch + 1:] = se3_ground_truth[-1, -1]
