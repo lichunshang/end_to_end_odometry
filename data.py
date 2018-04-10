@@ -198,3 +198,10 @@ def reset_select_lstm_state(lstm_states, mask):
             lstm_states[0][:, i, :] = 0
             lstm_states[1][:, i, :] = 0
     return lstm_states
+
+
+def reset_select_init_pose(init_pose, mask):
+    for i in range(0, len(mask)):
+        if mask[i]:
+            init_pose[i, :] = np.array([0, 0, 0, 1, 0, 0, 0])
+    return init_pose

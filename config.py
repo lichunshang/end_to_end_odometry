@@ -22,7 +22,7 @@ class SeqTrainConfigs(Configs):
     lstm_layers = 2
 
     num_epochs = 100
-    k_fc = 20
+    k_fc = 50
     k_se3 = 500
 
 
