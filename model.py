@@ -154,15 +154,17 @@ def rnn_layer(cfg, inputs, initial_state):
         initial_state = tuple(tf.unstack(initial_state))
 
         #need to break up LSTMs to get states in the middle
-        mid_offset = inputs.shape[0] - cfg.sequence_stride
-        if mid_offset > 0:
-            lstm1 = native_lstm.CudnnRNNReuse(cfg.lstm_layers, cfg.lstm_size, name='rnn_layer', variable_namespace="rnn_layer")
+        mid_offset = cfg.sequence_stride
+        if mid_offset < inputs.shape[0]:
+            lstm1 = native_lstm.CudnnLSTM(cfg.lstm_layers, cfg.lstm_size, name='rnn_layer', variable_namespace="rnn_layer")
+            lstm1.build(inputs[0:mid_offset, :, :].shape)
             mid_output, output_state = lstm1(inputs[0:mid_offset, :, :], initial_state=initial_state, training=True)
 
-            lstm2 = native_lstm.CudnnRNNReuse(cfg.lstm_layers, cfg.lstm_size, name='rnn_layer', variable_namespace="rnn_layer")
+            lstm2 = native_lstm.CudnnLSTM(cfg.lstm_layers, cfg.lstm_size, name='rnn_layer', variable_namespace="rnn_layer")
+            lstm2.build(inputs[mid_offset:, :, :].shape)
             end_output, _ = lstm2(inputs[mid_offset:, :, :], initial_state=output_state, training=True)
 
-            outputs = tf.concat(mid_output, end_output, axis=0)
+            outputs = tf.concat((mid_output, end_output), axis=0)
         else:
             lstm = tf.contrib.cudnn_rnn.CudnnLSTM(cfg.lstm_layers, cfg.lstm_size)
             outputs, output_state = lstm(inputs, initial_state=initial_state, training=True)

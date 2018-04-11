@@ -1,4 +1,4 @@
-import data
+import data_roller as data
 import config
 import tools
 import os
@@ -9,7 +9,8 @@ import numpy as np
 import time
 
 # =================== CONFIGURATIONS ========================
-cfg = config.SeqTrainConfigs
+#cfg = config.SeqTrainConfigs
+cfg = config.SeqTrainConfigsSmallSteps
 config.print_configs(cfg)
 
 lr_set = 0.001
@@ -19,7 +20,9 @@ start_epoch = 0
 #                   40: 0.5,
 #                   60: 0.1,
 #                   80: 0.025}
-alpha_schedule = {0: 0.99,
+alpha_schedule = {0: 1,
+                  20: 0.999,
+                  30: 0.99,
                   50: 0.25}
 
 tensorboard_meta = False
@@ -47,22 +50,24 @@ with tf.variable_scope("Optimizer"):
 # ================ LOADING DATASET ===================
 
 tools.printf("Loading training data...")
-train_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/",
-                                      ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09"])
-# train_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["03"], frames=[None])
+#train_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/",
+#                                      ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09"])
+train_data_gen = data.StatefulRollerDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["03"], frames=[range(40)])
 tools.printf("Loading validation data...")
-val_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["10"], frames=[None])
+val_data_gen = data.StatefulRollerDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["10"], frames=[range(40)])
 
 
 # for evaluating validation loss
 def calc_val_loss(sess, i_epoch, losses_log):
     curr_lstm_states = np.zeros([2, cfg.lstm_layers, cfg.batch_size, cfg.lstm_size])
-    init_poses = val_data_gen.se3_ground_truth[0, :, :]
+
+    init_poses = np.zeros([cfg.batch_size, 7], dtype=np.float32)
+    init_poses[:, 3] = np.ones([cfg.batch_size], dtype=np.float32)
 
     val_data_gen.next_epoch()
 
     while val_data_gen.has_next_batch():
-        _, reset_state, batch_data, _, se3_ground_truth = val_data_gen.next_batch()
+        reset_state, batch_data, _, se3_ground_truth = val_data_gen.next_batch()
 
         curr_lstm_states = data.reset_select_lstm_state(curr_lstm_states, reset_state)
 
@@ -78,7 +83,7 @@ def calc_val_loss(sess, i_epoch, losses_log):
         )
 
         curr_lstm_states = _curr_lstm_states
-        init_poses = _se3_outputs[-1, :, :]
+        init_poses = _se3_outputs[cfg.sequence_stride, :, :]
         losses_log.log(i_epoch, val_data_gen.curr_batch() - 1, _se3_losses)
 
     return losses_log
@@ -146,20 +151,21 @@ with tf.Session(config=None) as sess:
         tools.printf("Training Epoch: %d ..." % i_epoch)
 
         curr_lstm_states = np.zeros([2, cfg.lstm_layers, cfg.batch_size, cfg.lstm_size])
-        init_poses = train_data_gen.se3_ground_truth[0, :, :]
         start_time = time.time()
 
         if i_epoch in alpha_schedule.keys():
             alpha_set = alpha_schedule[i_epoch]
             tools.printf("alpha set to %f" % alpha_set)
 
-        train_data_gen.next_epoch()
+        init_poses = np.zeros([cfg.batch_size, 7], dtype=np.float32)
+        init_poses[:,3] = np.ones([cfg.batch_size], dtype=np.float32)
 
         while train_data_gen.has_next_batch():
             j_batch = train_data_gen.curr_batch()
             # get inputs
-            _, reset_state, batch_data, \
+            reset_state, batch_data, \
             fc_ground_truth, se3_ground_truth = train_data_gen.next_batch()
+
             curr_lstm_states = data.reset_select_lstm_state(curr_lstm_states, reset_state)
             init_poses = data.reset_select_init_pose(init_poses, reset_state)
 
@@ -183,7 +189,7 @@ with tf.Session(config=None) as sess:
                 run_metadata=run_metadata
             )
             curr_lstm_states = _curr_lstm_states
-            init_poses = _se3_outputs[-1, :, :]
+            init_poses = _se3_outputs[cfg.sequence_stride, :, :]
 
             # for tensorboard
             if tensorboard_meta: writer.add_run_metadata(run_metadata, 'epochid=%d_batchid=%d' % (i_epoch, j_batch))
@@ -225,6 +231,8 @@ with tf.Session(config=None) as sess:
 
         tools.printf("Epoch %d complete...\n%s ave_val_loss(se3): %f\ntime: %.2f\n" %
                      (i_epoch, train_losses_log_set.epoch_string(i_epoch), ave_val_loss, time.time() - start_time))
+
+        train_data_gen.next_epoch()
 
     tools.printf("Final save...")
     train_losses_log_set.write_to_disk(results_dir_path)

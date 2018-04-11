@@ -171,7 +171,7 @@ class CudnnRNNReuse(base_layer.Layer):
         Raises:
           ValueError: if direction is invalid. Or dtype is not supported.
         """
-        super(_CudnnRNN, self).__init__(dtype=dtype, name=name)
+        super(CudnnRNNReuse, self).__init__(dtype=dtype, name=name)
         cudnn_rnn_ops.check_direction(direction)
         cudnn_rnn_ops.check_input_mode(input_mode)
 
@@ -476,7 +476,7 @@ class CudnnRNNReuse(base_layer.Layer):
         ops.add_to_collection(ops.GraphKeys.SAVEABLE_OBJECTS, self._saveable)
 
 
-class CudnnLSTM(_CudnnRNN):
+class CudnnLSTM(CudnnRNNReuse):
     """Cudnn implementation of LSTM layer."""
     _rnn_mode = CUDNN_LSTM
     _num_params_per_layer = CUDNN_LSTM_PARAMS_PER_LAYER
@@ -495,7 +495,7 @@ class CudnnLSTM(_CudnnRNN):
                 [self.num_layers * self.num_dirs, batch_size, self.num_units])
 
 
-class _CudnnRNNNoInputC(_CudnnRNN):
+class _CudnnRNNNoInputC(CudnnRNNReuse):
     """Abstract simple CudnnRNN layer without input_c."""
 
     def state_shape(self, batch_size):

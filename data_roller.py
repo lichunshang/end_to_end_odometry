@@ -66,9 +66,9 @@ class StatefulRollerDataGen(object):
                     assert (np.all(np.abs(ypr) < np.pi))
                     self.fc_ground_truth[seq][i_img] = np.concatenate([translation, ypr])  # double check
 
-            self.total_examples += np.floor((num_frames - self.cfg.timesteps)/self.cfg.sequence_stride) + 1
+            self.total_examples += np.floor((num_frames - self.cfg.timesteps)/self.cfg.sequence_stride).astype(np.int32) + 1
 
-        self.total_examples += -self.sequence_stride * self.cfg.batch_size + 1
+        self.total_examples += -self.cfg.sequence_stride * self.cfg.batch_size + 1
 
         tools.printf("All data loaded, batch_size=%d, timesteps=%d, num_batches=%d" % (
             self.cfg.batch_size, self.cfg.timesteps, self.total_examples))
@@ -80,19 +80,24 @@ class StatefulRollerDataGen(object):
         # prepare a batch from huge matrix of training data
         reset_state = np.zeros([self.cfg.batch_size], dtype=np.uint8)
         batch = np.zeros([n, self.cfg.batch_size, self.cfg.input_channels, self.cfg.input_height, self.cfg.input_width], dtype=np.float32)
-        se3_ground_truth = np.zeros([n, self.cfg.batch_size, 7], dtype=np.float32)
-        fc_ground_truth = np.zeros([n, self.cfg.batch_size, 6], dtype=np.float32)
+        se3_ground_truth = np.zeros([self.cfg.timesteps, self.cfg.batch_size, 7], dtype=np.float32)
+        fc_ground_truth = np.zeros([self.cfg.timesteps, self.cfg.batch_size, 6], dtype=np.float32)
 
         for i_b in range(len(self.curr_batch_idx)):
             # check if at the end of the current sequence, and move to next if required
-            if self.curr_batch_idx[i_b] + self.cfg.timesteps > len(self.poses[self.curr_batch_sequences[i_b]]):
+            if self.curr_batch_idx[i_b] + n > len(self.poses[self.sequences[self.curr_batch_sequences[i_b]]]):
                 self.curr_batch_idx[i_b] = 0
-                self.curr_batch_sequences[i_b] = self.curr_batch_sequences[i_b] + 1
+                self.curr_batch_sequences[i_b] += 1
                 reset_state[i_b] = 1
-            batch[:,i_b,:,:,:] = self.input_frames[self.curr_epoch_sequence[self.curr_batch_sequences[i_b]]][self.curr_batch_idx[i_b]:self.curr_batch_idx[i_b] + n, :, :, :]
+            batch[:,i_b,:,:,:] = self.input_frames[self.sequences[self.curr_batch_sequences[i_b]]][self.curr_batch_idx[i_b]:self.curr_batch_idx[i_b] + n, :, :, :]
+            se3_ground_truth[:,i_b,:] = self.se3_ground_truth[self.sequences[self.curr_batch_sequences[i_b]]][self.curr_batch_idx[i_b] + 1:self.curr_batch_idx[i_b] + n, :]
+            fc_ground_truth[:, i_b, :] = self.fc_ground_truth[self.sequences[self.curr_batch_sequences[i_b]]][self.curr_batch_idx[i_b]:self.curr_batch_idx[i_b] + n - 1, :]
+
             self.curr_batch_idx[i_b] += self.cfg.sequence_stride
 
         batch = np.divide(batch, 255.0, dtype=np.float32)  # ensure float32
+
+        self.current_batch += 1
 
         return reset_state, batch, fc_ground_truth, se3_ground_truth
 
@@ -103,8 +108,8 @@ class StatefulRollerDataGen(object):
         # set starting offsets for each batch
         self.curr_batch_idx = np.arange(self.cfg.batch_size, dtype=np.int)
         # Randomize sequence order
-        self.curr_epoch_sequence = random.shuffle(self.sequences)
-        self.curr_batch_sequences = np.zeros([self.cfg.batch_size])
+        random.shuffle(self.sequences)
+        self.curr_batch_sequences = np.zeros([self.cfg.batch_size], dtype=np.int)
         self.current_batch = 0
 
     def curr_batch(self):

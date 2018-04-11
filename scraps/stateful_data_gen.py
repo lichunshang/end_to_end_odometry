@@ -1,5 +1,5 @@
-import data
-import tensorflow as tf
+import data_roller
+import config
 
-with tf.device("/cpu:0"):
-    data.StatefulDataGen("/home/cs4li/Dev/KITTI/dataset/", ["00"])
+cfg = config.SeqTrainConfigsSmallSteps
+data_roller.StatefulRollerDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["06"])
