@@ -153,9 +153,19 @@ def rnn_layer(cfg, inputs, initial_state):
     with tf.variable_scope("rnn_layer", reuse=tf.AUTO_REUSE):
         initial_state = tuple(tf.unstack(initial_state))
 
-        lstm = tf.contrib.cudnn_rnn.CudnnLSTM(cfg.lstm_layers, cfg.lstm_size)
-        outputs, final_state = lstm(inputs, initial_state=initial_state, training=True)
-        return outputs, final_state
+        #need to break up LSTMs to get states in the middle
+        mid_offset = inputs.shape[0] - cfg.sequence_stride
+        if mid_offset > 0:
+            lstm1 = tf.contrib.cudnn_rnn.CudnnLSTM(cfg.lstm_layers, cfg.lstm_size)
+            mid_output, output_state = lstm1(inputs[0:mid_offset, :, :], initial_state=initial_state, training=True)
+
+            lstm2 = tf.contrib.cudnn_rnn.CudnnLSTM(cfg.lstm_layers, cfg.lstm_size)
+            outputs, _ = lstm2(inputs[mid_offset:, :, :], initial_state=output_state, training=True)
+        else:
+            lstm = tf.contrib.cudnn_rnn.CudnnLSTM(cfg.lstm_layers, cfg.lstm_size)
+            outputs, output_state = lstm(inputs, initial_state=initial_state, training=True)
+
+        return outputs, output_state
 
 
 def fc_layer(inputs, fc_model_fn=fc_model):

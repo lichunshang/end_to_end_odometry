@@ -5,6 +5,7 @@ import gc
 import transformations
 import tools
 import random
+import math as m
 
 
 class StatefulRollerDataGen(object):
@@ -65,9 +66,9 @@ class StatefulRollerDataGen(object):
                     assert (np.all(np.abs(ypr) < np.pi))
                     self.fc_ground_truth[seq][i_img] = np.concatenate([translation, ypr])  # double check
 
-            self.total_examples = self.total_examples + num_frames - self.cfg.timesteps + 1
+            self.total_examples += np.floor((num_frames - self.cfg.timesteps)/self.cfg.sequence_stride) + 1
 
-        self.total_examples = self.total_examples - self.cfg.batch_size + 1
+        self.total_examples += -self.sequence_stride * self.cfg.batch_size + 1
 
         tools.printf("All data loaded, batch_size=%d, timesteps=%d, num_batches=%d" % (
             self.cfg.batch_size, self.cfg.timesteps, self.total_examples))
@@ -89,7 +90,7 @@ class StatefulRollerDataGen(object):
                 self.curr_batch_sequences[i_b] = self.curr_batch_sequences[i_b] + 1
                 reset_state[i_b] = 1
             batch[:,i_b,:,:,:] = self.input_frames[self.curr_epoch_sequence[self.curr_batch_sequences[i_b]]][self.curr_batch_idx[i_b]:self.curr_batch_idx[i_b] + n, :, :, :]
-            self.curr_batch_idx[i_b] += 1
+            self.curr_batch_idx[i_b] += self.cfg.sequence_stride
 
         batch = np.divide(batch, 255.0, dtype=np.float32)  # ensure float32
 
