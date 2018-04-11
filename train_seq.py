@@ -21,9 +21,9 @@ start_epoch = 0
 #                   60: 0.1,
 #                   80: 0.025}
 alpha_schedule = {0: 1,
-                  20: 0.999,
-                  30: 0.99,
-                  50: 0.25}
+                  5: 0.99,
+                  15: 0.9,
+                  25: 0.8}
 
 tensorboard_meta = False
 
@@ -52,9 +52,9 @@ with tf.variable_scope("Optimizer"):
 tools.printf("Loading training data...")
 #train_data_gen = data.StatefulDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/",
 #                                      ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09"])
-train_data_gen = data.StatefulRollerDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["03"], frames=[range(40)])
+train_data_gen = data.StatefulRollerDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["03"], frames=[range(150)])
 tools.printf("Loading validation data...")
-val_data_gen = data.StatefulRollerDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["10"], frames=[range(40)])
+val_data_gen = data.StatefulRollerDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["10"], frames=[range(200)])
 
 
 # for evaluating validation loss
@@ -69,6 +69,8 @@ def calc_val_loss(sess, i_epoch, losses_log):
     while val_data_gen.has_next_batch():
         reset_state, batch_data, _, se3_ground_truth = val_data_gen.next_batch()
 
+        init_poses = se3_ground_truth[0, :, :]
+
         curr_lstm_states = data.reset_select_lstm_state(curr_lstm_states, reset_state)
 
         _se3_outputs, _se3_losses, _curr_lstm_states = sess.run(
@@ -77,7 +79,7 @@ def calc_val_loss(sess, i_epoch, losses_log):
                 inputs: batch_data,
                 lstm_initial_state: curr_lstm_states,
                 initial_poses: init_poses,
-                se3_labels: se3_ground_truth,
+                se3_labels: se3_ground_truth[1:, :, :],
                 is_training: False
             }
         )
@@ -158,7 +160,7 @@ with tf.Session(config=None) as sess:
             tools.printf("alpha set to %f" % alpha_set)
 
         init_poses = np.zeros([cfg.batch_size, 7], dtype=np.float32)
-        init_poses[:,3] = np.ones([cfg.batch_size], dtype=np.float32)
+        init_poses[:, 3] = np.ones([cfg.batch_size], dtype=np.float32)
 
         while train_data_gen.has_next_batch():
             j_batch = train_data_gen.curr_batch()
@@ -167,7 +169,12 @@ with tf.Session(config=None) as sess:
             fc_ground_truth, se3_ground_truth = train_data_gen.next_batch()
 
             curr_lstm_states = data.reset_select_lstm_state(curr_lstm_states, reset_state)
-            init_poses = data.reset_select_init_pose(init_poses, reset_state)
+            #init_poses = data.reset_select_init_pose(init_poses, reset_state)
+            #init_poses = np.zeros([cfg.batch_size, 7], dtype=np.float32)
+            #init_poses[:, 3] = np.ones([cfg.batch_size], dtype=np.float32)
+
+            #shift se3 ground truth to be relative to the first pose
+            init_poses = se3_ground_truth[0,:,:]
 
             # Run training session
             _trainer, _curr_lstm_states, _se3_outputs, _total_losses, _fc_losses, _se3_losses, \
@@ -177,7 +184,7 @@ with tf.Session(config=None) as sess:
                  fc_xyz_losses, fc_ypr_losses, se3_xyz_losses, se3_quat_losses, x_loss, y_loss, z_loss],
                 feed_dict={
                     inputs: batch_data,
-                    se3_labels: se3_ground_truth,
+                    se3_labels: se3_ground_truth[1:,:,:],
                     fc_labels: fc_ground_truth,
                     lstm_initial_state: curr_lstm_states,
                     initial_poses: init_poses,

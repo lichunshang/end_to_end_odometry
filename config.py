@@ -41,6 +41,20 @@ class SeqTrainConfigsSmallSteps(Configs):
     k_fc = 50
     k_se3 = 500
 
+class SeqTrainConfigsSmallStepsValidation(Configs):
+    timesteps = 8
+    batch_size = 4
+    input_width = 1280
+    input_height = 384
+    input_channels = 3
+
+    lstm_size = 256
+    lstm_layers = 2
+    sequence_stride = 8
+
+    num_epochs = 100
+    k_fc = 50
+    k_se3 = 500
 
 class PairTrainConfigs(Configs):
     timesteps = 1

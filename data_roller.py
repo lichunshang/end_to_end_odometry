@@ -28,6 +28,7 @@ class StatefulRollerDataGen(object):
         self.fc_ground_truth = {}
 
         self.total_examples = 0
+        self.total_frames = 0
 
         for i_seq, seq in enumerate(sequences):
             seq_data = pykitti.odometry(base_dir, seq, frames=frames[i_seq])
@@ -66,9 +67,16 @@ class StatefulRollerDataGen(object):
                     assert (np.all(np.abs(ypr) < np.pi))
                     self.fc_ground_truth[seq][i_img] = np.concatenate([translation, ypr])  # double check
 
-            self.total_examples += np.floor((num_frames - self.cfg.timesteps)/self.cfg.sequence_stride).astype(np.int32) + 1
+            self.total_examples += np.floor((num_frames - self.cfg.timesteps + 1)/self.cfg.sequence_stride).astype(np.int32)
+            self.total_frames += num_frames
 
-        self.total_examples += -self.cfg.sequence_stride * self.cfg.batch_size + 1
+        # due to staggering, there are 2*(batch_size - 1) frames lost at the end.
+        overhang = self.total_frames - self.total_examples * self.cfg.sequence_stride - self.cfg.timesteps
+        n_lost_frames = self.cfg.batch_size - 1
+        bite_size = n_lost_frames - overhang
+
+        if bite_size > 0:
+            self.total_examples -= np.ceil(bite_size / self.cfg.sequence_stride).astype(np.int32)
 
         tools.printf("All data loaded, batch_size=%d, timesteps=%d, num_batches=%d" % (
             self.cfg.batch_size, self.cfg.timesteps, self.total_examples))
@@ -80,7 +88,7 @@ class StatefulRollerDataGen(object):
         # prepare a batch from huge matrix of training data
         reset_state = np.zeros([self.cfg.batch_size], dtype=np.uint8)
         batch = np.zeros([n, self.cfg.batch_size, self.cfg.input_channels, self.cfg.input_height, self.cfg.input_width], dtype=np.float32)
-        se3_ground_truth = np.zeros([self.cfg.timesteps, self.cfg.batch_size, 7], dtype=np.float32)
+        se3_ground_truth = np.zeros([n, self.cfg.batch_size, 7], dtype=np.float32)
         fc_ground_truth = np.zeros([self.cfg.timesteps, self.cfg.batch_size, 6], dtype=np.float32)
 
         for i_b in range(len(self.curr_batch_idx)):
@@ -90,12 +98,13 @@ class StatefulRollerDataGen(object):
                 self.curr_batch_sequences[i_b] += 1
                 reset_state[i_b] = 1
             batch[:,i_b,:,:,:] = self.input_frames[self.sequences[self.curr_batch_sequences[i_b]]][self.curr_batch_idx[i_b]:self.curr_batch_idx[i_b] + n, :, :, :]
-            se3_ground_truth[:,i_b,:] = self.se3_ground_truth[self.sequences[self.curr_batch_sequences[i_b]]][self.curr_batch_idx[i_b] + 1:self.curr_batch_idx[i_b] + n, :]
+            se3_ground_truth[:,i_b,:] = self.se3_ground_truth[self.sequences[self.curr_batch_sequences[i_b]]][self.curr_batch_idx[i_b]:self.curr_batch_idx[i_b] + n, :]
             fc_ground_truth[:, i_b, :] = self.fc_ground_truth[self.sequences[self.curr_batch_sequences[i_b]]][self.curr_batch_idx[i_b]:self.curr_batch_idx[i_b] + n - 1, :]
 
             self.curr_batch_idx[i_b] += self.cfg.sequence_stride
 
         batch = np.divide(batch, 255.0, dtype=np.float32)  # ensure float32
+        batch = np.subtract(batch, 0.5, dtype=np.float32)
 
         self.current_batch += 1
 
