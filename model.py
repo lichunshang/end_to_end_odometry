@@ -2,7 +2,7 @@ import tensorflow as tf
 import se3
 import tools
 import config
-
+import native_lstm
 
 # CNN Block
 # is_training to control whether to apply dropout
@@ -156,11 +156,13 @@ def rnn_layer(cfg, inputs, initial_state):
         #need to break up LSTMs to get states in the middle
         mid_offset = inputs.shape[0] - cfg.sequence_stride
         if mid_offset > 0:
-            lstm1 = tf.contrib.cudnn_rnn.CudnnLSTM(cfg.lstm_layers, cfg.lstm_size, name='lstm')
+            lstm1 = native_lstm.CudnnRNNReuse(cfg.lstm_layers, cfg.lstm_size, name='rnn_layer', variable_namespace="rnn_layer")
             mid_output, output_state = lstm1(inputs[0:mid_offset, :, :], initial_state=initial_state, training=True)
 
-            lstm2 = tf.contrib.cudnn_rnn.CudnnLSTM(cfg.lstm_layers, cfg.lstm_size, name='lstm')
-            outputs, _ = lstm2(inputs[mid_offset:, :, :], initial_state=output_state, training=True)
+            lstm2 = native_lstm.CudnnRNNReuse(cfg.lstm_layers, cfg.lstm_size, name='rnn_layer', variable_namespace="rnn_layer")
+            end_output, _ = lstm2(inputs[mid_offset:, :, :], initial_state=output_state, training=True)
+
+            outputs = tf.concat(mid_output, end_output, axis=0)
         else:
             lstm = tf.contrib.cudnn_rnn.CudnnLSTM(cfg.lstm_layers, cfg.lstm_size)
             outputs, output_state = lstm(inputs, initial_state=initial_state, training=True)
