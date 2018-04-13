@@ -10,14 +10,17 @@ import math as m
 
 class StatefulRollerDataGen(object):
 
-    # This version of the data generator slides along one frame at a time, starting neighbouring batches 1 step over
-    # Sequence order is randomized
+    # This version of the data generator slides along n frames at a time
     def __init__(self, config, base_dir, sequences, frames=None):
         self.cfg = config
         self.sequences = sequences
         self.curr_batch_idx = np.arange(self.cfg.batch_size)
         self.curr_epoch_sequence = []
         self.current_batch = 0
+        self.sequence_batch = 0
+
+        if (self.cfg.bidir_aug == True) and (self.cfg.batch_size % 2 != 0):
+            raise ValueError("Batch size must be even")
 
         if not frames:
             frames = [None] * len(sequences)
@@ -26,15 +29,16 @@ class StatefulRollerDataGen(object):
         self.poses = {}
         self.se3_ground_truth = {}
         self.fc_ground_truth = {}
+        self.batch_sizes = {}
 
-        self.total_examples = 0
+        self.batch_cnt = 0
         self.total_frames = 0
 
         for i_seq, seq in enumerate(sequences):
             seq_data = pykitti.odometry(base_dir, seq, frames=frames[i_seq])
             num_frames = len(seq_data.poses)
 
-            self.input_frames[seq] = np.zeros([num_frames, self.cfg.input_channels, self.cfg.input_height, self.cfg.input_width])
+            self.input_frames[seq] = np.zeros([num_frames, self.cfg.input_channels, self.cfg.input_height, self.cfg.input_width], dtype=np.uint8)
             self.poses[seq] = seq_data.poses
             self.se3_ground_truth[seq] = np.zeros([num_frames, 7], dtype=np.float32)
             self.fc_ground_truth[seq] = np.zeros([num_frames - 1, 6], dtype=np.float32)
@@ -67,19 +71,19 @@ class StatefulRollerDataGen(object):
                     assert (np.all(np.abs(ypr) < np.pi))
                     self.fc_ground_truth[seq][i_img] = np.concatenate([translation, ypr])  # double check
 
-            self.total_examples += np.floor((num_frames - self.cfg.timesteps + 1)/self.cfg.sequence_stride).astype(np.int32)
+            # How many examples the sequence contains, were it to be processed using a batch size of 1
+            sequence_examples = np.floor((num_frames - self.cfg.timesteps + 1)/self.cfg.sequence_stride).astype(np.int32)
+            # how many batches in the sequence, cutting off any extra
+            if self.cfg.bidir_aug:
+                self.batch_sizes[seq] = np.floor(2 * sequence_examples / self.cfg.batch_size)
+            else:
+                self.batch_sizes[seq] = np.floor(sequence_examples / self.cfg.batch_size)
+
+            self.batch_cnt += self.batch_sizes[seq].astype(np.int32)
             self.total_frames += num_frames
 
-        # due to staggering, there are 2*(batch_size - 1) frames lost at the end.
-        overhang = self.total_frames - self.total_examples * self.cfg.sequence_stride - self.cfg.timesteps
-        n_lost_frames = self.cfg.batch_size - 1
-        bite_size = n_lost_frames - overhang
-
-        if bite_size > 0:
-            self.total_examples -= np.ceil(bite_size / self.cfg.sequence_stride).astype(np.int32)
-
         tools.printf("All data loaded, batch_size=%d, timesteps=%d, num_batches=%d" % (
-            self.cfg.batch_size, self.cfg.timesteps, self.total_examples))
+            self.cfg.batch_size, self.cfg.timesteps, self.batch_cnt))
 
         self.next_epoch()
 
@@ -91,41 +95,71 @@ class StatefulRollerDataGen(object):
         se3_ground_truth = np.zeros([n, self.cfg.batch_size, 7], dtype=np.float32)
         fc_ground_truth = np.zeros([self.cfg.timesteps, self.cfg.batch_size, 6], dtype=np.float32)
 
-        for i_b in range(len(self.curr_batch_idx)):
-            # check if at the end of the current sequence, and move to next if required
-            if self.curr_batch_idx[i_b] + n > len(self.poses[self.sequences[self.curr_batch_sequences[i_b]]]):
-                self.curr_batch_idx[i_b] = 0
-                self.curr_batch_sequences[i_b] += 1
-                reset_state[i_b] = 1
-            batch[:,i_b,:,:,:] = self.input_frames[self.sequences[self.curr_batch_sequences[i_b]]][self.curr_batch_idx[i_b]:self.curr_batch_idx[i_b] + n, :, :, :]
-            se3_ground_truth[:,i_b,:] = self.se3_ground_truth[self.sequences[self.curr_batch_sequences[i_b]]][self.curr_batch_idx[i_b]:self.curr_batch_idx[i_b] + n, :]
-            fc_ground_truth[:, i_b, :] = self.fc_ground_truth[self.sequences[self.curr_batch_sequences[i_b]]][self.curr_batch_idx[i_b]:self.curr_batch_idx[i_b] + n - 1, :]
+        # check if at the end of the current sequence, and move to next if required
+        if self.sequence_batch + 1 > self.batch_sizes[self.sequences[self.curr_batch_sequences[0]]]:
+            self.sequence_batch = 0
+            self.curr_batch_sequences += 1
+            self.set_batch_offsets()
+            reset_state = np.ones([self.cfg.batch_size], dtype=np.uint8)
 
-            self.curr_batch_idx[i_b] += self.cfg.sequence_stride
+        for i_b in range(len(self.curr_batch_idx)):
+            cur_seq = self.sequences[self.curr_batch_sequences[i_b]]
+            idx = self.curr_batch_idx[i_b]
+            if (i_b < self.cfg.batch_size / 2) or not self.cfg.bidir_aug:
+                # data going forwards
+                batch[:,i_b,:,:,:] = self.input_frames[cur_seq][idx:idx + n, :, :, :]
+                se3_ground_truth[:, i_b, :] = self.se3_ground_truth[cur_seq][idx:idx + n, :]
+                fc_ground_truth[:, i_b, :] = self.fc_ground_truth[cur_seq][idx:idx + n - 1, :]
+                self.curr_batch_idx[i_b] += self.cfg.sequence_stride
+            else:
+                #data going backwards
+                batch[:,i_b,:,:] = self.input_frames[cur_seq][idx - n:idx, :, :, :]
+                se3_ground_truth[:, i_b, :] = self.se3_ground_truth[cur_seq][idx - n:idx, :]
+                fc_ground_truth[:, i_b, :] = -self.fc_ground_truth[cur_seq][idx - n + 1:idx, :]
+                #flip along time axis
+                batch[:,i_b,:,:] = np.flip(batch[:,i_b,:,:], axis=0)
+                se3_ground_truth[:, i_b, :] = np.flip(se3_ground_truth[:, i_b, :], axis=0)
+                fc_ground_truth[:, i_b, :] = np.flip(fc_ground_truth[:, i_b, :], axis=0)
+
+                self.curr_batch_idx[i_b] -= self.cfg.sequence_stride
 
         batch = np.divide(batch, 255.0, dtype=np.float32)  # ensure float32
         batch = np.subtract(batch, 0.5, dtype=np.float32)
 
         self.current_batch += 1
+        self.sequence_batch += 1
 
         return reset_state, batch, fc_ground_truth, se3_ground_truth
 
     def has_next_batch(self):
-        return self.current_batch + 1 < self.total_examples
+        return self.current_batch + 1 < self.batch_cnt
+
+    def set_batch_offsets(self):
+        for i_b in range(len(self.curr_batch_idx)):
+            # first half of batches are going forward in time
+            if (i_b < self.cfg.batch_size / 2) or not self.cfg.bidir_aug:
+                self.curr_batch_idx[i_b] = self.batch_sizes[self.sequences[self.curr_batch_sequences[i_b]]] * i_b * self.cfg.sequence_stride
+            # second half are going back in time
+            else:
+                reverse_start = self.batch_sizes[self.sequences[self.curr_batch_sequences[i_b]]] * (
+                            self.cfg.batch_size / 2) * self.cfg.sequence_stride - 1
+                self.curr_batch_idx[i_b] = reverse_start - self.batch_sizes[self.sequences[self.curr_batch_sequences[i_b]]] * i_b * self.cfg.sequence_stride
 
     def next_epoch(self):
-        # set starting offsets for each batch
-        self.curr_batch_idx = np.arange(self.cfg.batch_size, dtype=np.int)
         # Randomize sequence order
         random.shuffle(self.sequences)
         self.curr_batch_sequences = np.zeros([self.cfg.batch_size], dtype=np.int)
+        # set starting offsets for each batch
+        self.set_batch_offsets()
+
         self.current_batch = 0
+        self.sequence_batch = 0
 
     def curr_batch(self):
         return self.current_batch
 
     def total_batches(self):
-        return self.total_examples
+        return self.batch_cnt
 
 
 # lstm_states: tuple of size 2, each element is [num_layers, batch_size, lstm_size]

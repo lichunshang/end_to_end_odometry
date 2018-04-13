@@ -6,16 +6,18 @@ import native_lstm
 
 # CNN Block
 # is_training to control whether to apply dropout
+
 def cnn_model(inputs, is_training):
     with tf.variable_scope("cnn_model"):
-        conv_1 = tf.contrib.layers.conv2d(inputs, num_outputs=64, kernel_size=(7, 7,),
+        conv_1 = tf.contrib.layers.conv2d(inputs, num_outputs=32, kernel_size=(7, 7,),
                                           stride=(2, 2), padding="same", scope="conv_1", data_format="NCHW",
                                           weights_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
                                           biases_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
                                           activation_fn=tf.nn.leaky_relu)
+
         dropout_conv_1 = tf.contrib.layers.dropout(conv_1, keep_prob=1.0, is_training=is_training,
                                                    scope="dropout_conv_1")
-        conv_2 = tf.contrib.layers.conv2d(dropout_conv_1, num_outputs=128, kernel_size=(5, 5,),
+        conv_2 = tf.contrib.layers.conv2d(dropout_conv_1, num_outputs=60, kernel_size=(5, 5,),
                                           stride=(2, 2), padding="same", scope="conv_2", data_format="NCHW",
                                           weights_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
                                           biases_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
@@ -23,87 +25,30 @@ def cnn_model(inputs, is_training):
         dropout_conv_2 = tf.contrib.layers.dropout(conv_2, keep_prob=1.0, is_training=is_training,
                                                    scope="dropout_conv_2")
 
-        conv_3 = tf.contrib.layers.conv2d(dropout_conv_2, num_outputs=256, kernel_size=(5, 5,),
+        conv_3 = tf.contrib.layers.conv2d(dropout_conv_2, num_outputs=60, kernel_size=(5, 5,),
                                           stride=(2, 2), padding="same", scope="conv_3", data_format="NCHW",
                                           weights_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
                                           biases_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
                                           activation_fn=tf.nn.leaky_relu)
-        dropout_conv_3 = tf.contrib.layers.dropout(conv_3, keep_prob=1, is_training=is_training,
-                                                    scope="dropout_conv_3")
-        conv_3_1 = tf.contrib.layers.conv2d(conv_3, num_outputs=256, kernel_size=(3, 3,),
-                                            stride=(1, 1), padding="same", scope="conv_3_1", data_format="NCHW",
-                                            weights_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
-                                          biases_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
-                                            activation_fn=tf.nn.leaky_relu)
-        dropout_conv_3_1 = tf.contrib.layers.dropout(conv_3_1, keep_prob=1, is_training=is_training,
-                                                      scope="dropout_conv_3_1")
 
-        conv_4 = tf.contrib.layers.conv2d(conv_3_1, num_outputs=512, kernel_size=(3, 3,),
+        conv_4 = tf.contrib.layers.conv2d(conv_3, num_outputs=100, kernel_size=(3, 3,),
                                           stride=(2, 2), padding="same", scope="conv_4", data_format="NCHW",
                                           weights_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
                                           biases_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
                                           activation_fn=tf.nn.leaky_relu)
-        dropout_conv_4 = tf.contrib.layers.dropout(conv_4, keep_prob=0.9, is_training=is_training,
-                                                   scope="dropout_conv_4")
-        conv_4_1 = tf.contrib.layers.conv2d(dropout_conv_4, num_outputs=512, kernel_size=(3, 3,),
-                                            stride=(1, 1), padding="same", scope="conv_4_1", data_format="NCHW",
-                                            weights_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
-                                            biases_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
-                                            activation_fn=tf.nn.leaky_relu)
-        dropout_conv_4_1 = tf.contrib.layers.dropout(conv_4_1, keep_prob=0.9, is_training=is_training,
-                                                     scope="dropout_conv_4_1")
 
-        conv_5 = tf.contrib.layers.conv2d(dropout_conv_4_1, num_outputs=512, kernel_size=(3, 3,),
+        conv_5 = tf.contrib.layers.conv2d(conv_4, num_outputs=200, kernel_size=(3, 3,),
                                           stride=(2, 2), padding="same", scope="conv_5", data_format="NCHW",
                                           weights_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
                                           biases_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
                                           activation_fn=tf.nn.leaky_relu)
-        dropout_conv_5 = tf.contrib.layers.dropout(conv_5, keep_prob=0.8, is_training=is_training,
-                                                   scope="dropout_conv_5")
-        conv_5_1 = tf.contrib.layers.conv2d(dropout_conv_5, num_outputs=512, kernel_size=(3, 3,),
-                                            stride=(1, 1), padding="same", scope="conv_5_1", data_format="NCHW",
-                                            weights_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
-                                            biases_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
-                                            activation_fn=tf.nn.leaky_relu)
-        dropout_conv_5_1 = tf.contrib.layers.dropout(conv_5_1, keep_prob=0.8, is_training=is_training,
-                                                     scope="dropout_conv_5_1")
 
-        conv_6 = tf.contrib.layers.conv2d(dropout_conv_5_1, num_outputs=1024, kernel_size=(3, 3,),
+        conv_6 = tf.contrib.layers.conv2d(conv_5, num_outputs=300, kernel_size=(3, 3,),
                                           stride=(2, 2), padding="same", scope="conv_6", data_format="NCHW",
                                           activation_fn=None,
                                           weights_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
                                           biases_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004))
-        dropout_conv_6 = tf.contrib.layers.dropout(conv_6, keep_prob=0.7, is_training=is_training,
-                                                   scope="dropout_conv_6")
-        return dropout_conv_6
 
-
-def cnn_model_lidar(inputs):
-    with tf.variable_scope("cnn_model"):
-        # The first kernel is a 1d convolution
-        conv_1 = tf.contrib.layers.conv2d(inputs, num_outputs=64, kernel_size=(7, 7,),
-                                          stride=(2, 2), padding="same", scope="conv_1", data_format="NCHW")
-        conv_2 = tf.contrib.layers.conv2d(conv_1, num_outputs=128, kernel_size=(5, 5,),
-                                          stride=(2, 2), padding="same", scope="conv_2", data_format="NCHW")
-
-        conv_3 = tf.contrib.layers.conv2d(conv_2, num_outputs=256, kernel_size=(5, 5,),
-                                          stride=(2, 2), padding="same", scope="conv_3", data_format="NCHW")
-        conv_3_1 = tf.contrib.layers.conv2d(conv_3, num_outputs=256, kernel_size=(3, 3,),
-                                            stride=(1, 1), padding="same", scope="conv_3_1", data_format="NCHW")
-
-        conv_4 = tf.contrib.layers.conv2d(conv_3_1, num_outputs=512, kernel_size=(3, 3,),
-                                          stride=(2, 2), padding="same", scope="conv_4", data_format="NCHW")
-        conv_4_1 = tf.contrib.layers.conv2d(conv_4, num_outputs=512, kernel_size=(3, 3,),
-                                            stride=(1, 1), padding="same", scope="conv_4_1", data_format="NCHW")
-
-        conv_5 = tf.contrib.layers.conv2d(conv_4_1, num_outputs=512, kernel_size=(3, 3,),
-                                          stride=(2, 2), padding="same", scope="conv_5", data_format="NCHW")
-        conv_5_1 = tf.contrib.layers.conv2d(conv_5, num_outputs=512, kernel_size=(3, 3,),
-                                            stride=(1, 1), padding="same", scope="conv_5_1", data_format="NCHW")
-
-        conv_6 = tf.contrib.layers.conv2d(conv_5_1, num_outputs=1024, kernel_size=(3, 3,),
-                                          stride=(2, 2), padding="same", scope="conv_6", data_format="NCHW",
-                                          activation_fn=None)
         return conv_6
 
 
@@ -247,21 +192,17 @@ def build_seq_model(cfg):
     inputs, lstm_initial_state, initial_poses, is_training = model_inputs(cfg)
 
     print("Building CNN...")
-    with tf.device("/gpu:0"):
-        cnn_outputs = cnn_layer(inputs, is_training)
+    cnn_outputs = cnn_layer(inputs, is_training)
 
     print("Building RNN...")
-    with tf.device("/gpu:0"):
-        lstm_outputs, lstm_states = rnn_layer(cfg, cnn_outputs, lstm_initial_state)
+    lstm_outputs, lstm_states = rnn_layer(cfg, cnn_outputs, lstm_initial_state)
 
     print("Building FC...")
-    with tf.device("/gpu:0"):
-        fc_outputs = fc_layer(lstm_outputs, pair_train_fc_layer)
+    fc_outputs = fc_layer(lstm_outputs, pair_train_fc_layer)
 
     print("Building SE3...")
-    with tf.device("/gpu:0"):
-        # at this point the outputs from the fully connected layer are  [x, y, z, yaw, pitch, roll, 6 x covars]
-        se3_outputs = se3_layer(fc_outputs, initial_poses)
+    # at this point the outputs from the fully connected layer are  [x, y, z, yaw, pitch, roll, 6 x covars]
+    se3_outputs = se3_layer(fc_outputs, initial_poses)
 
     return inputs, lstm_initial_state, initial_poses, is_training, fc_outputs, se3_outputs, lstm_states
 
@@ -272,11 +213,9 @@ def build_pair_model(cfg):
     inputs, _, _, is_training = model_inputs(cfg)
 
     print("Building CNN...")
-    with tf.device("/gpu:0"):
-        cnn_outputs = cnn_layer(inputs, is_training)
+    cnn_outputs = cnn_layer(inputs, is_training)
 
     print("Building FC...")
-    with tf.device("/gpu:0"):
-        fc_outputs = fc_layer(cnn_outputs, pair_train_fc_layer)
+    fc_outputs = fc_layer(cnn_outputs, pair_train_fc_layer)
 
     return inputs, is_training, fc_outputs
