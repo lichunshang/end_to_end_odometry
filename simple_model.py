@@ -52,6 +52,9 @@ def cnn_model(inputs, is_training, get_activations=False):
                                           weights_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
                                           biases_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004))
 
+        if get_activations:
+            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, conv_6)
+
         return conv_6
 
 
