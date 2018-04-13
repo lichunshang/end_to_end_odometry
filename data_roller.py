@@ -14,7 +14,7 @@ class StatefulRollerDataGen(object):
     def __init__(self, config, base_dir, sequences, frames=None):
         self.cfg = config
         self.sequences = sequences
-        self.curr_batch_idx = np.arange(self.cfg.batch_size)
+        self.curr_batch_idx = np.zeros([self.cfg.batch_size], dtype=np.int64)
         self.curr_epoch_sequence = []
         self.current_batch = 0
         self.sequence_batch = 0
@@ -115,7 +115,7 @@ class StatefulRollerDataGen(object):
                 #data going backwards
                 batch[:,i_b,:,:] = self.input_frames[cur_seq][idx - n:idx, :, :, :]
                 se3_ground_truth[:, i_b, :] = self.se3_ground_truth[cur_seq][idx - n:idx, :]
-                fc_ground_truth[:, i_b, :] = -self.fc_ground_truth[cur_seq][idx - n + 1:idx, :]
+                fc_ground_truth[:, i_b, :] = -self.fc_ground_truth[cur_seq][idx - n:idx-1, :]
                 #flip along time axis
                 batch[:,i_b,:,:] = np.flip(batch[:,i_b,:,:], axis=0)
                 se3_ground_truth[:, i_b, :] = np.flip(se3_ground_truth[:, i_b, :], axis=0)
@@ -135,15 +135,17 @@ class StatefulRollerDataGen(object):
         return self.current_batch + 1 < self.batch_cnt
 
     def set_batch_offsets(self):
+        halfway = self.cfg.batch_size / 2
+        halfway = int(halfway)
         for i_b in range(len(self.curr_batch_idx)):
             # first half of batches are going forward in time
-            if (i_b < self.cfg.batch_size / 2) or not self.cfg.bidir_aug:
+            if (i_b < halfway) or not self.cfg.bidir_aug:
                 self.curr_batch_idx[i_b] = self.batch_sizes[self.sequences[self.curr_batch_sequences[i_b]]] * i_b * self.cfg.sequence_stride
             # second half are going back in time
             else:
                 reverse_start = self.batch_sizes[self.sequences[self.curr_batch_sequences[i_b]]] * (
-                            self.cfg.batch_size / 2) * self.cfg.sequence_stride - 1
-                self.curr_batch_idx[i_b] = reverse_start - self.batch_sizes[self.sequences[self.curr_batch_sequences[i_b]]] * i_b * self.cfg.sequence_stride
+                            self.cfg.batch_size / 2) * self.cfg.sequence_stride
+                self.curr_batch_idx[i_b] = reverse_start - self.batch_sizes[self.sequences[self.curr_batch_sequences[i_b]]] * (i_b - halfway) * self.cfg.sequence_stride
 
     def next_epoch(self):
         # Randomize sequence order

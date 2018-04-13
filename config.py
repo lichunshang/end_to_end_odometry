@@ -45,17 +45,19 @@ class SeqTrainConfigsSmallSteps(Configs):
 
 class SeqTrainConfigsSmallStepsValidation(Configs):
     timesteps = 1
-    batch_size = 20
+    batch_size = 40
     input_width = 1280
     input_height = 384
     input_channels = 3
 
+    bidir_aug = False
+
     lstm_size = 256
-    lstm_layers = 2
+    lstm_layers = 1
     sequence_stride = 1
 
     num_epochs = 100
-    k_fc = 500
+    k_fc = 50
     k_se3 = 500
 
 class PairTrainConfigs(Configs):

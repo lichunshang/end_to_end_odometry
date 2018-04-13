@@ -7,13 +7,16 @@ import native_lstm
 # CNN Block
 # is_training to control whether to apply dropout
 
-def cnn_model(inputs, is_training):
+def cnn_model(inputs, is_training, get_activations=False):
     with tf.variable_scope("cnn_model"):
         conv_1 = tf.contrib.layers.conv2d(inputs, num_outputs=32, kernel_size=(7, 7,),
                                           stride=(2, 2), padding="same", scope="conv_1", data_format="NCHW",
                                           weights_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
                                           biases_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
                                           activation_fn=tf.nn.leaky_relu)
+
+        if get_activations:
+            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, conv_1)
 
         dropout_conv_1 = tf.contrib.layers.dropout(conv_1, keep_prob=1.0, is_training=is_training,
                                                    scope="dropout_conv_1")
@@ -74,7 +77,7 @@ def pair_train_fc_layer_1024(inputs):
         return fc_6
 
 
-def cnn_over_timesteps(inputs, is_training):
+def cnn_over_timesteps(inputs, is_training, get_activations):
     with tf.variable_scope("cnn_over_timesteps"):
         unstacked_inputs = tf.unstack(inputs, axis=0)
 
@@ -83,7 +86,10 @@ def cnn_over_timesteps(inputs, is_training):
         for i in range(len(unstacked_inputs) - 1):
             # stack images along channels
             image_stacked = tf.concat((unstacked_inputs[i], unstacked_inputs[i + 1]), axis=1)
-            outputs.append(tf.contrib.layers.flatten(cnn_model(image_stacked, is_training)))
+            if i == 0:
+                outputs.append(tf.contrib.layers.flatten(cnn_model(image_stacked, is_training, get_activations)))
+            else:
+                outputs.append(tf.contrib.layers.flatten(cnn_model(image_stacked, is_training)))
 
         return tf.stack(outputs, axis=0)
 
@@ -101,12 +107,9 @@ def se3_comp_over_timesteps(inputs, initial_pose):
         return tf.stack(poses)
 
 
-def cnn_layer(inputs, is_training):
+def cnn_layer(inputs, is_training, get_activations):
     with tf.variable_scope("cnn_layer", reuse=tf.AUTO_REUSE):
-        outputs = cnn_over_timesteps(inputs, is_training)
-
-    # outputs = tf.reshape(outputs,
-    #                      [outputs.shape[0], outputs.shape[1], outputs.shape[2] * outputs.shape[3] * outputs.shape[4]])
+        outputs = cnn_over_timesteps(inputs, is_training, get_activations)
 
     return outputs
 
@@ -186,13 +189,13 @@ def model_labels(cfg):
 
     return se3_labels, fc_labels
 
-def build_seq_model(cfg):
+def build_seq_model(cfg, get_activations=False):
     print("Building sequence to sequence training model")
 
     inputs, lstm_initial_state, initial_poses, is_training = model_inputs(cfg)
 
     print("Building CNN...")
-    cnn_outputs = cnn_layer(inputs, is_training)
+    cnn_outputs = cnn_layer(inputs, is_training, get_activations=get_activations)
 
     print("Building RNN...")
     lstm_outputs, lstm_states = rnn_layer(cfg, cnn_outputs, lstm_initial_state)
