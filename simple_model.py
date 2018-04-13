@@ -53,7 +53,7 @@ def cnn_model(inputs, is_training):
 
 
 def fc_model(inputs):
-    with tf.variable_scope("fc_model"):
+    with tf.variable_scope("fc_model", reuse=tf.AUTO_REUSE):
         fc_128 = tf.contrib.layers.fully_connected(inputs, 128, scope="fc_128", activation_fn=tf.nn.relu)
         fc_12 = tf.contrib.layers.fully_connected(fc_128, 12, scope="fc_12", activation_fn=None)
         return fc_12
@@ -83,7 +83,7 @@ def cnn_over_timesteps(inputs, is_training):
         for i in range(len(unstacked_inputs) - 1):
             # stack images along channels
             image_stacked = tf.concat((unstacked_inputs[i], unstacked_inputs[i + 1]), axis=1)
-            outputs.append(cnn_model(image_stacked, is_training))
+            outputs.append(tf.contrib.layers.flatten(cnn_model(image_stacked, is_training)))
 
         return tf.stack(outputs, axis=0)
 
@@ -105,8 +105,8 @@ def cnn_layer(inputs, is_training):
     with tf.variable_scope("cnn_layer", reuse=tf.AUTO_REUSE):
         outputs = cnn_over_timesteps(inputs, is_training)
 
-    outputs = tf.reshape(outputs,
-                         [outputs.shape[0], outputs.shape[1], outputs.shape[2] * outputs.shape[3] * outputs.shape[4]])
+    # outputs = tf.reshape(outputs,
+    #                      [outputs.shape[0], outputs.shape[1], outputs.shape[2] * outputs.shape[3] * outputs.shape[4]])
 
     return outputs
 
