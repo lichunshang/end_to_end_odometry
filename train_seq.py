@@ -12,7 +12,7 @@ import time
 
 # =================== CONFIGURATIONS ========================
 #cfg = config.SeqTrainConfigs
-cfg = config.SeqTrainConfigsSmallSteps
+cfg = config.SeqTrainLidarConfig
 val_cfg = config.SeqTrainConfigsSmallStepsValidation
 config.print_configs(cfg)
 
@@ -44,7 +44,7 @@ with tf.device("/cpu:0"):
     alpha = tf.placeholder(tf.float32, name="alpha", shape=[])  # between 0 and 1, larger favors fc loss
 
 with tf.device(tf.train.replica_device_setter(ps_tasks=1, ps_device='/job:localhost/replica:0/task:0/device:GPU:0', worker_device='/job:localhost/replica:0/task:0/device:GPU:0')):
-    inputs, lstm_initial_state, initial_poses, is_training, fc_outputs, se3_outputs, lstm_states = simple_model.build_seq_model(
+    inputs, lstm_initial_state, initial_poses, is_training, fc_outputs, se3_outputs, lstm_states = model.build_seq_model(
         cfg, True)
     se3_labels, fc_labels = simple_model.model_labels(cfg)
 
@@ -83,7 +83,8 @@ restore_model_file = None
 # just for restoring pre trained cnn weights
 cnn_variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, "^cnn_layer.*")
 cnn_init_tf_saver = tf.train.Saver(cnn_variables)
-cnn_init_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/train_seq_20180414-01-33-38_simplemodel1lstmseq0f2f/model_epoch_checkpoint-199"
+cnn_init_model_file = None
+# cnn_init_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/train_seq_20180414-01-33-38_simplemodel1lstmseq0f2f/model_epoch_checkpoint-199"
 #cnn_init_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/" \
 #                       "flownet_weights/flownet_s_weights"
 
@@ -265,8 +266,6 @@ with tf.Session(config=None) as sess:
             curr_lstm_states = np.stack(_curr_lstm_states, 0)
             # val_curr_lstm_states = np.stack(_val_curr_lstm_states, 0)
             # curr_vel_loss = _val_loss
-
-            #init_poses = _se3_outputs[cfg.sequence_stride, :, :]
 
             # for tensorboard
             if tensorboard_meta:

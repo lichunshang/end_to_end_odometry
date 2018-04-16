@@ -9,35 +9,38 @@ import gc
 
 
 class LidarDataLoader(object):
-    def __init__(self, config, base_dir, seq, frames):
-        pickles_dir = os.path.join(base_dir, "sequences", "lidar_picks")
+    def __init__(self, config, base_dir, seq, frames=None):
+        pickles_dir = os.path.join(base_dir, "sequences", "lidar_pickles")
         seq_data = pykitti.odometry(base_dir, seq)
         num_frames = len(seq_data.poses)
         self.data = np.zeros([num_frames, 2, config.input_height, config.input_width], dtype=np.float16)
 
-        with (open(pickles_dir + seq + "_range.pik", "rb")) as opfile:
+        with (open(os.path.join(pickles_dir, seq + "_range.pik"), "rb")) as opfile:
             i = 0
             while True:
                 try:
                     cur_image = pickle.load(opfile)
-                    self.data[i, :, :, 0] = cur_image
+                    self.data[i, 0, :, :] = cur_image
                 except EOFError:
                     break
                 i += 1
             assert (i == num_frames)
 
-        with (open(pickles_dir + seq + "_intensity.pik", "rb")) as opfile:
+        with (open(os.path.join(pickles_dir, seq + "_intensity.pik"), "rb")) as opfile:
             i = 0
             while True:
                 try:
                     cur_image = pickle.load(opfile)
-                    self.data[i, :, :, 0] = cur_image
+                    self.data[i, 1, :, :] = cur_image
+                    self.data[i, 1, :, :] = np.divide(self.data[i, 1, :, :], 254.0, dtype=np.float16)
+                    self.data[i, 1, :, :] = np.subtract(self.data[i, 1, :, :], 0.5, dtype=np.float16)
                 except EOFError:
                     break
                 i += 1
             assert (i == num_frames)
 
-        self.data = self.data[frames]
+        if frames:
+            self.data = self.data[frames]
 
     def get(self, idx):
         return self.data[idx]
@@ -58,7 +61,7 @@ class StatefulRollerDataGen(object):
         if (self.cfg.bidir_aug == True) and (self.cfg.batch_size % 2 != 0):
             raise ValueError("Batch size must be even")
 
-        if hasattr(self.cfg.data_src, "data_src"):
+        if hasattr(self.cfg, "data_type"):
             self.data_type = self.cfg.data_type
         if self.data_type != "cam" and self.data_type != "lidar":
             raise ValueError("lidar or camera for data type!")
@@ -211,18 +214,30 @@ class StatefulRollerDataGen(object):
                 self.curr_batch_idx[i_b] += self.cfg.sequence_stride
             else:
                 # data going backwards
-                batch[:, i_b, :, :] = self.input_frames[cur_seq][idx - n:idx, :, :, :]
-                se3_ground_truth[:, i_b, :] = self.se3_ground_truth[cur_seq][idx - n:idx, :]
-                fc_ground_truth[:, i_b, :] = self.fc_reverse_ground_truth[cur_seq][idx - n:idx - 1, :]
-                # flip along time axis
-                batch[:, i_b, :, :] = np.flip(batch[:, i_b, :, :], axis=0)
-                se3_ground_truth[:, i_b, :] = np.flip(se3_ground_truth[:, i_b, :], axis=0)
-                fc_ground_truth[:, i_b, :] = np.flip(fc_ground_truth[:, i_b, :], axis=0)
+                if self.data_type == "lidar":
+                    batch[:, i_b, :, :] = self.input_frames[cur_seq][idx - n:idx, :, :, :]
+                    se3_ground_truth[:, i_b, :] = self.se3_mirror_ground_truth[cur_seq][idx - n:idx, :]
+                    fc_ground_truth[:, i_b, :] = self.fc_reverse_mirror_ground_truth[cur_seq][idx - n:idx - 1, :]
+                    # flip along time axis
+                    batch[:, i_b, :, :] = np.flip(batch[:, i_b, :, :], axis=0)
+                    # flip image along width axis
+                    batch[:, i_b, :, :] = np.flip(batch[:, i_b, :, :], axis=3)
+                    se3_ground_truth[:, i_b, :] = np.flip(se3_ground_truth[:, i_b, :], axis=0)
+                    fc_ground_truth[:, i_b, :] = np.flip(fc_ground_truth[:, i_b, :], axis=0)
+                else:
+                    batch[:, i_b, :, :] = self.input_frames[cur_seq][idx - n:idx, :, :, :]
+                    se3_ground_truth[:, i_b, :] = self.se3_ground_truth[cur_seq][idx - n:idx, :]
+                    fc_ground_truth[:, i_b, :] = self.fc_reverse_ground_truth[cur_seq][idx - n:idx - 1, :]
+                    # flip along time axis
+                    batch[:, i_b, :, :] = np.flip(batch[:, i_b, :, :], axis=0)
+                    se3_ground_truth[:, i_b, :] = np.flip(se3_ground_truth[:, i_b, :], axis=0)
+                    fc_ground_truth[:, i_b, :] = np.flip(fc_ground_truth[:, i_b, :], axis=0)
 
                 self.curr_batch_idx[i_b] -= self.cfg.sequence_stride
 
-        batch = np.divide(batch, 255.0, dtype=np.float32)  # ensure float32
-        batch = np.subtract(batch, 0.5, dtype=np.float32)
+        if not self.data_type == "lidar":
+            batch = np.divide(batch, 255.0, dtype=np.float32)  # ensure float32
+            batch = np.subtract(batch, 0.5, dtype=np.float32)
 
         self.current_batch += 1
         self.sequence_batch += 1

@@ -56,7 +56,7 @@ for seq in sequences:
 
     for i in range(0, len(data.poses)):
         pickle.dump(images[i, 0, :, :].astype(np.float16), range_out)
-        pickle.dump((images[i, 1, :, :] * 254.0).astype(np.uint8), int_out)
+        pickle.dump((images[i, 1, :, :] * 255.0).astype(np.uint8), int_out)
         if i % 100 == 0:
             print("Saving sequence %s %.1f%% " % (seq, (i / len(data.poses)) * 100))
 
