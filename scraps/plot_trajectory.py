@@ -4,8 +4,8 @@ import matplotlib.pyplot as plt
 data_dir = "/home/cs4li/Dev/end_to_end_visual_odometry/results/trajectory_results/"
 
 trajectories_to_overlay = [
-    (data_dir + "trajectory_00.npy", {"linewidth": 1.0, "color": "r"},),
-    (data_dir + "ground_truth_00.npy", {"linewidth": 1.0, "color": "b"})
+    (data_dir + "trajectory_05.npy", {"linewidth": 1.0, "color": "r"},),
+    (data_dir + "ground_truth_05.npy", {"linewidth": 1.0, "color": "b"})
 ]
 
 plt.figure(1)

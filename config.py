@@ -82,7 +82,7 @@ class SeqCamEvalConfig(Configs):
     bidir_aug = False
 
     lstm_size = 256
-    lstm_layers = 1
+    lstm_layers = 2
 
 class PairCamEvalConfig(Configs):
     timesteps = 1
