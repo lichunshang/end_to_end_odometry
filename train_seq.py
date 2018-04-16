@@ -16,11 +16,13 @@ cfg = config.SeqTrainConfigsSmallSteps
 val_cfg = config.SeqTrainConfigsSmallStepsValidation
 config.print_configs(cfg)
 
-lr_set = 0.001
+lr_set = 0.0001
 lr_schedule = {
     0: 0.0001,
-    40: 0.0001,
-    70: 0.00005
+    40: 0.00008,
+    70: 0.00005,
+    80: 0.000002,
+    100: 0.000001
 }
 start_epoch = 0
 # alpha_schedule = {0: 0.99,  # epoch: alpha
@@ -29,9 +31,10 @@ start_epoch = 0
 #                   60: 0.1,
 #                   80: 0.025}
 alpha_schedule = {0: 1,
-                  5: 0.99,
+                  10: 0.99,
                   15: 0.9,
-                  25: 0.8}
+                  25: 0.8,
+		  35: 0.5}
 
 tensorboard_meta = False
 
@@ -75,13 +78,13 @@ tf_best_saver = tf.train.Saver(max_to_keep=2)
 
 tf_restore_saver = tf.train.Saver()
 restore_model_file = None
-#restore_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/train_seq_20180412-19-02-06/best_val/model_best_val_checkpoint-1"
+#restore_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/train_seq_20180413-18-29-33/model_epoch_checkpoint-99"
 
 # just for restoring pre trained cnn weights
 cnn_variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, "^cnn_layer.*")
 cnn_init_tf_saver = tf.train.Saver(cnn_variables)
-cnn_init_model_file = None
-# cnn_init_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/" \
+cnn_init_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/train_seq_20180414-01-33-38_simplemodel1lstmseq0f2f/model_epoch_checkpoint-199"
+#cnn_init_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/" \
 #                       "flownet_weights/flownet_s_weights"
 
 # =================== TRAINING ========================
@@ -152,7 +155,7 @@ with tf.Session(config=None) as sess:
     tools.printf("alpha_schedule: %s" % alpha_schedule)
 
     best_val_loss = 9999999999
-    alpha_set = -1
+    alpha_set = 0.8
     i_epoch = 0
 
     # for evaluating validation loss

@@ -27,8 +27,8 @@ class SeqTrainConfigs(Configs):
     k_se3 = 500
 
 class SeqTrainConfigsSmallSteps(Configs):
-    timesteps = 1
-    batch_size = 40
+    timesteps = 8
+    batch_size = 6
     input_width = 1280
     input_height = 384
     input_channels = 3
@@ -36,10 +36,10 @@ class SeqTrainConfigsSmallSteps(Configs):
     bidir_aug = True
 
     lstm_size = 256
-    lstm_layers = 1
-    sequence_stride = 1
+    lstm_layers = 2
+    sequence_stride = 8
 
-    num_epochs = 100
+    num_epochs = 200
     k_fc = 50
     k_se3 = 500
 
@@ -73,12 +73,12 @@ class PairTrainConfigs(Configs):
 
 
 class SeqCamEvalConfig(Configs):
-    timesteps = 10
+    timesteps = 1
     batch_size = 1
     input_width = 1280
     input_height = 384
     input_channels = 3
-    sequence_stride = 10
+    sequence_stride = 1
     bidir_aug = False
 
     lstm_size = 256

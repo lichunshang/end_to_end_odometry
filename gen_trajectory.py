@@ -32,7 +32,7 @@ if not os.path.exists(results_dir_path):
     os.makedirs(results_dir_path)
 
 # ==== Read Model Checkpoints =====
-restore_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/train_seq_20180412-19-02-06/model_epoch_checkpoint-5"
+restore_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/train_seq_20180414-01-33-38_simplemodel1lstmseq0f2f/model_epoch_checkpoint-199"
 
 variable_to_load = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, "^(cnn_layer|rnn_layer|fc_layer).*")
 tf_restore_saver = tf.train.Saver(variable_to_load)
