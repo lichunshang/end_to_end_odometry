@@ -126,8 +126,8 @@ image_summary_op = tf.summary.merge([initial_layer, final_layer])
 # ================ LOADING DATASET ===================
 
 tools.printf("Loading training data...")
-train_sequences = ["00", "01", "02"]
-train_data_gen = data.StatefulRollerDataGen(cfg, "/home/ben/School/kitti/", train_sequences, frames=[None])
+train_sequences = ["00", "06", "09"]
+train_data_gen = data.StatefulRollerDataGen(cfg, "/home/ben/School/kitti/", train_sequences, frames=[None, None, None])
 # tools.printf("Loading validation data...")
 validation_sequences = ["06"]
 # val_data_gen = data.StatefulRollerDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", validation_sequences, frames=[range(500)])
@@ -239,7 +239,7 @@ with tf.Session(config=None) as sess:
                     inputs: batch_data,
                     se3_labels: se3_ground_truth[1:, :, :],
                     fc_labels: fc_ground_truth,
-                    lstm_initial_state: curr_lstm_states,
+                    lstm_initial_state: curr_lstm_states[train_data_gen.current_sequence()],
                     initial_poses: init_poses,
                     lr: lr_set,
                     alpha: alpha_set,
@@ -270,7 +270,7 @@ with tf.Session(config=None) as sess:
             #     run_metadata=run_metadata
             # )
 
-            curr_lstm_states = np.stack(_curr_lstm_states, 0)
+            curr_lstm_states[train_data_gen.current_sequence()] = np.stack(_curr_lstm_states, 0)
             # val_curr_lstm_states = np.stack(_val_curr_lstm_states, 0)
             # curr_vel_loss = _val_loss
 
@@ -290,7 +290,7 @@ with tf.Session(config=None) as sess:
             #     train_data_gen.curr_batch(), train_data_gen.total_batches(),
             #     _total_losses, _val_loss))
             tools.printf("batch %d/%d: Loss:%.7f" % (
-                train_data_gen.curr_batch(), train_data_gen.total_batches(),
+                j_batch + 1, train_data_gen.total_batches(),
                 _total_losses))
 
         tools.printf("Evaluating validation loss...")

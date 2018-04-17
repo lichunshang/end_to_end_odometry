@@ -245,7 +245,7 @@ class StatefulRollerDataGen(object):
         return reset_state, batch, fc_ground_truth, se3_ground_truth
 
     def has_next_batch(self):
-        return self.current_batch + 1 < self.batch_cnt
+        return self.current_batch < self.batch_cnt
 
     def set_batch_offsets(self):
         halfway = self.cfg.batch_size / 2
@@ -257,8 +257,7 @@ class StatefulRollerDataGen(object):
                     self.curr_batch_sequence]] * i_b * self.cfg.sequence_stride
             # second half are going back in time
             else:
-                reverse_start = self.batch_sizes[self.sequences[self.curr_batch_sequence]] * (
-                        self.cfg.batch_size / 2) * self.cfg.sequence_stride
+                reverse_start = self.batch_sizes[self.sequences[self.curr_batch_sequence]] * halfway * self.cfg.sequence_stride + 1
                 self.curr_batch_idx[i_b] = reverse_start - self.batch_sizes[
                     self.sequences[self.curr_batch_sequence]] * (i_b - halfway) * self.cfg.sequence_stride
 
