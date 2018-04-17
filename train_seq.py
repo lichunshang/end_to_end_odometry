@@ -11,7 +11,7 @@ import numpy as np
 import time
 
 # =================== CONFIGURATIONS ========================
-#cfg = config.SeqTrainConfigs
+# cfg = config.SeqTrainConfigs
 cfg = config.SeqTrainLidarConfig
 val_cfg = config.SeqTrainConfigsSmallStepsValidation
 config.print_configs(cfg)
@@ -34,7 +34,7 @@ alpha_schedule = {0: 1,
                   10: 0.99,
                   15: 0.9,
                   25: 0.8,
-		  35: 0.5}
+                  35: 0.5}
 
 tensorboard_meta = False
 
@@ -43,7 +43,8 @@ tools.printf("Building losses...")
 with tf.device("/cpu:0"):
     alpha = tf.placeholder(tf.float32, name="alpha", shape=[])  # between 0 and 1, larger favors fc loss
 
-with tf.device(tf.train.replica_device_setter(ps_tasks=1, ps_device='/job:localhost/replica:0/task:0/device:GPU:0', worker_device='/job:localhost/replica:0/task:0/device:GPU:0')):
+with tf.device(tf.train.replica_device_setter(ps_tasks=1, ps_device='/job:localhost/replica:0/task:0/device:GPU:0',
+                                              worker_device='/job:localhost/replica:0/task:0/device:GPU:0')):
     inputs, lstm_initial_state, initial_poses, is_training, fc_outputs, se3_outputs, lstm_states = model.build_seq_model(
         cfg, True)
     se3_labels, fc_labels = simple_model.model_labels(cfg)
@@ -73,19 +74,21 @@ with tf.variable_scope("Optimizer"):
 
 # =================== SAVING/LOADING DATA ========================
 results_dir_path = tools.create_results_dir("train_seq")
+tools.log_file_content(results_dir_path, os.path.dirname(os.path.realpath(__file__)))
+
 tf_checkpoint_saver = tf.train.Saver(max_to_keep=3)
 tf_best_saver = tf.train.Saver(max_to_keep=2)
 
 tf_restore_saver = tf.train.Saver()
 restore_model_file = None
-#restore_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/train_seq_20180413-18-29-33/model_epoch_checkpoint-99"
+# restore_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/train_seq_20180413-18-29-33/model_epoch_checkpoint-99"
 
 # just for restoring pre trained cnn weights
 cnn_variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, "^cnn_layer.*")
 cnn_init_tf_saver = tf.train.Saver(cnn_variables)
 cnn_init_model_file = None
 # cnn_init_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/train_seq_20180414-01-33-38_simplemodel1lstmseq0f2f/model_epoch_checkpoint-199"
-#cnn_init_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/" \
+# cnn_init_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/" \
 #                       "flownet_weights/flownet_s_weights"
 
 # =================== TRAINING ========================
@@ -105,24 +108,74 @@ tf.summary.scalar("z_loss", z_loss)
 train_merged_summary_op = tf.summary.merge_all()
 
 activations = tf.get_collection(tf.GraphKeys.ACTIVATIONS)
-initial_layer = tf.summary.image("1st layer activations", tf.expand_dims(activations[0][:,0,:,:], -1))
-final_layer = tf.summary.image("Last layer activations", tf.expand_dims(activations[1][:,0,:,:], -1))
+initial_layer = tf.summary.image("1st layer activations", tf.expand_dims(activations[0][:, 0, :, :], -1))
+final_layer = tf.summary.image("Last layer activations", tf.expand_dims(activations[1][:, 0, :, :], -1))
 
 image_summary_op = tf.summary.merge([initial_layer, final_layer])
 
 # val_loss_sum = tf.summary.scalar("training_loss_val", total_losses_val)
 # val_fc_sum = tf.summary.scalar("fc_losses_val", fc_losses_val)
 # val_se3_sum = tf.summary.scalar("se3_losses_val", se3_losses_val)
-
+#
 # val_merged_summary_op = tf.summary.merge([val_loss_sum, val_fc_sum, val_se3_sum])
+
+val_loss_sum = tf.summary.scalar("training_loss_val", total_losses)
+val_fc_sum = tf.summary.scalar("fc_losses_val", fc_losses)
+val_se3_sum = tf.summary.scalar("se3_losses_val", se3_losses)
+val_z_sum = tf.summary.scalar("z_loss_val", z_loss)
+
+val_merged_summary_op = tf.summary.merge([val_loss_sum, val_fc_sum, val_se3_sum, val_z_sum])
 
 # ================ LOADING DATASET ===================
 
 tools.printf("Loading training data...")
 train_data_gen = data.StatefulRollerDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["00"], frames=[None])
-# tools.printf("Loading validation data...")
-# val_data_gen = data.StatefulRollerDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["06"], frames=[range(500)])
+tools.printf("Loading validation data...")
 
+# validation should only have one sequence
+val_data_gen = data.StatefulRollerDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["10"], frames=[range(500)])
+
+
+# ============== For Validation =============
+def calc_val_loss(sess, writer, i_epoch, run_options, run_metadata):
+    curr_lstm_states = np.zeros([2, cfg.lstm_layers, cfg.batch_size, cfg.lstm_size])
+    init_poses = val_data_gen.se3_ground_truth[0, :, :]
+
+    val_data_gen.next_epoch()
+
+    val_losses_log = np.zeros([val_data_gen.total_batches()])
+
+    while val_data_gen.has_next_batch():
+        j_batch = train_data_gen.curr_batch()
+
+        # never resets state, there will only be one sequence in validation
+        _, batch_data, fc_ground_truth, se3_ground_truth = val_data_gen.next_batch()
+
+        init_poses = se3_ground_truth[0, :, :]
+        _curr_lstm_states, _summary, _losses = sess.run(
+            [lstm_states, val_merged_summary_op, losses],
+            feed_dict={
+                inputs: batch_data,
+                se3_labels: se3_ground_truth[1:, :, :],
+                fc_labels: fc_ground_truth,
+                lstm_initial_state: curr_lstm_states,
+                initial_poses: init_poses,
+                lr: lr_set,
+                alpha: alpha_set,
+                is_training: False
+            },
+            options=run_options,
+            run_metadata=run_metadata
+        )
+
+        curr_lstm_states = np.stack(_curr_lstm_states, 0)
+        writer.add_summary(_summary, i_epoch * val_data_gen.total_batches() + j_batch)
+        val_losses_log[j_batch] = _losses
+
+    return np.average(val_losses_log)
+
+
+# ============ Training Session ============
 with tf.Session(config=None) as sess:
     if cnn_init_model_file:
         tools.printf("Taking initialization weights from %s..." % cnn_init_model_file)
@@ -143,7 +196,7 @@ with tf.Session(config=None) as sess:
         run_options = None
         run_metadata = None
 
-    writer = tf.summary.FileWriter('graph_viz' + "_%s" % datetime.datetime.today().strftime('%Y%m%d-%H-%M-%S') + '/')
+    writer = tf.summary.FileWriter(os.path.join(results_dir_path, 'graph_viz'))
     writer.add_graph(tf.get_default_graph())
     writer.flush()
 
@@ -160,7 +213,7 @@ with tf.Session(config=None) as sess:
     i_epoch = 0
 
     # for evaluating validation loss
-    curr_vel_loss = 9999999999999
+    curr_val_loss = 9999999999999
     val_curr_lstm_states = np.zeros([2, val_cfg.lstm_layers, val_cfg.batch_size, val_cfg.lstm_size])
     curr_lstm_states = np.zeros([2, cfg.lstm_layers, cfg.batch_size, cfg.lstm_size])
 
@@ -169,9 +222,9 @@ with tf.Session(config=None) as sess:
 
         if (i_epoch > 0):
             if cfg.bidir_aug:
-                mid = cfg.batch_size/2
+                mid = cfg.batch_size / 2
                 mid = int(mid)
-                curr_lstm_states[:, :, 1:mid, :] = curr_lstm_states[:, :, 0:(mid-1), :]
+                curr_lstm_states[:, :, 1:mid, :] = curr_lstm_states[:, :, 0:(mid - 1), :]
                 curr_lstm_states[:, :, mid + 1:, :] = curr_lstm_states[:, :, mid:-1, :]
                 curr_lstm_states[:, :, mid, :] = np.zeros(curr_lstm_states[:, :, mid, :].shape, dtype=np.float32)
             else:
@@ -211,7 +264,6 @@ with tf.Session(config=None) as sess:
             #
             #     val_data_gen.next_epoch()
 
-
             # get inputs
             reset_state, batch_data, \
             fc_ground_truth, se3_ground_truth = train_data_gen.next_batch()
@@ -221,7 +273,7 @@ with tf.Session(config=None) as sess:
 
             curr_lstm_states = data.reset_select_lstm_state(curr_lstm_states, reset_state)
 
-            #shift se3 ground truth to be relative to the first pose
+            # shift se3 ground truth to be relative to the first pose
             init_poses = se3_ground_truth[0, :, :]
             # val_init_poses = val_se3_ground_truth[0, :, :]
 
@@ -265,7 +317,7 @@ with tf.Session(config=None) as sess:
 
             curr_lstm_states = np.stack(_curr_lstm_states, 0)
             # val_curr_lstm_states = np.stack(_val_curr_lstm_states, 0)
-            # curr_vel_loss = _val_loss
+            # curr_val_loss = _val_loss
 
             # for tensorboard
             if tensorboard_meta:
@@ -288,13 +340,15 @@ with tf.Session(config=None) as sess:
 
         tools.printf("Evaluating validation loss...")
 
+        curr_val_loss = calc_val_loss(sess, writer, i_epoch, run_options, run_metadata)
+
         # check for best results
-        # if curr_vel_loss < best_val_loss:
-        #     tools.printf("Saving best result...")
-        #     best_val_loss = curr_vel_loss
-        #     tf_best_saver.save(sess, os.path.join(results_dir_path, "best_val", "model_best_val_checkpoint"),
-        #                        global_step=i_epoch)
-        #     tools.printf("Best val loss, model saved.")
+        if curr_val_loss < best_val_loss:
+            tools.printf("Saving best result...")
+            best_val_loss = curr_val_loss
+            tf_best_saver.save(sess, os.path.join(results_dir_path, "best_val", "model_best_val_checkpoint"),
+                               global_step=i_epoch)
+            tools.printf("Best val loss, model saved.")
         if i_epoch % 5 == 0:
             tools.printf("Saving checkpoint...")
             tf_checkpoint_saver.save(sess, os.path.join(results_dir_path, "model_epoch_checkpoint"),

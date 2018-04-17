@@ -13,6 +13,7 @@ import sys
 import datetime
 import numpy as np
 import collections
+from shutil import copyfile
 
 
 # TODO(yuanbyu, mrry): Handle stride to support sliding windows.
@@ -104,6 +105,10 @@ def create_results_dir(prepend):
         os.makedirs(best_val_path)
 
     return results_dir_path
+
+
+def log_file_content(log_path, file_path):
+    copyfile(file_path, os.path.join(log_path, os.path.basename(file_path)))
 
 
 def printf(string=""):
