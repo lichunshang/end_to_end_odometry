@@ -74,7 +74,7 @@ with tf.variable_scope("Optimizer"):
 
 # =================== SAVING/LOADING DATA ========================
 results_dir_path = tools.create_results_dir("train_seq")
-tools.log_file_content(results_dir_path, os.path.dirname(os.path.realpath(__file__)))
+tools.log_file_content(results_dir_path, os.path.realpath(__file__))
 
 tf_checkpoint_saver = tf.train.Saver(max_to_keep=3)
 tf_best_saver = tf.train.Saver(max_to_keep=2)
@@ -129,38 +129,36 @@ val_merged_summary_op = tf.summary.merge([val_loss_sum, val_fc_sum, val_se3_sum,
 # ================ LOADING DATASET ===================
 
 tools.printf("Loading training data...")
-train_data_gen = data.StatefulRollerDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["00"], frames=[None])
+train_data_gen = data.StatefulRollerDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["10"], frames=[range(100)])
 tools.printf("Loading validation data...")
 
 # validation should only have one sequence
-val_data_gen = data.StatefulRollerDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["10"], frames=[range(500)])
+val_data_gen = data.StatefulRollerDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["10"], frames=[range(100)])
 
 
 # ============== For Validation =============
-def calc_val_loss(sess, writer, i_epoch, run_options, run_metadata):
+def calc_val_loss(sess, writer, i_epoch, alpha_set, run_options, run_metadata):
     curr_lstm_states = np.zeros([2, cfg.lstm_layers, cfg.batch_size, cfg.lstm_size])
-    init_poses = val_data_gen.se3_ground_truth[0, :, :]
 
     val_data_gen.next_epoch()
 
-    val_losses_log = np.zeros([val_data_gen.total_batches()])
+    val_se3_losses_log = np.zeros([val_data_gen.total_batches()])
 
     while val_data_gen.has_next_batch():
-        j_batch = train_data_gen.curr_batch()
+        j_batch = val_data_gen.curr_batch()
 
         # never resets state, there will only be one sequence in validation
         _, batch_data, fc_ground_truth, se3_ground_truth = val_data_gen.next_batch()
 
         init_poses = se3_ground_truth[0, :, :]
-        _curr_lstm_states, _summary, _losses = sess.run(
-            [lstm_states, val_merged_summary_op, losses],
+        _curr_lstm_states, _summary, _total_losses, _se3_losses = sess.run(
+            [lstm_states, val_merged_summary_op, total_losses, se3_losses],
             feed_dict={
                 inputs: batch_data,
                 se3_labels: se3_ground_truth[1:, :, :],
                 fc_labels: fc_ground_truth,
                 lstm_initial_state: curr_lstm_states,
                 initial_poses: init_poses,
-                lr: lr_set,
                 alpha: alpha_set,
                 is_training: False
             },
@@ -170,9 +168,10 @@ def calc_val_loss(sess, writer, i_epoch, run_options, run_metadata):
 
         curr_lstm_states = np.stack(_curr_lstm_states, 0)
         writer.add_summary(_summary, i_epoch * val_data_gen.total_batches() + j_batch)
-        val_losses_log[j_batch] = _losses
+        tools.printf("%f" % _se3_losses)
+        val_se3_losses_log[j_batch] = _se3_losses
 
-    return np.average(val_losses_log)
+    return np.average(val_se3_losses_log)
 
 
 # ============ Training Session ============
@@ -340,7 +339,7 @@ with tf.Session(config=None) as sess:
 
         tools.printf("Evaluating validation loss...")
 
-        curr_val_loss = calc_val_loss(sess, writer, i_epoch, run_options, run_metadata)
+        curr_val_loss = calc_val_loss(sess, writer, i_epoch, alpha_set, run_options, run_metadata)
 
         # check for best results
         if curr_val_loss < best_val_loss:
@@ -356,6 +355,8 @@ with tf.Session(config=None) as sess:
             tools.printf("Checkpoint saved")
 
         if tensorboard_meta: writer.flush()
+
+        tools.printf("ave_val_loss(se3): %f, time: %f\n" % (curr_val_loss, time.time() - start_time))
 
         train_data_gen.next_epoch()
 
