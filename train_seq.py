@@ -17,11 +17,18 @@ val_cfg = config.SeqTrainConfigsSmallStepsValidation
 config.print_configs(cfg)
 
 lr_set = 0.0001
+# lr_schedule = {
+#     0:   0.0001,
+#     40:  0.00008,
+#     70:  0.00005,
+#     80:  0.000002,
+#     100: 0.000001
+# }
 lr_schedule = {
-    0: 0.0001,
-    40: 0.00008,
-    70: 0.00005,
-    80: 0.000002,
+    0:   0.00001,
+    40:  0.00001,
+    70:  0.00001,
+    80:  0.000002,
     100: 0.000001
 }
 start_epoch = 0
@@ -78,7 +85,7 @@ tf_best_saver = tf.train.Saver(max_to_keep=2)
 
 tf_restore_saver = tf.train.Saver()
 restore_model_file = None
-#restore_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/train_seq_20180413-18-29-33/model_epoch_checkpoint-99"
+restore_model_file = "/home/ben/School/e2e_results/train_seq_20180417-00-05-43/model_epoch_checkpoint-199"
 
 # just for restoring pre trained cnn weights
 cnn_variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, "^cnn_layer.*")
@@ -119,9 +126,11 @@ image_summary_op = tf.summary.merge([initial_layer, final_layer])
 # ================ LOADING DATASET ===================
 
 tools.printf("Loading training data...")
-train_data_gen = data.StatefulRollerDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["00"], frames=[None])
+train_sequences = ["00", "01", "02"]
+train_data_gen = data.StatefulRollerDataGen(cfg, "/home/ben/School/kitti/", train_sequences, frames=[None])
 # tools.printf("Loading validation data...")
-# val_data_gen = data.StatefulRollerDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", ["06"], frames=[range(500)])
+validation_sequences = ["06"]
+# val_data_gen = data.StatefulRollerDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", validation_sequences, frames=[range(500)])
 
 with tf.Session(config=None) as sess:
     if cnn_init_model_file:
@@ -143,7 +152,7 @@ with tf.Session(config=None) as sess:
         run_options = None
         run_metadata = None
 
-    writer = tf.summary.FileWriter('graph_viz' + "_%s" % datetime.datetime.today().strftime('%Y%m%d-%H-%M-%S') + '/')
+    writer = tf.summary.FileWriter(results_dir_path)
     writer.add_graph(tf.get_default_graph())
     writer.flush()
 
@@ -162,21 +171,19 @@ with tf.Session(config=None) as sess:
     # for evaluating validation loss
     curr_vel_loss = 9999999999999
     val_curr_lstm_states = np.zeros([2, val_cfg.lstm_layers, val_cfg.batch_size, val_cfg.lstm_size])
-    curr_lstm_states = np.zeros([2, cfg.lstm_layers, cfg.batch_size, cfg.lstm_size])
+    n_states = len(train_sequences)
+    curr_lstm_states = {}
+    for seq in train_sequences:
+        curr_lstm_states[seq] = np.zeros([2, cfg.lstm_layers, cfg.batch_size, cfg.lstm_size], dtype=np.float32)
 
     for i_epoch in range(start_epoch, cfg.num_epochs):
         tools.printf("Training Epoch: %d ..." % i_epoch)
 
+        curr_seq = train_data_gen.current_sequence()
+
         if (i_epoch > 0):
-            if cfg.bidir_aug:
-                mid = cfg.batch_size/2
-                mid = int(mid)
-                curr_lstm_states[:, :, 1:mid, :] = curr_lstm_states[:, :, 0:(mid-1), :]
-                curr_lstm_states[:, :, mid + 1:, :] = curr_lstm_states[:, :, mid:-1, :]
-                curr_lstm_states[:, :, mid, :] = np.zeros(curr_lstm_states[:, :, mid, :].shape, dtype=np.float32)
-            else:
-                curr_lstm_states[:, :, 1:, :] = curr_lstm_states[:, :, 0:-1, :]
-            curr_lstm_states[:, :, 0, :] = np.zeros(curr_lstm_states[:, :, 0, :].shape, dtype=np.float32)
+            mask = [True, curr_seq]
+            curr_lstm_states = data.reset_select_lstm_state(curr_lstm_states, mask, cfg.bidir_aug)
 
         start_time = time.time()
 
@@ -219,7 +226,7 @@ with tf.Session(config=None) as sess:
             # never need to reset, only one sequence in validation data
             # _, val_batch_data, val_fc_ground_truth, val_se3_ground_truth = val_data_gen.next_batch()
 
-            curr_lstm_states = data.reset_select_lstm_state(curr_lstm_states, reset_state)
+            curr_lstm_states = data.reset_select_lstm_state(curr_lstm_states, reset_state, cfg.bidir_aug)
 
             #shift se3 ground truth to be relative to the first pose
             init_poses = se3_ground_truth[0, :, :]

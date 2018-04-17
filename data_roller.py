@@ -54,7 +54,7 @@ class StatefulRollerDataGen(object):
         self.data_type = "cam"
         self.sequences = sequences
         self.curr_batch_idx = np.zeros([self.cfg.batch_size], dtype=np.int64)
-        self.curr_epoch_sequence = []
+        self.curr_batch_sequence = 0
         self.current_batch = 0
         self.sequence_batch = 0
 
@@ -190,21 +190,21 @@ class StatefulRollerDataGen(object):
     def next_batch(self):
         n = self.cfg.timesteps + 1  # number of frames in an example
         # prepare a batch from huge matrix of training data
-        reset_state = np.zeros([self.cfg.batch_size], dtype=np.uint8)
+        reset_state = [False, None]
         batch = np.zeros([n, self.cfg.batch_size, self.cfg.input_channels, self.cfg.input_height, self.cfg.input_width],
                          dtype=np.float32)
         se3_ground_truth = np.zeros([n, self.cfg.batch_size, 7], dtype=np.float32)
         fc_ground_truth = np.zeros([self.cfg.timesteps, self.cfg.batch_size, 6], dtype=np.float32)
 
         # check if at the end of the current sequence, and move to next if required
-        if self.sequence_batch + 1 > self.batch_sizes[self.sequences[self.curr_batch_sequences[0]]]:
+        if self.sequence_batch + 1 > self.batch_sizes[self.sequences[self.curr_batch_sequence]]:
             self.sequence_batch = 0
-            self.curr_batch_sequences += 1
+            self.curr_batch_sequence += 1
             self.set_batch_offsets()
-            reset_state = np.ones([self.cfg.batch_size], dtype=np.uint8)
+            reset_state = [True, self.sequences[self.curr_batch_sequence]]
 
         for i_b in range(len(self.curr_batch_idx)):
-            cur_seq = self.sequences[self.curr_batch_sequences[i_b]]
+            cur_seq = self.sequences[self.curr_batch_sequence]
             idx = self.curr_batch_idx[i_b]
             if (i_b < self.cfg.batch_size / 2) or not self.cfg.bidir_aug:
                 # data going forwards
@@ -254,18 +254,18 @@ class StatefulRollerDataGen(object):
             # first half of batches are going forward in time
             if (i_b < halfway) or not self.cfg.bidir_aug:
                 self.curr_batch_idx[i_b] = self.batch_sizes[self.sequences[
-                    self.curr_batch_sequences[i_b]]] * i_b * self.cfg.sequence_stride
+                    self.curr_batch_sequence]] * i_b * self.cfg.sequence_stride
             # second half are going back in time
             else:
-                reverse_start = self.batch_sizes[self.sequences[self.curr_batch_sequences[i_b]]] * (
+                reverse_start = self.batch_sizes[self.sequences[self.curr_batch_sequence]] * (
                         self.cfg.batch_size / 2) * self.cfg.sequence_stride
                 self.curr_batch_idx[i_b] = reverse_start - self.batch_sizes[
-                    self.sequences[self.curr_batch_sequences[i_b]]] * (i_b - halfway) * self.cfg.sequence_stride
+                    self.sequences[self.curr_batch_sequence]] * (i_b - halfway) * self.cfg.sequence_stride
 
     def next_epoch(self):
         # Randomize sequence order
         random.shuffle(self.sequences)
-        self.curr_batch_sequences = np.zeros([self.cfg.batch_size], dtype=np.int)
+        self.curr_batch_sequence = 0
         # set starting offsets for each batch
         self.set_batch_offsets()
 
@@ -278,15 +278,24 @@ class StatefulRollerDataGen(object):
     def total_batches(self):
         return self.batch_cnt
 
+    def current_sequence(self):
+        return self.sequences[self.curr_batch_sequence]
 
-# lstm_states: tuple of size 2, each element is [num_layers, batch_size, lstm_size]
-# mask: vector of size batch_size, determines which example in the batch should have states reset
-def reset_select_lstm_state(lstm_states, mask):
-    # reset the lstm state for that example if indicated by the mask
-    for i in range(0, len(mask)):
-        if mask[i]:
-            lstm_states[0][:, i, :] = 0
-            lstm_states[1][:, i, :] = 0
+# lstm_states: dictionary with tuples of size 2, each element is [num_layers, batch_size, lstm_size]
+# mask: tuple with bool whether to reset states or not, and the dictionary entry
+def reset_select_lstm_state(lstm_states, mask, bidir_aug):
+    if mask[0]:
+        if bidir_aug:
+            mid = lstm_states[mask[1]].shape[2] / 2
+            mid = int(mid)
+            lstm_states[mask[1]][:, :, 1:mid, :] = lstm_states[mask[1]][:, :, 0:(mid - 1), :]
+            lstm_states[mask[1]][:, :, mid + 1:, :] = lstm_states[mask[1]][:, :, mid:-1, :]
+            lstm_states[mask[1]][:, :, mid, :] = np.zeros(lstm_states[mask[1]][:, :, mid, :].shape,
+                                                                dtype=np.float32)
+        else:
+            lstm_states[mask[1]][:, :, 1:, :] = lstm_states[mask[1]][:, :, 0:-1, :]
+            lstm_states[mask[1]][:, :, 0, :] = np.zeros(lstm_states[mask[1]][:, :, 0, :].shape,
+                                                          dtype=np.float32)
     return lstm_states
 
 
