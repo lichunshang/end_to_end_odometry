@@ -8,7 +8,7 @@ import numpy as np
 import os
 
 dir_name = "trajectory_results"
-kitti_seq = "05"
+kitti_seq = "07"
 
 if kitti_seq in ["11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21"]:
     save_ground_truth = False
@@ -32,7 +32,7 @@ if not os.path.exists(results_dir_path):
     os.makedirs(results_dir_path)
 
 # ==== Read Model Checkpoints =====
-restore_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/train_seq_20180414-14-33-36_simplemodel2lstmts8/model_epoch_checkpoint-199"
+restore_model_file = "/media/cs4li/DATADisk/results/train_seq_20180414-14-33-36_simplemodel2lstmts8/model_epoch_checkpoint-199"
 
 variable_to_load = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, "^(cnn_layer|rnn_layer|fc_layer).*")
 tf_restore_saver = tf.train.Saver(variable_to_load)
@@ -41,7 +41,7 @@ with tf.Session() as sess:
     tools.printf("Restoring model weights from %s..." % restore_model_file)
     tf_restore_saver.restore(sess, restore_model_file)
 
-    total_batches = train_data_gen.total_batches() - 1
+    total_batches = train_data_gen.total_batches()
     tools.printf("Start evaluation loop...")
 
     curr_lstm_states = np.zeros([2, cfg.lstm_layers, cfg.batch_size, cfg.lstm_size])

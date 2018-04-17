@@ -93,7 +93,9 @@ class StatefulRollerDataGen(object):
 
         for i_seq, seq in enumerate(sequences):
             seq_data = pykitti.odometry(base_dir, seq, frames=frames[i_seq])
-            lidar_data = LidarDataLoader(self.cfg, base_dir, seq, frames=frames[i_seq])
+            lidar_data = None
+            if self.data_type == "lidar":
+                lidar_data = LidarDataLoader(self.cfg, base_dir, seq, frames=frames[i_seq])
             num_frames = len(seq_data.poses)
 
             self.input_frames[seq] = np.zeros(
@@ -170,7 +172,7 @@ class StatefulRollerDataGen(object):
                         [trans_reverse_mirror, ypr_reverse_mirror])
 
             # How many examples the sequence contains, were it to be processed using a batch size of 1
-            sequence_examples = np.floor((num_frames - self.cfg.timesteps + 1) / self.cfg.sequence_stride).astype(
+            sequence_examples = np.ceil((num_frames - self.cfg.timesteps) / self.cfg.sequence_stride).astype(
                 np.int32)
             # how many batches in the sequence, cutting off any extra
             if self.cfg.bidir_aug:

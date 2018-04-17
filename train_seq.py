@@ -17,20 +17,20 @@ val_cfg = config.SeqTrainConfigsSmallStepsValidation
 config.print_configs(cfg)
 
 lr_set = 0.0001
-# lr_schedule = {
-#     0:   0.0001,
-#     40:  0.00008,
-#     70:  0.00005,
-#     80:  0.000002,
-#     100: 0.000001
-# }
 lr_schedule = {
-    0:   0.00001,
-    40:  0.00001,
-    70:  0.00001,
+    0:   0.0001,
+    40:  0.00008,
+    70:  0.00005,
     80:  0.000002,
     100: 0.000001
 }
+# lr_schedule = {
+#     0:   0.00001,
+#     40:  0.00001,
+#     70:  0.00001,
+#     80:  0.000002,
+#     100: 0.000001
+# }
 start_epoch = 0
 # alpha_schedule = {0: 0.99,  # epoch: alpha
 #                   20: 0.9,
@@ -101,6 +101,8 @@ cnn_init_model_file = None
 # =================== TRAINING ========================
 # config = tf.ConfigProto(allow_soft_placement=True)
 
+sequence_id = tf.placeholder(dtype=tf.uint8, shape=[])
+
 tf.summary.scalar("training_loss", total_losses)
 tf.summary.scalar("fc_losses", fc_losses)
 tf.summary.scalar("se3_losses", se3_losses)
@@ -111,6 +113,9 @@ tf.summary.scalar("se3_quat_losses", se3_quat_losses)
 tf.summary.scalar("x_loss", x_loss)
 tf.summary.scalar("y_loss", y_loss)
 tf.summary.scalar("z_loss", z_loss)
+tf.summary.scalar("alpha", alpha)
+tf.summary.scalar("lr", lr)
+tf.summary.scalar("sequence_id", sequence_id)
 
 train_merged_summary_op = tf.summary.merge_all()
 
@@ -136,11 +141,13 @@ val_merged_summary_op = tf.summary.merge([val_loss_sum, val_fc_sum, val_se3_sum,
 # ================ LOADING DATASET ===================
 
 tools.printf("Loading training data...")
-train_sequences = ["00", "06", "09"]
-train_data_gen = data.StatefulRollerDataGen(cfg, "/home/ben/School/kitti/", train_sequences, frames=[None, None, None])
+train_sequences = ["00", "01", "02", "08", "09"]
+train_data_gen = data.StatefulRollerDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", train_sequences,
+                                            frames=None)
 tools.printf("Loading validation data...")
-validation_sequences = ["06"]
-val_data_gen = data.StatefulRollerDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", validation_sequences, frames=[range(500)])
+validation_sequences = ["07"]
+val_data_gen = data.StatefulRollerDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", validation_sequences,
+                                          frames=[range(500), ])
 
 # ============== For Validation =============
 def calc_val_loss(sess, writer, i_epoch, alpha_set, run_options, run_metadata):
@@ -174,7 +181,6 @@ def calc_val_loss(sess, writer, i_epoch, alpha_set, run_options, run_metadata):
 
         curr_lstm_states = np.stack(_curr_lstm_states, 0)
         writer.add_summary(_summary, i_epoch * val_data_gen.total_batches() + j_batch)
-        tools.printf("%f" % _se3_losses)
         val_se3_losses_log[j_batch] = _se3_losses
 
     return np.average(val_se3_losses_log)
@@ -292,6 +298,7 @@ with tf.Session(config=None) as sess:
                     lr: lr_set,
                     alpha: alpha_set,
                     is_training: True,
+                    sequence_id: int(train_data_gen.current_sequence())
                 },
                 options=run_options,
                 run_metadata=run_metadata
