@@ -55,7 +55,6 @@ class StatefulRollerDataGen(object):
         self.sequences = sequences
         self.curr_batch_sequence = 0
         self.current_batch = 0
-        self.sequence_batch = 0
 
         if (self.cfg.bidir_aug == True) and (self.cfg.batch_size % 2 != 0):
             raise ValueError("Batch size must be even")
@@ -85,8 +84,19 @@ class StatefulRollerDataGen(object):
         self.fc_reverse_ground_truth = {}
         self.fc_mirror_ground_truth = {}
         self.fc_reverse_mirror_ground_truth = {}
+        # This keeps track of the number of batches in each sequence
         self.batch_counts = {}
-        self.batch_orders = {}
+        # this holds the batch ids for each sequence. It is randomized and the order determines the order in
+        # which the batches are used
+        self.batch_order = {}
+        # this keeps track of the starting offsets in the input frames for batch id 0 in each sequence
+        self.batch_offsets = {}
+        # contains batch_cnt counters, each sequence is represented by it's index repeated for
+        # however many batches are in that sequence
+        self.sequence_ordering = None
+        # contains batch_size counters. Keeps track of how many batches from each sequence
+        # have already been used for the current epoch
+        self.sequence_batch = {}
 
         self.batch_cnt = 0
         self.total_frames = 0
@@ -176,12 +186,14 @@ class StatefulRollerDataGen(object):
                 np.int32)
             # how many batches in the sequence, cutting off any extra
             if self.cfg.bidir_aug:
-                self.batch_counts[seq] = np.floor(2 * sequence_examples / self.cfg.batch_size)
+                self.batch_counts[seq] = np.floor(2 * sequence_examples / self.cfg.batch_size).astype(np.int32)
             else:
                 self.batch_counts[seq] = np.floor(sequence_examples / self.cfg.batch_size)
 
             self.batch_cnt += self.batch_counts[seq].astype(np.int32)
-            self.batch_orders[seq] = np.zeros([self.cfg.batch_size, self.batch_counts[seq]], dtype=np.uint32)
+            self.batch_order[seq] = np.arange(0, self.batch_counts[seq], dtype=np.uint32)
+            self.batch_offsets[seq] = np.zeros([self.cfg.batch_size], dtype=np.uint32)
+            self.sequence_batch[seq] = 0
 
             self.total_frames += num_frames
 
@@ -189,6 +201,7 @@ class StatefulRollerDataGen(object):
             self.cfg.batch_size, self.cfg.timesteps, self.batch_cnt))
 
         gc.collect()
+        self.sequence_ordering = np.zeros([self.batch_cnt], dtype=np.uint16)
         self.set_batch_offsets()
         self.next_epoch(False)
 
@@ -201,23 +214,23 @@ class StatefulRollerDataGen(object):
         fc_ground_truth = np.zeros([self.cfg.timesteps, self.cfg.batch_size, 6], dtype=np.float32)
 
         # check if at the end of the current sequence, and move to next if required
-        if self.sequence_batch + 1 > self.batch_counts[self.sequences[self.curr_batch_sequence]]:
-            self.sequence_batch = 0
-            self.curr_batch_sequence += 1
+        cur_seq = self.sequences[self.sequence_ordering[self.current_batch]]
+        # lookup batch id give how many batches in the sequence have already been processed
+        batch_id = self.batch_order[cur_seq][self.sequence_batch[cur_seq]]
 
-        state_ids = []
+        start_idx = self.batch_offsets[cur_seq]
+        idx_offset = self.cfg.sequence_stride * batch_id
 
-        for i_b in range(len(self.cfg.batch_size)):
-            cur_seq = self.sequences[self.curr_batch_sequence]
-            idx = self.batch_orders[cur_seq][i_b, self.sequence_batch]
-            state_ids.append([cur_seq, idx])
+        for i_b in range(self.cfg.batch_size):
             if (i_b < self.cfg.batch_size / 2) or not self.cfg.bidir_aug:
                 # data going forwards
+                idx = start_idx[i_b] + idx_offset
                 batch[:, i_b, :, :, :] = self.input_frames[cur_seq][idx:idx + n, :, :, :]
                 se3_ground_truth[:, i_b, :] = self.se3_ground_truth[cur_seq][idx:idx + n, :]
                 fc_ground_truth[:, i_b, :] = self.fc_ground_truth[cur_seq][idx:idx + n - 1, :]
             else:
                 # data going backwards
+                idx = start_idx[i_b] - idx_offset
                 if self.data_type == "lidar":
                     batch[:, i_b, :, :] = self.input_frames[cur_seq][idx - n:idx, :, :, :]
                     se3_ground_truth[:, i_b, :] = self.se3_mirror_ground_truth[cur_seq][idx - n:idx, :]
@@ -242,9 +255,9 @@ class StatefulRollerDataGen(object):
             batch = np.subtract(batch, 0.5, dtype=np.float32)
 
         self.current_batch += 1
-        self.sequence_batch += 1
+        self.sequence_batch[cur_seq] += 1
 
-        return state_ids, batch, fc_ground_truth, se3_ground_truth
+        return batch_id, cur_seq, batch, fc_ground_truth, se3_ground_truth
 
     def has_next_batch(self):
         return self.current_batch < self.batch_cnt
@@ -252,34 +265,33 @@ class StatefulRollerDataGen(object):
     def set_batch_offsets(self):
         halfway = self.cfg.batch_size / 2
         halfway = int(halfway)
-        for seq in self.sequences:
+        start = 0
+        for i_seq, seq in enumerate(self.sequences):
+            self.sequence_ordering[start:(self.batch_counts[seq] + start)] = i_seq
+            start += self.batch_counts[seq]
+
             reverse_start = self.batch_counts[seq] * halfway * self.cfg.sequence_stride + 1
             for i_b in range(self.cfg.batch_size):
                 # first half of batches are going forward in time
                 if (i_b < halfway) or not self.cfg.bidir_aug:
                     start_idx = self.batch_counts[seq] * i_b * self.cfg.sequence_stride
-                    end_idx = start_idx + self.batch_counts[seq] * self.cfg.sequence_stride
-
-                    self.batch_orders[seq][i_b, :] = np.arange(start_idx, end_idx, self.cfg.sequence_stride, dtype=np.uint32)
+                    self.batch_offsets[seq][i_b] = start_idx
                 # second half are going back in time
                 else:
                     end_idx = reverse_start - self.batch_counts[seq] * (i_b - halfway) * self.cfg.sequence_stride
-                    start_idx = end_idx - self.batch_counts[seq] * self.cfg.sequence_stride
-
-                    self.batch_orders[seq][i_b, :] = np.arange(end_idx, start_idx, -self.cfg.sequence_stride, dtype=np.uint32)
+                    self.batch_offsets[seq][i_b] = end_idx
 
     def next_epoch(self, randomize=True):
         # Randomize sequence order
         if randomize:
-            random.shuffle(self.sequences)
-            # set starting offsets for each batch
+            random.shuffle(self.sequence_ordering)
+            # randomize batch order in each sequence
             for seq in self.sequences:
-                for i_b in range(self.cfg.batch_size):
-                    np.random.shuffle(self.batch_orders[seq][i_b, :])
+                np.random.shuffle(self.batch_order[seq])
 
-        self.curr_batch_sequence = 0
         self.current_batch = 0
-        self.sequence_batch = 0
+        for seq in self.sequences:
+            self.sequence_batch[seq] = 0
 
     def curr_batch(self):
         return self.current_batch
@@ -290,28 +302,29 @@ class StatefulRollerDataGen(object):
     def current_sequence(self):
         return self.sequences[self.curr_batch_sequence]
 
-# lstm_states: dictionary indexed by sequence ids, each element being [num_states, 2, num_layers, batch_size, lstm_size]
+
+# lstm_states: dictionary indexed by sequence ids, each elem being [batch_count, 2, num_layers, batch_size, lstm_size]
 # lstm_init_states: a [2, num_layers, batch_size, lstm_size] object containing initialization for the selected batches
 # returns selected_lstm_states
 # state_idx: list of states to update each element is [sequence, example_index]
-def reset_select_lstm_state(lstm_states, lstm_init_states, state_idx, bidir_aug):
-    mid = state_idx.shape[0] / 2
-    mid = int(mid)
-    for batch_idx, pair in state_idx:
-        seq = pair[0]
-        batch_id = pair[1]
-        if batch_id < 1:
-            lstm_states[seq][:, :, batch_idx, :] = np.zeros(lstm_states[seq][:, :, 0, :].shape, dtype=np.float32)
-        if bidir_aug:
-            lstm_states[mask[1]][:, :, 1:mid, :] = lstm_states[mask[1]][:, :, 0:(mid - 1), :]
-            lstm_states[mask[1]][:, :, mid + 1:, :] = lstm_states[mask[1]][:, :, mid:-1, :]
-            lstm_states[mask[1]][:, :, mid, :] = np.zeros(lstm_states[mask[1]][:, :, mid, :].shape,
-                                                                dtype=np.float32)
-        else:
-            lstm_states[mask[1]][:, :, 1:, :] = lstm_states[mask[1]][:, :, 0:-1, :]
-            lstm_states[mask[1]][:, :, 0, :] = np.zeros(lstm_states[mask[1]][:, :, 0, :].shape,
-                                                          dtype=np.float32)
 
+def update_lstm_state(lstm_states, lstm_update, cur_seq, batch_id):
+    lstm_states[cur_seq][batch_id, ...] = lstm_update
+
+def get_init_lstm_state(lstm_states, lstm_init_states, cur_seq, batch_id, bidir_aug):
+    if batch_id > 0:
+        lstm_init_states = lstm_states[cur_seq][batch_id - 1, ...]
+    else:
+        if bidir_aug:
+            mid = lstm_init_states.shape[2] / 2
+            mid = int(mid)
+            lstm_init_states[:, :, 0, :] = np.zeros(lstm_init_states[:, :, 0, :].shape, dtype=np.float32)
+            lstm_init_states[:, :, 1:mid, :] = lstm_states[cur_seq][-1, :, :, 0:(mid - 1), :]
+            lstm_init_states[:, :, mid, :] = np.zeros(lstm_init_states[:, :, 0, :].shape, dtype=np.float32)
+            lstm_init_states[:, :, mid + 1:, :] = lstm_states[cur_seq][-1, :, :, mid:-1, :]
+        else:
+            lstm_init_states[:, :, 0, :] = np.zeros(lstm_init_states[:, :, 0, :].shape, dtype=np.float32)
+            lstm_init_states[:, :, 1:, :] = lstm_states[cur_seq][-1, :, :, 0:-1, :]
 
 def reset_select_init_pose(init_pose, mask):
     for i in range(0, len(mask)):

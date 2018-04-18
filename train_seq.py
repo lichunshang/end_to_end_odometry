@@ -141,19 +141,19 @@ val_merged_summary_op = tf.summary.merge([val_loss_sum, val_fc_sum, val_se3_sum,
 # ================ LOADING DATASET ===================
 
 tools.printf("Loading training data...")
-train_sequences = ["00", "01", "02", "08", "09"]
-train_data_gen = data.StatefulRollerDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", train_sequences,
+train_sequences = ["01", "09"]
+train_data_gen = data.StatefulRollerDataGen(cfg, config.dataset_path, train_sequences,
                                             frames=None)
 tools.printf("Loading validation data...")
 validation_sequences = ["07"]
-val_data_gen = data.StatefulRollerDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", validation_sequences,
+val_data_gen = data.StatefulRollerDataGen(cfg, config.dataset_path, validation_sequences,
                                           frames=[range(500), ])
 
 # ============== For Validation =============
 def calc_val_loss(sess, writer, i_epoch, alpha_set, run_options, run_metadata):
     curr_lstm_states = np.zeros([2, cfg.lstm_layers, cfg.batch_size, cfg.lstm_size])
 
-    val_data_gen.next_epoch()
+    val_data_gen.next_epoch(randomize=False)
 
     val_se3_losses_log = np.zeros([val_data_gen.total_batches()])
 
@@ -161,7 +161,7 @@ def calc_val_loss(sess, writer, i_epoch, alpha_set, run_options, run_metadata):
         j_batch = val_data_gen.curr_batch()
 
         # never resets state, there will only be one sequence in validation
-        _, batch_data, fc_ground_truth, se3_ground_truth = val_data_gen.next_batch()
+        _, _, batch_data, fc_ground_truth, se3_ground_truth = val_data_gen.next_batch()
 
         init_poses = se3_ground_truth[0, :, :]
         _curr_lstm_states, _summary, _total_losses, _se3_losses = sess.run(
@@ -227,19 +227,13 @@ with tf.Session(config=None) as sess:
     curr_val_loss = 9999999999999
     val_curr_lstm_states = np.zeros([2, val_cfg.lstm_layers, val_cfg.batch_size, val_cfg.lstm_size])
     n_states = len(train_sequences)
-    curr_lstm_states = {}
+    lstm_states_dic = {}
+    curr_lstm_states = np.zeros([2, cfg.lstm_layers, cfg.batch_size, cfg.lstm_size], dtype=np.float32)
     for seq in train_sequences:
-        curr_lstm_states[seq] = np.zeros([2, cfg.lstm_layers, cfg.batch_size, cfg.lstm_size], dtype=np.float32)
+        lstm_states_dic[seq] = np.zeros([train_data_gen.batch_counts[seq], 2, cfg.lstm_layers, cfg.batch_size, cfg.lstm_size], dtype=np.float32)
 
     for i_epoch in range(start_epoch, cfg.num_epochs):
         tools.printf("Training Epoch: %d ..." % i_epoch)
-
-        curr_seq = train_data_gen.current_sequence()
-
-        if (i_epoch > 0):
-            mask = [True, curr_seq]
-            curr_lstm_states = data.reset_select_lstm_state(curr_lstm_states, mask, cfg.bidir_aug)
-
         start_time = time.time()
 
         if i_epoch in alpha_schedule.keys():
@@ -274,13 +268,12 @@ with tf.Session(config=None) as sess:
             #     val_data_gen.next_epoch()
 
             # get inputs
-            reset_state, batch_data, \
-            fc_ground_truth, se3_ground_truth = train_data_gen.next_batch()
+            batch_id, curr_seq, batch_data, fc_ground_truth, se3_ground_truth = train_data_gen.next_batch()
 
             # never need to reset, only one sequence in validation data
             # _, val_batch_data, val_fc_ground_truth, val_se3_ground_truth = val_data_gen.next_batch()
 
-            curr_lstm_states = data.reset_select_lstm_state(curr_lstm_states, reset_state, cfg.bidir_aug)
+            data.get_init_lstm_state(lstm_states_dic, curr_lstm_states, curr_seq, batch_id, cfg.bidir_aug)
 
             # shift se3 ground truth to be relative to the first pose
             init_poses = se3_ground_truth[0, :, :]
@@ -293,12 +286,12 @@ with tf.Session(config=None) as sess:
                     inputs: batch_data,
                     se3_labels: se3_ground_truth[1:, :, :],
                     fc_labels: fc_ground_truth,
-                    lstm_initial_state: curr_lstm_states[train_data_gen.current_sequence()],
+                    lstm_initial_state: curr_lstm_states,
                     initial_poses: init_poses,
                     lr: lr_set,
                     alpha: alpha_set,
                     is_training: True,
-                    sequence_id: int(train_data_gen.current_sequence())
+                    sequence_id: int(curr_seq)
                 },
                 options=run_options,
                 run_metadata=run_metadata
@@ -325,7 +318,8 @@ with tf.Session(config=None) as sess:
             #     run_metadata=run_metadata
             # )
 
-            curr_lstm_states[train_data_gen.current_sequence()] = np.stack(_curr_lstm_states, 0)
+            data.update_lstm_state(lstm_states_dic, np.stack(_curr_lstm_states, 0), curr_seq, batch_id)
+
             # val_curr_lstm_states = np.stack(_val_curr_lstm_states, 0)
             # curr_val_loss = _val_loss
 
