@@ -6,10 +6,12 @@ trajs_to_plt = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10"
 
 sequences = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]
 
+data_dir = config.save_path + "/trajectory_results/"
+
 for i, sequence in enumerate(sequences):
 
     trajectories_to_overlay = [
-        (data_dir + "trajectory10_%s.npy" % sequence, {"linewidth": 1.0, "color": "r"}, "LiDAR Odometry"),
+        (data_dir + "trajectory2_%s.npy" % sequence, {"linewidth": 1.0, "color": "r"}, "LiDAR Odometry"),
         (data_dir + "ground_truth_%s.npy" % sequence, {"linewidth": 1.0, "color": "b"}, "Ground Truth")
     ]
 

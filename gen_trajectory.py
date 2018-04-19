@@ -32,7 +32,7 @@ for kitti_seq in kitti_seqs:
         os.makedirs(results_dir_path)
 
     # ==== Read Model Checkpoints =====
-    restore_model_file = "/home/ben/School/e2e_results/train_seq_20180419-00-46-05/best_val/model_best_val_checkpoint-49"
+    restore_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/train_seq_20180418-16-37-02/best_val/model_best_val_checkpoint-143"
 
     variable_to_load = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, "^(cnn_layer|rnn_layer|fc_layer).*")
     tf_restore_saver = tf.train.Saver(variable_to_load)

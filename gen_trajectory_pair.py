@@ -89,12 +89,12 @@ with tf.Session() as sess:
         p1 = transformations.quaternion_matrix(prediction[i, 3:])
         p1[0, 3] = prediction[i, 0]
         p1[1, 3] = prediction[i, 1]
-        p1[2, 3] = prediction[i, 1]
+        p1[2, 3] = prediction[i, 2]
 
         p2 = transformations.euler_matrix(deltas[i, 3], deltas[i, 4], deltas[i, 5], axes="rzyx")
         p2[0, 3] = deltas[i, 0]
         p2[1, 3] = deltas[i, 1]
-        p2[2, 3] = deltas[i, 1]
+        p2[2, 3] = deltas[i, 2]
 
         ret = np.dot(p1, p2)
 
