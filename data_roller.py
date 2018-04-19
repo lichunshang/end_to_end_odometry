@@ -188,7 +188,7 @@ class StatefulRollerDataGen(object):
             if self.cfg.bidir_aug:
                 self.batch_counts[seq] = np.floor(2 * sequence_examples / self.cfg.batch_size).astype(np.int32)
             else:
-                self.batch_counts[seq] = np.floor(sequence_examples / self.cfg.batch_size)
+                self.batch_counts[seq] = np.floor(sequence_examples / self.cfg.batch_size).astype(np.int32)
 
             self.batch_cnt += self.batch_counts[seq].astype(np.int32)
             self.batch_order[seq] = np.arange(0, self.batch_counts[seq], dtype=np.uint32)
