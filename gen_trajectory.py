@@ -20,9 +20,6 @@ save_ground_truth = True
 cfg = config.SeqEvalLidarConfig
 
 tools.printf("Building eval model....")
-# inputs, lstm_initial_state, initial_poses, \
-# is_training, fc_outputs, se3_outputs, lstm_states = model.build_seq_model(cfg)
-
 inputs, lstm_initial_state, initial_poses, \
 is_training, fc_outputs, se3_outputs, lstm_states = model.build_seq_model(cfg)
 

@@ -1,7 +1,7 @@
 import tools
 
-save_path = "/home/ben/School/e2e_results/"
-dataset_path = "/home/ben/School/kitti/"
+save_path = "/home/cs4li/Dev/end_to_end_visual_odometry/results"
+dataset_path = "/home/cs4li/Dev/KITTI/dataset/"
 
 class Configs(object):
     timesteps = 0
@@ -44,8 +44,8 @@ class SeqTrainConfigsSmallSteps(Configs):
     k_se3 = 500
 
 class SeqTrainLidarConfig(Configs):
-    timesteps = 20
-    batch_size = 2
+    timesteps = 10
+    batch_size = 4
     input_width = 1152
     input_height = 64
     input_channels = 2
@@ -55,9 +55,9 @@ class SeqTrainLidarConfig(Configs):
 
     lstm_size = 256
     lstm_layers = 1
-    sequence_stride = 20
+    sequence_stride = 10
 
-    num_epochs = 60
+    num_epochs = 200
     k_fc = 50
     k_se3 = 500
 
