@@ -19,7 +19,7 @@ def write_trj(file_handle, pose):
 
 
 for seq in sequences:
-    np_file = os.path.join(data_dir, "trajectory2_%s.npy" % seq)
+    np_file = os.path.join(data_dir, "trajectory_%s.npy" % seq)
     kitti_file = open(os.path.join(data_dir, "kitti_evals", "%s.txt" % seq), "w")
     trajectory = np.load(np_file)
 

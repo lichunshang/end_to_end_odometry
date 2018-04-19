@@ -75,6 +75,6 @@ for kitti_seq in kitti_seqs:
             if j_batch % 100 == 0:
                 tools.printf("Processed %.2f%%" % (train_data_gen.curr_batch() / train_data_gen.total_batches() * 100))
 
-        np.save(os.path.join(results_dir_path, "trajectory2_" + kitti_seq), prediction)
+        np.save(os.path.join(results_dir_path, "trajectory_" + kitti_seq), prediction)
         if save_ground_truth:
             np.save(os.path.join(results_dir_path, "ground_truth_" + kitti_seq), ground_truth)

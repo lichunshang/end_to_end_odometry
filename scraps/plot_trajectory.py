@@ -11,7 +11,7 @@ data_dir = config.save_path + "/trajectory_results/"
 for i, sequence in enumerate(sequences):
 
     trajectories_to_overlay = [
-        (data_dir + "trajectory2_%s.npy" % sequence, {"linewidth": 1.0, "color": "r"}, "LiDAR Odometry"),
+        (data_dir + "trajectory_%s.npy" % sequence, {"linewidth": 1.0, "color": "r"}, "LiDAR Odometry"),
         (data_dir + "ground_truth_%s.npy" % sequence, {"linewidth": 1.0, "color": "b"}, "Ground Truth")
     ]
 
