@@ -19,10 +19,11 @@ config.print_configs(cfg)
 lr_set = 0.0001
 lr_schedule = {
     0:   0.0001,
-    40:  0.00008,
-    70:  0.00005,
-    80:  0.000002,
-    100: 0.000001
+    3:  0.00008,
+    7:  0.00005,
+    13: 0.000002,
+    20: 0.000001,
+    50: 0.0000001
 }
 # lr_schedule = {
 #     0:   0.00001,
@@ -37,11 +38,8 @@ start_epoch = 0
 #                   40: 0.5,
 #                   60: 0.1,
 #                   80: 0.025}
-alpha_schedule = {0: 1,
-                  10: 0.99,
-                  15: 0.9,
-                  25: 0.8,
-                  35: 0.5}
+alpha_schedule = {0: 0.5}
+alpha_set = 0.5
 
 tensorboard_meta = False
 
@@ -87,8 +85,8 @@ tf_checkpoint_saver = tf.train.Saver(max_to_keep=3)
 tf_best_saver = tf.train.Saver(max_to_keep=2)
 
 tf_restore_saver = tf.train.Saver()
-restore_model_file = None
-# restore_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/train_seq_20180413-18-29-33/model_epoch_checkpoint-99"
+# restore_model_file = None
+restore_model_file = "/home/ben/School/e2e_results/train_seq_20180419-00-46-05_timesteps20_no_reverse/best_val/model_best_val_checkpoint-49"
 
 # just for restoring pre trained cnn weights
 cnn_variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, "^cnn_layer.*")
@@ -141,7 +139,7 @@ val_merged_summary_op = tf.summary.merge([val_loss_sum, val_fc_sum, val_se3_sum,
 # ================ LOADING DATASET ===================
 
 tools.printf("Loading training data...")
-train_sequences = ["01", "09"]
+train_sequences = ["00", "01", "02", "08", "09"]
 train_data_gen = data.StatefulRollerDataGen(cfg, config.dataset_path, train_sequences,
                                             frames=None)
 tools.printf("Loading validation data...")
@@ -220,7 +218,6 @@ with tf.Session(config=None) as sess:
     tools.printf("alpha_schedule: %s" % alpha_schedule)
 
     best_val_loss = 9999999999
-    alpha_set = 0.8
     i_epoch = 0
 
     # for evaluating validation loss
