@@ -7,7 +7,7 @@ import tensorflow as tf
 import numpy as np
 import os
 
-dir_name = "trajectory_results"
+dir_name = "trajectory_results_2"
 kitti_seq = "07"
 
 if kitti_seq in ["11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21"]:
@@ -15,24 +15,25 @@ if kitti_seq in ["11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21
 else:
     save_ground_truth = True
 
-cfg = config.SeqCamEvalConfig
+# cfg = config.SeqCamEvalConfig
+cfg = config.SeqEvalLidarConfig
 
 tools.printf("Building eval model....")
-# inputs, lstm_initial_state, initial_poses, \
-# is_training, fc_outputs, se3_outputs, lstm_states = model.build_seq_model(cfg)
-
 inputs, lstm_initial_state, initial_poses, \
-is_training, fc_outputs, se3_outputs, lstm_states = simple_model.build_seq_model(cfg)
+is_training, fc_outputs, se3_outputs, lstm_states = model.build_seq_model(cfg)
+
+# inputs, lstm_initial_state, initial_poses, \
+# is_training, fc_outputs, se3_outputs, lstm_states = simple_model.build_seq_model(cfg)
 
 tools.printf("Loading training data...")
-train_data_gen = data.StatefulRollerDataGen(cfg, "/home/cs4li/Dev/KITTI/dataset/", [kitti_seq])
+train_data_gen = data.StatefulRollerDataGen(cfg, config.dataset_path, [kitti_seq])
 
 results_dir_path = os.path.join(config.save_path, dir_name)
 if not os.path.exists(results_dir_path):
     os.makedirs(results_dir_path)
 
 # ==== Read Model Checkpoints =====
-restore_model_file = "/media/cs4li/DATADisk/results/train_seq_20180414-14-33-36_simplemodel2lstmts8/model_epoch_checkpoint-199"
+restore_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/train_seq_20180418-12-10-43/best_val/model_best_val_checkpoint-93"
 
 variable_to_load = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, "^(cnn_layer|rnn_layer|fc_layer).*")
 tf_restore_saver = tf.train.Saver(variable_to_load)
@@ -54,7 +55,7 @@ with tf.Session() as sess:
         j_batch = train_data_gen.curr_batch()
 
         # get inputs
-        _, batch_data, fc_ground_truth, se3_ground_truth = train_data_gen.next_batch()
+        _, _, batch_data, fc_ground_truth, se3_ground_truth = train_data_gen.next_batch()
 
         # Run training session
         _curr_lstm_states, _se3_outputs, _fc_outputs = sess.run(
