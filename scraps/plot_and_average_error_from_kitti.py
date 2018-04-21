@@ -33,10 +33,10 @@ plt.savefig(os.path.join(data_dir, "fig_ave_err_vs_path_length.png"))
 
 fig = plt.figure(2)
 ax1 = fig.add_subplot(111)
-ax1.plot(ave_xyz_error_wrt_speed[:, 0], ave_xyz_error_wrt_speed[:, 1] * 100, linewidth=1.0, color="r", marker="o",
+ax1.plot(ave_xyz_error_wrt_speed[:, 0] * 3.6, ave_xyz_error_wrt_speed[:, 1] * 100, linewidth=1.0, color="r", marker="o",
          label="Translation Error")
 ax2 = plt.twinx()
-ax2.plot(ave_rot_error_wrt_speed[:, 0], ave_rot_error_wrt_speed[:, 1] * 180 / math.pi, linewidth=1.0, color="b",
+ax2.plot(ave_rot_error_wrt_speed[:, 0] * 3.6, ave_rot_error_wrt_speed[:, 1] * 180 / math.pi, linewidth=1.0, color="b",
          marker="s",
          label="Rotation Error")
 h1, l1 = ax1.get_legend_handles_labels()
