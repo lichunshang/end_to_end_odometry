@@ -3,6 +3,7 @@ import tools
 save_path = "/home/cs4li/Dev/end_to_end_visual_odometry/results"
 dataset_path = "/home/cs4li/Dev/KITTI/dataset/"
 
+
 class Configs(object):
     timesteps = 0
     batch_size = 0
@@ -26,6 +27,7 @@ class SeqTrainConfigs(Configs):
     k_fc = 50
     k_se3 = 500
 
+
 class SeqTrainConfigsSmallSteps(Configs):
     timesteps = 8
     batch_size = 6
@@ -42,6 +44,7 @@ class SeqTrainConfigsSmallSteps(Configs):
     num_epochs = 200
     k_fc = 50
     k_se3 = 500
+
 
 class SeqTrainLidarConfig(Configs):
     timesteps = 10
@@ -61,6 +64,7 @@ class SeqTrainLidarConfig(Configs):
     k_fc = 50
     k_se3 = 500
 
+
 class SeqEvalLidarConfig(Configs):
     timesteps = 1
     batch_size = 1
@@ -79,6 +83,7 @@ class SeqEvalLidarConfig(Configs):
     k_fc = 50
     k_se3 = 500
 
+
 class SeqTrainConfigsSmallStepsValidation(Configs):
     timesteps = 1
     batch_size = 40
@@ -96,17 +101,6 @@ class SeqTrainConfigsSmallStepsValidation(Configs):
     k_fc = 50
     k_se3 = 500
 
-class PairTrainConfigs(Configs):
-    timesteps = 1
-    batch_size = 28
-
-    input_width = 1280
-    input_height = 384
-    input_channels = 3
-
-    num_epochs = 75
-    k = 100
-
 
 class SeqCamEvalConfig(Configs):
     timesteps = 1
@@ -119,13 +113,6 @@ class SeqCamEvalConfig(Configs):
 
     lstm_size = 256
     lstm_layers = 2
-
-class PairCamEvalConfig(Configs):
-    timesteps = 1
-    batch_size = 1
-    input_width = 1280
-    input_height = 384
-    input_channels = 3
 
 
 def print_configs(cfg):
