@@ -4,11 +4,11 @@ import pykitti
 import numpy as np
 from scipy.stats import binned_statistic
 import pickle
+import config
 
-base_dir = "/home/cs4li/Dev/KITTI/dataset/"
-output_dir = "/home/cs4li/Dev/KITTI/dataset/sequences/lidar_pickles/"
-# sequences = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]
-sequences = ["04"]
+base_dir = config.dataset_path
+output_dir = config.lidar_pickles_path
+sequences = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]
 
 # channel, height, width
 img_shape = [64, 2000]
@@ -65,9 +65,11 @@ for seq in sequences:
     mask_out = open(output_dir + str(seq) + "_mask.pik", "wb")
 
     for i in range(0, len(data.poses)):
-        pickle.dump(images[i, 0, :, :].astype(np.float16), range_out)
-        pickle.dump((images[i, 1, :, :] * 255.0).astype(np.uint8), int_out)
-        pickle.dump((images[i, 2, :, :]).astype(np.bool), mask_out)
+        # need to flip them horizontally because the bins are from -pi to pi, we want the
+        # image to be from pi (left most) to -pi (right most)
+        pickle.dump(np.fliplr(images[i, 0, :, :].astype(np.float16)), range_out)
+        pickle.dump(np.fliplr((images[i, 1, :, :] * 255.0).astype(np.uint8)), int_out)
+        pickle.dump(np.fliplr((images[i, 2, :, :]).astype(np.bool)), mask_out)
         if i % 100 == 0:
             print("Saving sequence %s %.1f%% " % (seq, (i / len(data.poses)) * 100))
 

@@ -162,6 +162,16 @@ def create_results_dir(prepend):
     return results_dir_path
 
 
+def make_dir_if_not_exist(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
+    return path
+
+
+def ensure_file_dir_exists(path):
+    make_dir_if_not_exist(os.path.dirname(path))
+    return path
+
 def log_file_content(log_path, file_path):
     copyfile(file_path, os.path.join(log_path, os.path.basename(file_path)))
 
