@@ -32,13 +32,26 @@ class LidarDataLoader(object):
                 try:
                     cur_image = pickle.load(opfile)
                     self.data[i, 1, :, :] = cur_image
-                    self.data[i, 1, :, :] = np.divide(self.data[i, 1, :, :], 254.0, dtype=np.float16)
+                    self.data[i, 1, :, :] = np.divide(self.data[i, 1, :, :], 255.0, dtype=np.float16)
                     self.data[i, 1, :, :] = np.subtract(self.data[i, 1, :, :], 0.5, dtype=np.float16)
                 except EOFError:
                     break
                 i += 1
             assert (i == num_frames)
 
+        with (open(os.path.join(pickles_dir, seq + "_mask.pik"), "rb")) as opfile:
+            i = 0
+            while True:
+                try:
+                    cur_image = pickle.load(opfile)
+                    self.data[i, 2, :, :] = cur_image
+                    self.data[i, 2, :, :] = np.subtract(self.data[i, 2, :, :], 0.5, dtype=np.float16)
+                except EOFError:
+                    break
+                i += 1
+            assert (i == num_frames)
+
+        # select the range of frames
         if frames:
             self.data = self.data[frames]
 
@@ -311,6 +324,7 @@ class StatefulRollerDataGen(object):
 def update_lstm_state(lstm_states, lstm_update, cur_seq, batch_id):
     lstm_states[cur_seq][batch_id, ...] = lstm_update
 
+
 def get_init_lstm_state(lstm_states, lstm_init_states, cur_seq, batch_id, bidir_aug):
     if batch_id > 0:
         lstm_init_states = lstm_states[cur_seq][batch_id - 1, ...]
@@ -325,6 +339,7 @@ def get_init_lstm_state(lstm_states, lstm_init_states, cur_seq, batch_id, bidir_
         else:
             lstm_init_states[:, :, 0, :] = np.zeros(lstm_init_states[:, :, 0, :].shape, dtype=np.float32)
             lstm_init_states[:, :, 1:, :] = lstm_states[cur_seq][-1, :, :, 0:-1, :]
+
 
 def reset_select_init_pose(init_pose, mask):
     for i in range(0, len(mask)):

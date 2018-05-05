@@ -50,18 +50,18 @@ class SeqTrainConfigsSmallSteps(Configs):
 
 
 class SeqTrainLidarConfig(Configs):
-    timesteps = 10
+    sequence_stride = 1
+    timesteps = 1
     batch_size = 4
     input_width = 1152
     input_height = 64
-    input_channels = 2
+    input_channels = 3
 
     bidir_aug = True
     data_type = "lidar"
 
     lstm_size = 256
     lstm_layers = 1
-    sequence_stride = 10
 
     num_epochs = 200
     k_fc = 50

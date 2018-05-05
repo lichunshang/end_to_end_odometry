@@ -13,7 +13,7 @@ import time
 # =================== CONFIGURATIONS ========================
 # cfg = config.SeqTrainConfigs
 cfg = config.SeqTrainLidarConfig
-val_cfg = config.SeqTrainConfigsSmallStepsValidation
+# val_cfg = config.SeqTrainConfigsSmallStepsValidation
 config.print_configs(cfg)
 
 lr_set = 0.0001
@@ -33,13 +33,13 @@ lr_schedule = {
 #     100: 0.000001
 # }
 start_epoch = 0
-# alpha_schedule = {0: 0.99,  # epoch: alpha
-#                   20: 0.9,
-#                   40: 0.5,
-#                   60: 0.1,
-#                   80: 0.025}
-alpha_schedule = {0: 0.5}
-alpha_set = 0.5
+alpha_schedule = {0: 0.99,  # epoch: alpha
+                  20: 0.9,
+                  40: 0.5,
+                  60: 0.1,
+                  80: 0.025}
+# alpha_schedule = {0: 0.5}
+alpha_set = 0.99
 
 tensorboard_meta = False
 
@@ -85,8 +85,8 @@ tf_checkpoint_saver = tf.train.Saver(max_to_keep=3)
 tf_best_saver = tf.train.Saver(max_to_keep=2)
 
 tf_restore_saver = tf.train.Saver()
-# restore_model_file = None
-restore_model_file = "/home/ben/School/e2e_results/train_seq_20180419-00-46-05_timesteps20_no_reverse/best_val/model_best_val_checkpoint-49"
+restore_model_file = None
+# restore_model_file = "/home/ben/School/e2e_results/train_seq_20180419-00-46-05_timesteps20_no_reverse/best_val/model_best_val_checkpoint-49"
 
 # just for restoring pre trained cnn weights
 cnn_variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, "^cnn_layer.*")
@@ -222,7 +222,7 @@ with tf.Session(config=None) as sess:
 
     # for evaluating validation loss
     curr_val_loss = 9999999999999
-    val_curr_lstm_states = np.zeros([2, val_cfg.lstm_layers, val_cfg.batch_size, val_cfg.lstm_size])
+    val_curr_lstm_states = np.zeros([2, cfg.lstm_layers, cfg.batch_size, cfg.lstm_size])
     n_states = len(train_sequences)
     lstm_states_dic = {}
     curr_lstm_states = np.zeros([2, cfg.lstm_layers, cfg.batch_size, cfg.lstm_size], dtype=np.float32)
