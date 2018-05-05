@@ -3,7 +3,7 @@ from scipy.misc import toimage
 
 import pickle
 
-pickle_dir = "/home/bapskiko/git/end_to_end_visual_odometry/pickles/"
+pickle_dir = "/home/cs4li/Dev/KITTI/dataset/sequences/lidar_pickles/"
 
 sequences = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]
 
