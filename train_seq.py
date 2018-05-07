@@ -79,7 +79,12 @@ with tf.variable_scope("Optimizer"):
 
 # =================== SAVING/LOADING DATA ========================
 results_dir_path = tools.create_results_dir("train_seq")
-tools.log_file_content(results_dir_path, os.path.realpath(__file__))
+curr_dir_path = os.path.dirname(os.path.realpath(__file__))
+tools.log_file_content(results_dir_path, [os.path.realpath(__file__),
+                                          os.path.join(curr_dir_path, "data_roller.py"),
+                                          os.path.join(curr_dir_path, "model.py"),
+                                          os.path.join(curr_dir_path, "losses.py"),
+                                          os.path.join(curr_dir_path, "config.py")])
 
 tf_checkpoint_saver = tf.train.Saver(max_to_keep=3)
 tf_best_saver = tf.train.Saver(max_to_keep=2)

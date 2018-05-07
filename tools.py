@@ -172,8 +172,9 @@ def ensure_file_dir_exists(path):
     make_dir_if_not_exist(os.path.dirname(path))
     return path
 
-def log_file_content(log_path, file_path):
-    copyfile(file_path, os.path.join(log_path, os.path.basename(file_path)))
+def log_file_content(log_path, file_paths):
+    for f in file_paths:
+        copyfile(f, ensure_file_dir_exists(os.path.join(log_path, "code_log", os.path.basename(f))))
 
 
 def printf(string=""):

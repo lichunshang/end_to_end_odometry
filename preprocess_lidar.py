@@ -5,13 +5,14 @@ import numpy as np
 from scipy.stats import binned_statistic
 import pickle
 import config
+import tools
 
 base_dir = config.dataset_path
 output_dir = config.lidar_pickles_path
 sequences = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]
 
 # channel, height, width
-img_shape = [64, 2000]
+img_shape = [64, 1152]
 img_channels = [3]
 
 enc_angles = np.linspace(-np.pi, np.pi, num=(img_shape[1] + 1), endpoint=False)
@@ -60,9 +61,9 @@ for seq in sequences:
         scan_idx = scan_idx + 1
 
     # save sequence to a pickle
-    range_out = open(output_dir + str(seq) + "_range.pik", "wb")
-    int_out = open(output_dir + str(seq) + "_intensity.pik", "wb")
-    mask_out = open(output_dir + str(seq) + "_mask.pik", "wb")
+    range_out = open(tools.ensure_file_dir_exists(output_dir + str(seq) + "_range.pik"), "wb")
+    int_out = open(tools.ensure_file_dir_exists(output_dir + str(seq) + "_intensity.pik"), "wb")
+    mask_out = open(tools.ensure_file_dir_exists(output_dir + str(seq) + "_mask.pik"), "wb")
 
     for i in range(0, len(data.poses)):
         # need to flip them horizontally because the bins are from -pi to pi, we want the
