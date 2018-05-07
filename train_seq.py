@@ -2,9 +2,7 @@ import data_roller as data
 import config
 import tools
 import os
-import datetime
 import model
-import simple_model
 import losses
 import tensorflow as tf
 import numpy as np
@@ -52,7 +50,7 @@ with tf.device(tf.train.replica_device_setter(ps_tasks=1, ps_device='/job:localh
                                               worker_device='/job:localhost/replica:0/task:0/device:GPU:0')):
     inputs, lstm_initial_state, initial_poses, is_training, fc_outputs, se3_outputs, lstm_states = model.build_seq_model(
         cfg, True)
-    se3_labels, fc_labels = simple_model.model_labels(cfg)
+    se3_labels, fc_labels = model.model_labels(cfg)
 
     with tf.variable_scope("Losses"):
         se3_losses, se3_xyz_losses, se3_quat_losses = losses.se3_losses(se3_outputs, se3_labels, cfg.k_se3)
