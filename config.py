@@ -71,9 +71,9 @@ class SeqTrainLidarConfig(Configs):
 class SeqEvalLidarConfig(Configs):
     timesteps = 1
     batch_size = 1
-    input_width = 1152
+    input_width = 2000
     input_height = 64
-    input_channels = 2
+    input_channels = 3
 
     bidir_aug = False
     data_type = "lidar"
