@@ -11,7 +11,7 @@ output_dir = config.lidar_pickles_path
 sequences = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]
 
 # channel, height, width
-img_shape = [64, 2000]
+img_shape = [64, 1152]
 img_channels = [3]
 
 enc_angles = np.linspace(-np.pi, np.pi, num=(img_shape[1] + 1), endpoint=False)

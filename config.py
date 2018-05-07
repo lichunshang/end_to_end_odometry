@@ -53,7 +53,7 @@ class SeqTrainLidarConfig(Configs):
     sequence_stride = 1
     timesteps = 1
     batch_size = 24
-    input_width = 2000
+    input_width = 1152
     input_height = 64
     input_channels = 3
 
@@ -71,7 +71,7 @@ class SeqTrainLidarConfig(Configs):
 class SeqEvalLidarConfig(Configs):
     timesteps = 1
     batch_size = 1
-    input_width = 2000
+    input_width = 1152
     input_height = 64
     input_channels = 3
 
