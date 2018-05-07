@@ -270,6 +270,11 @@ def build_seq_model(cfg, get_activations=False):
     print("Building CNN...")
     cnn_outputs = cnn_layer(inputs, is_training, get_activations)
 
+    print("Building Initializer Network")
+    initializer = tf.contrib.layers.fully_connected(cnn_outputs[:cfg.init_length, ...], cfg.batch_size * cfg.lstm_size * cfg.lstm_layers * 2, scope="fc",
+                                                       activation_fn=tf.nn.tanh)
+    lstm_initial_state = tf.reshape(initializer, 2, cfg.lstm_layers, cfg.batch_size, cfg.lstm_size)
+
     print("Building RNN...")
     lstm_outputs, lstm_states = rnn_layer(cfg, cnn_outputs, lstm_initial_state)
 
@@ -282,6 +287,13 @@ def build_seq_model(cfg, get_activations=False):
 
     return inputs, lstm_initial_state, initial_poses, is_training, fc_outputs, se3_outputs, lstm_states
 
+def build_model_w_init(cfg, get_activations=False):
+    print("Building S2S train mdl w/ init network")
+
+    inputs, lstm_initial_state, initial_poses, is_training = model_inputs(cfg)
+
+    print("Building CNN")
+    cnn_outputs = cnn_layer(inputs, is_training, get_activations)
 
 def build_pair_model(cfg):
     print("Building sequence to sequence training model")
