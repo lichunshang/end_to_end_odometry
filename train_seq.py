@@ -11,32 +11,23 @@ import time
 # =================== CONFIGURATIONS ========================
 # cfg = config.SeqTrainConfigs
 cfg = config.SeqTrainLidarConfig
-# val_cfg = config.SeqTrainConfigsSmallStepsValidation
 config.print_configs(cfg)
 
 lr_set = 0.0001
 lr_schedule = {
-    0:   0.0001,
-    3:  0.00008,
-    7:  0.00005,
+    0: 0.0001,
+    3: 0.00008,
+    7: 0.00005,
     13: 0.000002,
     20: 0.000001,
     50: 0.0000001
 }
-# lr_schedule = {
-#     0:   0.00001,
-#     40:  0.00001,
-#     70:  0.00001,
-#     80:  0.000002,
-#     100: 0.000001
-# }
 start_epoch = 0
 alpha_schedule = {0: 0.99,  # epoch: alpha
                   20: 0.9,
                   40: 0.5,
                   60: 0.1,
                   80: 0.025}
-# alpha_schedule = {0: 0.5}
 alpha_set = 0.99
 
 tensorboard_meta = False
@@ -65,16 +56,6 @@ with tf.variable_scope("Optimizer"):
         lr = tf.placeholder(tf.float32, name="se3_lr", shape=[])
         trainer = tf.train.AdamOptimizer(learning_rate=lr).minimize(total_losses, colocate_gradients_with_ops=True)
 
-# with tf.device(tf.train.replica_device_setter(ps_tasks=1, ps_device='/job:localhost/replica:0/task:0/device:CPU:0', worker_device='/job:localhost/replica:0/task:0/device:GPU:1')):
-#     val_inputs, val_lstm_init, val_initial_poses, val_is_training, val_fc_outputs, val_se3_outputs, val_lstm_states = simple_model.build_seq_model(
-#         val_cfg, True)
-#     val_se3_labels, val_fc_labels = simple_model.model_labels(val_cfg)
-#
-#     with tf.variable_scope("Val_Losses"):
-#         se3_losses_val, _, _ = losses.se3_losses(val_se3_outputs, val_se3_labels, val_cfg.k_se3)
-#         fc_losses_val, _, _, _, _, _ = losses.pair_train_fc_losses(val_fc_outputs, val_fc_labels, val_cfg.k_fc)
-#         total_losses_val = (1 - alpha) * se3_losses_val + alpha * fc_losses_val
-
 # =================== SAVING/LOADING DATA ========================
 results_dir_path = tools.create_results_dir("train_seq")
 curr_dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -96,8 +77,6 @@ cnn_variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, "^cnn_layer.*")
 cnn_init_tf_saver = tf.train.Saver(cnn_variables)
 cnn_init_model_file = None
 # cnn_init_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/train_seq_20180414-01-33-38_simplemodel1lstmseq0f2f/model_epoch_checkpoint-199"
-# cnn_init_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/" \
-#                       "flownet_weights/flownet_s_weights"
 
 # =================== TRAINING ========================
 # config = tf.ConfigProto(allow_soft_placement=True)
@@ -126,12 +105,6 @@ final_layer = tf.summary.image("Last layer activations", tf.expand_dims(activati
 
 image_summary_op = tf.summary.merge([initial_layer, final_layer])
 
-# val_loss_sum = tf.summary.scalar("training_loss_val", total_losses_val)
-# val_fc_sum = tf.summary.scalar("fc_losses_val", fc_losses_val)
-# val_se3_sum = tf.summary.scalar("se3_losses_val", se3_losses_val)
-#
-# val_merged_summary_op = tf.summary.merge([val_loss_sum, val_fc_sum, val_se3_sum])
-
 val_loss_sum = tf.summary.scalar("training_loss_val", total_losses)
 val_fc_sum = tf.summary.scalar("fc_losses_val", fc_losses)
 val_se3_sum = tf.summary.scalar("se3_losses_val", se3_losses)
@@ -148,7 +121,8 @@ train_data_gen = data.StatefulRollerDataGen(cfg, config.dataset_path, train_sequ
 tools.printf("Loading validation data...")
 validation_sequences = ["07"]
 val_data_gen = data.StatefulRollerDataGen(cfg, config.dataset_path, validation_sequences,
-                                          frames=[range(500), ])
+                                          frames=None)
+
 
 # ============== For Validation =============
 def calc_val_loss(sess, writer, i_epoch, alpha_set, run_options, run_metadata):
@@ -230,7 +204,8 @@ with tf.Session(config=None) as sess:
     lstm_states_dic = {}
     curr_lstm_states = np.zeros([2, cfg.lstm_layers, cfg.batch_size, cfg.lstm_size], dtype=np.float32)
     for seq in train_sequences:
-        lstm_states_dic[seq] = np.zeros([train_data_gen.batch_counts[seq], 2, cfg.lstm_layers, cfg.batch_size, cfg.lstm_size], dtype=np.float32)
+        lstm_states_dic[seq] = np.zeros(
+            [train_data_gen.batch_counts[seq], 2, cfg.lstm_layers, cfg.batch_size, cfg.lstm_size], dtype=np.float32)
 
     for i_epoch in range(start_epoch, cfg.num_epochs):
         tools.printf("Training Epoch: %d ..." % i_epoch)
@@ -253,31 +228,13 @@ with tf.Session(config=None) as sess:
         while train_data_gen.has_next_batch():
             j_batch = train_data_gen.curr_batch()
 
-            # reset validation epoch if required
-            # if not val_data_gen.has_next_batch():
-            #     if val_cfg.bidir_aug:
-            #         mid = val_cfg.batch_size / 2
-            #         mid = int(mid)
-            #         val_curr_lstm_states[:, :, 1:mid, :] = val_curr_lstm_states[:, :, 0:(mid - 1), :]
-            #         val_curr_lstm_states[:, :, mid + 1:, :] = val_curr_lstm_states[:, :, mid:-1, :]
-            #         val_curr_lstm_states[:, :, mid, :] = np.zeros(val_curr_lstm_states[:, :, mid, :].shape, dtype=np.float32)
-            #     else:
-            #         val_curr_lstm_states[:, :, 1:, :] = val_curr_lstm_states[:, :, 0:-1, :]
-            #     val_curr_lstm_states[:, :, 0, :] = np.zeros(val_curr_lstm_states[:, :, 0, :].shape, dtype=np.float32)
-            #
-            #     val_data_gen.next_epoch()
-
             # get inputs
             batch_id, curr_seq, batch_data, fc_ground_truth, se3_ground_truth = train_data_gen.next_batch()
-
-            # never need to reset, only one sequence in validation data
-            # _, val_batch_data, val_fc_ground_truth, val_se3_ground_truth = val_data_gen.next_batch()
 
             data.get_init_lstm_state(lstm_states_dic, curr_lstm_states, curr_seq, batch_id, cfg.bidir_aug)
 
             # shift se3 ground truth to be relative to the first pose
             init_poses = se3_ground_truth[0, :, :]
-            # val_init_poses = val_se3_ground_truth[0, :, :]
 
             # Run training session
             _, _curr_lstm_states, _se3_outputs, _train_summary, _train_image_summary, _total_losses = sess.run(
@@ -296,32 +253,8 @@ with tf.Session(config=None) as sess:
                 options=run_options,
                 run_metadata=run_metadata
             )
-            # _, _curr_lstm_states, _se3_outputs, _train_summary, _total_losses, _val_curr_lstm_states, _val_summary, _val_loss = sess.run(
-            #     [trainer, lstm_states, se3_outputs, train_merged_summary_op, total_losses, val_lstm_states, val_merged_summary_op, total_losses_val],
-            #     feed_dict={
-            #         inputs: batch_data,
-            #         se3_labels: se3_ground_truth[1:,:,:],
-            #         fc_labels: fc_ground_truth,
-            #         lstm_initial_state: curr_lstm_states,
-            #         initial_poses: init_poses,
-            #         lr: lr_set,
-            #         alpha: alpha_set,
-            #         is_training: True,
-            #         val_is_training: False,
-            #         val_inputs: val_batch_data,
-            #         val_se3_labels: val_se3_ground_truth[1:, :, :],
-            #         val_fc_labels: val_fc_ground_truth,
-            #         val_lstm_init: val_curr_lstm_states,
-            #         val_initial_poses: init_poses,
-            #     },
-            #     options=run_options,
-            #     run_metadata=run_metadata
-            # )
 
             data.update_lstm_state(lstm_states_dic, np.stack(_curr_lstm_states, 0), curr_seq, batch_id)
-
-            # val_curr_lstm_states = np.stack(_val_curr_lstm_states, 0)
-            # curr_val_loss = _val_loss
 
             # for tensorboard
             if tensorboard_meta:
@@ -332,12 +265,7 @@ with tf.Session(config=None) as sess:
             if j_batch % 100 == 0:
                 writer.add_summary(_train_image_summary, i_epoch * train_data_gen.total_batches() + j_batch)
 
-            # writer.add_summary(_val_summary, i_epoch * train_data_gen.total_batches() + j_batch)
-
             # print stats
-            # tools.printf("batch %d/%d: Loss:%.7f  Validation Loss:%.7f" % (
-            #     train_data_gen.curr_batch(), train_data_gen.total_batches(),
-            #     _total_losses, _val_loss))
             tools.printf("batch %d/%d: Loss:%.7f" % (
                 j_batch + 1, train_data_gen.total_batches(),
                 _total_losses))
