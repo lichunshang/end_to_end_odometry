@@ -33,7 +33,7 @@ class LidarDataLoader(object):
                     cur_image = pickle.load(opfile)
                     self.data[i, 1, :, :] = cur_image
                     self.data[i, 1, :, :] = np.divide(self.data[i, 1, :, :], 255.0, dtype=np.float16)
-                    self.data[i, 1, :, :] = np.subtract(self.data[i, 1, :, :], 0.5, dtype=np.float16)
+                    # self.data[i, 1, :, :] = np.subtract(self.data[i, 1, :, :], 0.5, dtype=np.float16)
                 except EOFError:
                     break
                 i += 1
@@ -45,7 +45,7 @@ class LidarDataLoader(object):
                 try:
                     cur_image = pickle.load(opfile)
                     self.data[i, 2, :, :] = cur_image
-                    self.data[i, 2, :, :] = np.subtract(self.data[i, 2, :, :], 0.5, dtype=np.float16)
+                    # self.data[i, 2, :, :] = np.subtract(self.data[i, 2, :, :], 0.5, dtype=np.float16)
                 except EOFError:
                     break
                 i += 1
