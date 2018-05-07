@@ -61,16 +61,16 @@ for seq in sequences:
         scan_idx = scan_idx + 1
 
     # save sequence to a pickle
-    range_out = open(output_dir + str(seq) + "_range.pik", "wb")
-    int_out = open(output_dir + str(seq) + "_intensity.pik", "wb")
-    mask_out = open(output_dir + str(seq) + "_mask.pik", "wb")
+    range_out = open(tools.ensure_file_dir_exists(output_dir + str(seq) + "_range.pik"), "wb")
+    int_out = open(tools.ensure_file_dir_exists(output_dir + str(seq) + "_intensity.pik"), "wb")
+    mask_out = open(tools.ensure_file_dir_exists(output_dir + str(seq) + "_mask.pik"), "wb")
 
     for i in range(0, len(data.poses)):
         # need to flip them horizontally because the bins are from -pi to pi, we want the
         # image to be from pi (left most) to -pi (right most)
-        pickle.dump(np.fliplr(images[i, 0, :, :].astype(np.float16)), tools.ensure_file_dir_exists(range_out))
-        pickle.dump(np.fliplr((images[i, 1, :, :] * 255.0).astype(np.uint8)), tools.ensure_file_dir_exists(int_out))
-        pickle.dump(np.fliplr((images[i, 2, :, :]).astype(np.bool)), tools.ensure_file_dir_exists(mask_out))
+        pickle.dump(np.fliplr(images[i, 0, :, :].astype(np.float16)), range_out)
+        pickle.dump(np.fliplr((images[i, 1, :, :] * 255.0).astype(np.uint8)), int_out)
+        pickle.dump(np.fliplr((images[i, 2, :, :]).astype(np.bool)), mask_out)
         if i % 100 == 0:
             print("Saving sequence %s %.1f%% " % (seq, (i / len(data.poses)) * 100))
 
