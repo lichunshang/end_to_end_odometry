@@ -79,10 +79,10 @@ class Train(object):
 
     def __load_data_set(self):
         tools.printf("Loading training data...")
-        self.train_data_gen = data_roller.StatefulRollerDataGen(self.cfg, self.cfg.dataset_path, self.train_sequences,
+        self.train_data_gen = data_roller.StatefulRollerDataGen(self.cfg, config.dataset_path, self.train_sequences,
                                                                 frames=None)
         tools.printf("Loading validation data...")
-        self.val_data_gen = data_roller.StatefulRollerDataGen(self.cfg, self.cfg.dataset_path, [self.val_sequence],
+        self.val_data_gen = data_roller.StatefulRollerDataGen(self.cfg, config.dataset_path, [self.val_sequence],
                                                               frames=None)
 
     def __log_files_and_configs(self):
@@ -92,6 +92,8 @@ class Train(object):
                                                        os.path.join(self.curr_dir_path, "data_roller.py"),
                                                        os.path.join(self.curr_dir_path, "model.py"),
                                                        os.path.join(self.curr_dir_path, "losses.py"),
+                                                       os.path.join(self.curr_dir_path, "train.py"),
+                                                       os.path.join(self.curr_dir_path, "train_seq.py"),
                                                        os.path.join(self.curr_dir_path, "config.py")])
         tools.set_log_file(os.path.join(self.results_dir_path, "print_logs.txt"))
         config.print_configs(self.cfg)
@@ -182,7 +184,7 @@ class Train(object):
             self.t_se3_loss = ts_losses_dict["se3_loss"]
 
         tools.printf("Building optimizer...")
-        with tf.variable_scope("optimizer"):
+        with tf.variable_scope("optimizer", reuse=tf.AUTO_REUSE):
             self.op_trainer = tf.train.AdamOptimizer(learning_rate=self.t_lr). \
                 minimize(self.t_total_loss, colocate_gradients_with_ops=True)
 
@@ -293,8 +295,8 @@ class Train(object):
                 tools.printf("Training Epoch: %d ..." % i_epoch)
                 start_time = time.time()
 
-                alpha_set = Train.set_from_schedule(self.cfg.alpha_schedule.keys(), i_epoch)
-                lr_set = Train.set_from_schedule(self.cfg.lr_schedule.keys(), i_epoch)
+                alpha_set = Train.__set_from_schedule(self.cfg.alpha_schedule, i_epoch)
+                lr_set = Train.__set_from_schedule(self.cfg.lr_schedule, i_epoch)
                 tools.printf("alpha set to %f" % alpha_set)
                 tools.printf("learning rate set to %f" % lr_set)
 
