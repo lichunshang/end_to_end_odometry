@@ -53,11 +53,6 @@ class Train(object):
         self.tf_saver_best = None
         self.tf_saver_restore = None
 
-        # savers
-        self.tf_saver_checkpoint = tf.train.Saver(max_to_keep=3)
-        self.tf_saver_best = tf.train.Saver(max_to_keep=2)
-        self.tf_saver_restore = tf.train.Saver()
-
         self.tf_session = None
         self.tf_tb_writer = None
 
@@ -76,6 +71,7 @@ class Train(object):
         self.__log_files_and_configs()
         self.__build_model_inputs_and_labels()
         self.__build_model_and_summary()
+        self.__init_tf_savers()
         self.__load_data_set()
 
     def train(self):
@@ -99,6 +95,11 @@ class Train(object):
                                                        os.path.join(self.curr_dir_path, "config.py")])
         tools.set_log_file(os.path.join(self.results_dir_path, "print_logs.txt"))
         config.print_configs(self.cfg)
+
+    def __init_tf_savers(self):
+        self.tf_saver_checkpoint = tf.train.Saver(max_to_keep=3)
+        self.tf_saver_best = tf.train.Saver(max_to_keep=2)
+        self.tf_saver_restore = tf.train.Saver()
 
     def __build_model_inputs_and_labels(self):
         # All time major
