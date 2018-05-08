@@ -13,6 +13,9 @@ import time
 # =================== CONFIGURATIONS ========================
 # cfg = config.SeqTrainConfigs
 cfg = config.SeqTrainLidarConfig
+if cfg.use_init:
+    if cfg.init_length >= cfg.timesteps:
+        tools.printf("init length too long")
 # val_cfg = config.SeqTrainConfigsSmallStepsValidation
 config.print_configs(cfg)
 
@@ -25,23 +28,18 @@ lr_schedule = {
     20: 0.000001,
     50: 0.0000001
 }
-# lr_schedule = {
-#     0:   0.00001,
-#     40:  0.00001,
-#     70:  0.00001,
-#     80:  0.000002,
-#     100: 0.000001
-# }
+
 start_epoch = 0
 alpha_schedule = {0: 0.99,  # epoch: alpha
                   20: 0.9,
                   40: 0.5,
                   60: 0.1,
                   80: 0.025}
-# alpha_schedule = {0: 0.5}
+
 alpha_set = 0.99
 
 tensorboard_meta = False
+use_initializer_network = True
 
 # =================== MODEL + LOSSES + Optimizer ========================
 tools.printf("Building losses...")
@@ -51,7 +49,7 @@ with tf.device("/cpu:0"):
 with tf.device(tf.train.replica_device_setter(ps_tasks=1, ps_device='/job:localhost/replica:0/task:0/device:GPU:0',
                                               worker_device='/job:localhost/replica:0/task:0/device:GPU:0')):
     inputs, lstm_initial_state, initial_poses, is_training, fc_outputs, se3_outputs, lstm_states = model.build_seq_model(
-        cfg, True)
+        cfg, True, use_initializer_network)
     se3_labels, fc_labels = simple_model.model_labels(cfg)
 
     with tf.variable_scope("Losses"):
@@ -282,22 +280,39 @@ with tf.Session(config=None) as sess:
             # val_init_poses = val_se3_ground_truth[0, :, :]
 
             # Run training session
-            _, _curr_lstm_states, _se3_outputs, _train_summary, _train_image_summary, _total_losses = sess.run(
-                [trainer, lstm_states, se3_outputs, train_merged_summary_op, image_summary_op, total_losses],
-                feed_dict={
-                    inputs: batch_data,
-                    se3_labels: se3_ground_truth[1:, :, :],
-                    fc_labels: fc_ground_truth,
-                    lstm_initial_state: curr_lstm_states,
-                    initial_poses: init_poses,
-                    lr: lr_set,
-                    alpha: alpha_set,
-                    is_training: True,
-                    sequence_id: int(curr_seq)
-                },
-                options=run_options,
-                run_metadata=run_metadata
-            )
+            if use_initializer_network:
+                _, _curr_lstm_states, _se3_outputs, _train_summary, _train_image_summary, _total_losses = sess.run(
+                    [trainer, lstm_states, se3_outputs, train_merged_summary_op, image_summary_op, total_losses],
+                    feed_dict={
+                        inputs: batch_data,
+                        se3_labels: se3_ground_truth[1:, :, :],
+                        fc_labels: fc_ground_truth,
+                        initial_poses: init_poses,
+                        lr: lr_set,
+                        alpha: alpha_set,
+                        is_training: True,
+                        sequence_id: int(curr_seq)
+                    },
+                    options=run_options,
+                    run_metadata=run_metadata
+                )
+            else:
+                _, _curr_lstm_states, _se3_outputs, _train_summary, _train_image_summary, _total_losses = sess.run(
+                    [trainer, lstm_states, se3_outputs, train_merged_summary_op, image_summary_op, total_losses],
+                    feed_dict={
+                        inputs: batch_data,
+                        se3_labels: se3_ground_truth[1:, :, :],
+                        fc_labels: fc_ground_truth,
+                        lstm_initial_state: curr_lstm_states,
+                        initial_poses: init_poses,
+                        lr: lr_set,
+                        alpha: alpha_set,
+                        is_training: True,
+                        sequence_id: int(curr_seq)
+                    },
+                    options=run_options,
+                    run_metadata=run_metadata
+                )
             # _, _curr_lstm_states, _se3_outputs, _train_summary, _total_losses, _val_curr_lstm_states, _val_summary, _val_loss = sess.run(
             #     [trainer, lstm_states, se3_outputs, train_merged_summary_op, total_losses, val_lstm_states, val_merged_summary_op, total_losses_val],
             #     feed_dict={
@@ -320,7 +335,8 @@ with tf.Session(config=None) as sess:
             #     run_metadata=run_metadata
             # )
 
-            data.update_lstm_state(lstm_states_dic, np.stack(_curr_lstm_states, 0), curr_seq, batch_id)
+            if not use_initializer_network:
+                data.update_lstm_state(lstm_states_dic, np.stack(_curr_lstm_states, 0), curr_seq, batch_id)
 
             # val_curr_lstm_states = np.stack(_val_curr_lstm_states, 0)
             # curr_val_loss = _val_loss

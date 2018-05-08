@@ -262,18 +262,24 @@ def model_labels(cfg):
 
     return se3_labels, fc_labels
 
-def build_seq_model(cfg, get_activations=False):
+def build_seq_model(cfg, get_activations=False, use_initializer=False):
     print("Building sequence to sequence training model")
 
-    inputs, lstm_initial_state, initial_poses, is_training = model_inputs(cfg)
+    if use_initializer:
+        inputs, _, initial_poses, is_training = model_inputs(cfg)
+    else:
+        inputs, lstm_initial_state, initial_poses, is_training = model_inputs(cfg)
 
     print("Building CNN...")
     cnn_outputs = cnn_layer(inputs, is_training, get_activations)
 
-    print("Building Initializer Network")
-    initializer = tf.contrib.layers.fully_connected(cnn_outputs[:cfg.init_length, ...], cfg.batch_size * cfg.lstm_size * cfg.lstm_layers * 2, scope="fc",
-                                                       activation_fn=tf.nn.tanh)
-    lstm_initial_state = tf.reshape(initializer, 2, cfg.lstm_layers, cfg.batch_size, cfg.lstm_size)
+    if use_initializer:
+        print("Building Initializer Network")
+        init_list = tf.unstack(cnn_outputs[:cfg.init_length, ...], axis=0)
+        init_feed = tf.concat(init_list, axis=1)
+        initializer = tf.contrib.layers.fully_connected(init_feed, cfg.lstm_size * cfg.lstm_layers * 2, scope="fc",
+                                                           activation_fn=tf.nn.tanh)
+        lstm_initial_state = tf.reshape(initializer, [2, cfg.lstm_layers, cfg.batch_size, cfg.lstm_size])
 
     print("Building RNN...")
     lstm_outputs, lstm_states = rnn_layer(cfg, cnn_outputs, lstm_initial_state)
