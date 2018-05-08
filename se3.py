@@ -105,7 +105,7 @@ def se3_comp(pose_1_quat, pose_2_ypr):
         # first convert ypr to quaternion
         pose_2_quat = pose_ypr_to_quat(pose_2_ypr)
 
-        x, y, z = tf.unstack(comp_pose_pt(pose_1_quat, pose_2_quat[0:3]))
-        qr, qx, qy, qz = tf.unstack(quat_multiply(pose_1_quat[3:7], pose_2_quat[3:7]))
+        xyz = comp_pose_pt(pose_1_quat, pose_2_quat[0:3])
+        qrqxqyqz = quat_multiply(pose_1_quat[3:7], pose_2_quat[3:7])
 
-        return tf.stack([x, y, z, qr, qx, qy, qz])
+        return tf.concat([xyz, qrqxqyqz], 0)

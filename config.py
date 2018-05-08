@@ -1,7 +1,11 @@
 import tools
 
-save_path = "/home/cs4li/Dev/end_to_end_visual_odometry/results"
+machine = "cs4li"
 
+if machine == "cs4li":
+    save_path = "/home/cs4li/Dev/end_to_end_visual_odometry/results/"
+    dataset_path = "/home/cs4li/Dev/KITTI/dataset/"
+    lidar_pickles_path = "/home/cs4li/Dev/KITTI/dataset/sequences/lidar_pickles/"
 
 class Configs(object):
     timesteps = 0
@@ -12,30 +16,106 @@ class Configs(object):
 
 
 class SeqTrainConfigs(Configs):
-    timesteps = 4
-    batch_size = 7
+    timesteps = 8
+    batch_size = 4
     input_width = 1280
     input_height = 384
-    input_channels = 1
+    input_channels = 3
 
     lstm_size = 256
     lstm_layers = 2
+    sequence_stride = 8
 
-    num_epochs = 50
-    k_fc = 20
+    num_epochs = 100
+    k_fc = 50
     k_se3 = 500
 
 
-class PairTrainConfigs(Configs):
-    timesteps = 1
-    batch_size = 30
-
+class SeqTrainConfigsSmallSteps(Configs):
+    timesteps = 8
+    batch_size = 6
     input_width = 1280
     input_height = 384
-    input_channels = 1
+    input_channels = 3
 
-    num_epochs = 50
-    k = 1
+    bidir_aug = True
+
+    lstm_size = 256
+    lstm_layers = 2
+    sequence_stride = 8
+
+    num_epochs = 200
+    k_fc = 50
+    k_se3 = 500
+
+
+class SeqTrainLidarConfig(Configs):
+    sequence_stride = 1
+    timesteps = 1
+    batch_size = 40
+    input_width = 1152
+    input_height = 64
+    input_channels = 3
+
+    bidir_aug = True
+    data_type = "lidar"
+
+    lstm_size = 256
+    lstm_layers = 1
+
+    num_epochs = 200
+    k_fc = 50
+    k_se3 = 500
+
+
+class SeqEvalLidarConfig(Configs):
+    timesteps = 1
+    batch_size = 1
+    input_width = 1152
+    input_height = 64
+    input_channels = 3
+
+    bidir_aug = False
+    data_type = "lidar"
+
+    lstm_size = 256
+    lstm_layers = 1
+    sequence_stride = 1
+
+    num_epochs = 200
+    k_fc = 50
+    k_se3 = 500
+
+
+class SeqTrainConfigsSmallStepsValidation(Configs):
+    timesteps = 1
+    batch_size = 40
+    input_width = 1280
+    input_height = 384
+    input_channels = 3
+
+    bidir_aug = False
+
+    lstm_size = 256
+    lstm_layers = 1
+    sequence_stride = 1
+
+    num_epochs = 100
+    k_fc = 50
+    k_se3 = 500
+
+
+class SeqCamEvalConfig(Configs):
+    timesteps = 1
+    batch_size = 1
+    input_width = 1280
+    input_height = 384
+    input_channels = 3
+    sequence_stride = 1
+    bidir_aug = False
+
+    lstm_size = 256
+    lstm_layers = 2
 
 
 def print_configs(cfg):

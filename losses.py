@@ -1,18 +1,27 @@
 import tensorflow as tf
 import se3
+import math as m
 
 
 # assumes time major
 def se3_losses(outputs, labels, k):
     with tf.variable_scope("se3_losses"):
-        diff_p = outputs[:, :, 0:3] - labels[:, :, 0:3]
-        # diff_q = outputs[:, :, 3:] - labels[:, :, 3:]
-        diff_q = tf.subtract(tf.constant(1.0, dtype=tf.float32), tf.reduce_sum(tf.multiply(outputs[:, :, 3:], labels[:, :, 3:]), 2))
+        diff_p = outputs[-1, :, 0:3] - labels[-1, :, 0:3]
+        # diff_p = outputs[:, :, 0:3] - labels[:, :, 0:3]
 
+        q_dot_squared = tf.square(tf.reduce_sum(tf.multiply(outputs[-1, :, 3:], labels[-1, :, 3:]), 1))
+        #q_dot_squared = tf.square(tf.reduce_sum(tf.multiply(outputs[:, :, 3:], labels[:, :, 3:]), 2))
+        # diff_q = outputs[:, :, 3:] - labels[:, :, 3:]
+
+        diff_q = tf.subtract(tf.constant(1.0, dtype=tf.float32), q_dot_squared)
+
+        sum_diff_p_dot_p = tf.reduce_sum(tf.multiply(diff_p, diff_p), axis=1)
         # takes the the dot product and sum it up along time
-        sum_diff_p_dot_p = tf.reduce_sum(tf.multiply(diff_p, diff_p), axis=(0, 2,))
-        #sum_diff_q_dot_q = tf.reduce_sum(tf.multiply(diff_q, diff_q), axis=(0, 2,))
-        sum_diff_q_dot_q = tf.reduce_sum(diff_q, 0)
+        # sum_diff_p_dot_p = tf.reduce_sum(tf.multiply(diff_p, diff_p), axis=(0, 2,))
+
+        sum_diff_q_dot_q = diff_q
+        # sum_diff_q_dot_q = tf.reduce_sum(tf.multiply(diff_q, diff_q), axis=(0, 2,))
+        # sum_diff_q_dot_q = tf.reduce_sum(diff_q, 0)
 
         t = tf.cast(tf.shape(outputs)[0], tf.float32)
 
@@ -27,16 +36,30 @@ def pair_train_fc_losses(outputs, labels_u, k):
         diff_p = outputs[:, :, 0:3] - labels_u[:, :, 0:3]
         diff_e = outputs[:, :, 3:6] - labels_u[:, :, 3:6]
 
+        # too_big = tf.greater(diff_e, tf.constant(m.pi, dtype=tf.float32))
+        # too_small = tf.less(diff_e, tf.constant(-m.pi, dtype=tf.float32))
+
+        # wrapped_diff_e = tf.where(too_big, tf.subtract(diff_e, tf.constant(2 * m.pi, dtype=tf.float32)),
+        #                           tf.where(too_small, tf.add(diff_e, tf.constant(2 * m.pi, dtype=tf.float32)), diff_e))
+
         # takes the the dot product and sum it up along time
-        sum_diff_p_dot_p = tf.reduce_sum(tf.multiply(diff_p, diff_p), axis=(0, 2,))
+        diff_p_sq = tf.multiply(diff_p, diff_p)
+        sum_diff_p_dot_p = tf.reduce_sum(diff_p_sq, axis=(0, 2,))
         sum_diff_e_dot_e = tf.reduce_sum(tf.multiply(diff_e, diff_e), axis=(0, 2,))
+        # sum_diff_e_dot_e = tf.reduce_sum(tf.multiply(wrapped_diff_e, wrapped_diff_e), axis=(0, 2,))
 
         t = tf.cast(tf.shape(outputs)[0], tf.float32)
 
         # multiplies the sum by 1 / t
         loss = (sum_diff_p_dot_p + k * sum_diff_e_dot_e) / t
 
-        return tf.reduce_mean(loss), tf.reduce_mean(sum_diff_p_dot_p / t), tf.reduce_mean(sum_diff_e_dot_e / t)
+        # return xyz losses
+        x_loss = tf.reduce_mean(tf.sqrt(diff_p_sq[:, :, 0]))
+        y_loss = tf.reduce_mean(tf.sqrt(diff_p_sq[:, :, 1]))
+        z_loss = tf.reduce_mean(tf.sqrt(diff_p_sq[:, :, 2]))
+
+        return tf.reduce_mean(loss), tf.reduce_mean(sum_diff_p_dot_p / t), tf.reduce_mean(sum_diff_e_dot_e / t), \
+               x_loss, y_loss, z_loss
 
 
 # reduce_prod for tensor length 6, x shape is [time length, batch size, 6]

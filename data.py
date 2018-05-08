@@ -71,9 +71,11 @@ class StatefulDataGen(object):
                 j = num_image_loaded // total_timesteps
 
                 # swap axis to channels first
-                img = seq_data.get_cam0(i_img)
+                img = seq_data.get_cam2(i_img)
                 img = img.resize((self.cfg.input_width, self.cfg.input_height))
                 img = np.array(img)
+                if img.shape[2] == 3:  # convert to bgr if colored image
+                    img = img[..., [2, 1, 0]]
                 img = np.reshape(img, [img.shape[0], img.shape[1], self.cfg.input_channels])
                 img = np.moveaxis(np.array(img), 2, 0)
                 pose = seq_data.poses[i_img]
@@ -121,7 +123,7 @@ class StatefulDataGen(object):
 
                 translation = transformations.translation_from_matrix(m)
                 ypr = transformations.euler_from_matrix(m, axes="rzyx")
-                assert(np.all(np.abs(ypr) < np.pi))
+                assert (np.all(np.abs(ypr) < np.pi))
                 self.fc_ground_truth[i, j] = np.concatenate([translation, ypr])  # double check
 
         tools.printf("All data loaded, batch_size=%d, timesteps=%d, num_batches=%d" % (
@@ -196,3 +198,10 @@ def reset_select_lstm_state(lstm_states, mask):
             lstm_states[0][:, i, :] = 0
             lstm_states[1][:, i, :] = 0
     return lstm_states
+
+
+def reset_select_init_pose(init_pose, mask):
+    for i in range(0, len(mask)):
+        if mask[i]:
+            init_pose[i, :] = np.array([0, 0, 0, 1, 0, 0, 0])
+    return init_pose
