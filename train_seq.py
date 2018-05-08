@@ -31,6 +31,8 @@ alpha_set = 0.99
 
 tensorboard_meta = False
 
+num_gpu = 2
+
 # ================ LOADING DATASET ===================
 tools.printf("Loading training data...")
 train_sequences = ["00", "01", "02", "08", "09"]
@@ -42,7 +44,8 @@ val_data_gen = data.StatefulRollerDataGen(cfg, config.dataset_path, validation_s
                                           frames=None)
 
 # =================== MODEL + LOSSES + Optimizer ========================
-tools.printf("Building losses...")
+tools.printf("Building model...")
+
 with tf.device("/cpu:0"):
     alpha = tf.placeholder(tf.float32, name="alpha", shape=[])  # between 0 and 1, larger favors fc loss
 
@@ -65,32 +68,12 @@ with tf.variable_scope("Optimizer"):
         lr = tf.placeholder(tf.float32, name="se3_lr", shape=[])
         trainer = tf.train.AdamOptimizer(learning_rate=lr).minimize(total_losses, colocate_gradients_with_ops=True)
 
-# =================== SAVING/LOADING DATA ========================
-results_dir_path = tools.create_results_dir("train_seq")
-curr_dir_path = os.path.dirname(os.path.realpath(__file__))
-tools.log_file_content(results_dir_path, [os.path.realpath(__file__),
-                                          os.path.join(curr_dir_path, "data_roller.py"),
-                                          os.path.join(curr_dir_path, "model.py"),
-                                          os.path.join(curr_dir_path, "losses.py"),
-                                          os.path.join(curr_dir_path, "config.py")])
-
-tf_checkpoint_saver = tf.train.Saver(max_to_keep=3)
-tf_best_saver = tf.train.Saver(max_to_keep=2)
-
-tf_restore_saver = tf.train.Saver()
-restore_model_file = None
-# restore_model_file = "/home/ben/School/e2e_results/train_seq_20180419-00-46-05_timesteps20_no_reverse/best_val/model_best_val_checkpoint-49"
-
-# just for restoring pre trained cnn weights
-cnn_variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, "^cnn_layer.*")
-cnn_init_tf_saver = tf.train.Saver(cnn_variables)
-cnn_init_model_file = None
-# cnn_init_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/train_seq_20180414-01-33-38_simplemodel1lstmseq0f2f/model_epoch_checkpoint-199"
-
-# =================== TRAINING ========================
+# =================== Tensorboard SUMMARY ========================
 # config = tf.ConfigProto(allow_soft_placement=True)
 
-sequence_id = tf.placeholder(dtype=tf.uint8, shape=[])
+with tf.device("/cpu:0"):
+    sequence_id = tf.placeholder(dtype=tf.uint8, shape=[])
+    epoch = tf.placeholder(dtype=tf.int32, shape=[])
 
 tf.summary.scalar("training_loss", total_losses)
 tf.summary.scalar("fc_losses", fc_losses)
@@ -105,6 +88,7 @@ tf.summary.scalar("z_loss", z_loss)
 tf.summary.scalar("alpha", alpha)
 tf.summary.scalar("lr", lr)
 tf.summary.scalar("sequence_id", sequence_id)
+tf.summary.scalar("epoch", epoch)
 
 train_merged_summary_op = tf.summary.merge_all()
 
@@ -120,6 +104,31 @@ val_se3_sum = tf.summary.scalar("se3_losses_val", se3_losses)
 val_z_sum = tf.summary.scalar("z_loss_val", z_loss)
 
 val_merged_summary_op = tf.summary.merge([val_loss_sum, val_fc_sum, val_se3_sum, val_z_sum])
+
+# =================== LOGGING ========================
+results_dir_path = tools.create_results_dir("train_seq")
+curr_dir_path = os.path.dirname(os.path.realpath(__file__))
+tools.log_file_content(results_dir_path, [os.path.realpath(__file__),
+                                          os.path.join(curr_dir_path, "data_roller.py"),
+                                          os.path.join(curr_dir_path, "model.py"),
+                                          os.path.join(curr_dir_path, "losses.py"),
+                                          os.path.join(curr_dir_path, "config.py")])
+
+# =================== CHECKPOINTS ========================
+tf_checkpoint_saver = tf.train.Saver(max_to_keep=3)
+tf_best_saver = tf.train.Saver(max_to_keep=2)
+
+tf_restore_saver = tf.train.Saver()
+restore_model_file = None
+# restore_model_file = "/home/ben/School/e2e_results/train_seq_20180419-00-46-05_timesteps20_no_reverse/best_val/model_best_val_checkpoint-49"
+
+# just for restoring pre trained cnn weights
+cnn_variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, "^cnn_layer.*")
+cnn_init_tf_saver = tf.train.Saver(cnn_variables)
+cnn_init_model_file = None
+
+
+# cnn_init_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/train_seq_20180414-01-33-38_simplemodel1lstmseq0f2f/model_epoch_checkpoint-199"
 
 
 # ============== For Validation =============
@@ -228,7 +237,6 @@ with tf.Session(config=None) as sess:
 
             # get inputs
             batch_id, curr_seq, batch_data, fc_ground_truth, se3_ground_truth = train_data_gen.next_batch()
-
             data.get_init_lstm_state(lstm_states_dic, curr_lstm_states, curr_seq, batch_id, cfg.bidir_aug)
 
             # shift se3 ground truth to be relative to the first pose
@@ -246,7 +254,8 @@ with tf.Session(config=None) as sess:
                     lr: lr_set,
                     alpha: alpha_set,
                     is_training: True,
-                    sequence_id: int(curr_seq)
+                    sequence_id: int(curr_seq),
+                    epoch: i_epoch
                 },
                 options=run_options,
                 run_metadata=run_metadata
