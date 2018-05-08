@@ -168,7 +168,7 @@ class Train(object):
                     total_loss = (1 - self.t_alpha) * se3_loss + self.t_alpha * fc_loss
 
                     for k, v in ts_losses_dict.items():
-                        v.append(globals()[k])
+                        v.append(locals()[k])
 
                 tf.get_variable_scope().reuse_variables()
 
