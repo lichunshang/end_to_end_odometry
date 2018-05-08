@@ -15,11 +15,6 @@ class Configs(object):
     input_height = 0
     input_channels = 0
 
-    def print_configs(self):
-        for attr in dir(self):
-            if not callable(getattr(self, attr)) and not attr.startswith("__"):
-                tools.printf("%s: %s" % (attr, getattr(self, attr)))
-
 
 class SeqTrainConfigs(Configs):
     timesteps = 8
@@ -99,3 +94,9 @@ class SeqCamEvalConfig(Configs):
 
     lstm_size = 256
     lstm_layers = 2
+
+
+def print_configs(cfg):
+    for attr in dir(cfg):
+        if not callable(getattr(cfg, attr)) and not attr.startswith("__"):
+            tools.printf("%s: %s" % (attr, getattr(cfg, attr)))

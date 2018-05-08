@@ -67,10 +67,10 @@ def foldl(fn, elems, dtype=None, initializer=None, parallel_iterations=10, back_
             return [i + 1, ta]
 
         _, r_a = control_flow_ops.while_loop(
-            lambda i, a: i < n + 1, compute, [i, ta],
-            parallel_iterations=parallel_iterations,
-            back_prop=back_prop,
-            swap_memory=swap_memory)
+                lambda i, a: i < n + 1, compute, [i, ta],
+                parallel_iterations=parallel_iterations,
+                back_prop=back_prop,
+                swap_memory=swap_memory)
 
         # TODO(akshayka): Remove the in_graph_mode check once caching devices are
         # supported in Eager
@@ -172,12 +172,26 @@ def ensure_file_dir_exists(path):
     make_dir_if_not_exist(os.path.dirname(path))
     return path
 
+
 def log_file_content(log_path, file_paths):
     for f in file_paths:
         copyfile(f, ensure_file_dir_exists(os.path.join(log_path, "code_log", os.path.basename(f))))
+
+
+file_to_log = None
+
+
+def set_log_file(path):
+    global file_to_log
+    file_to_log = open(path, "a")
 
 
 def printf(string=""):
     sys.stdout.write(string)
     sys.stdout.write("\n")
     sys.stdout.flush()
+
+    if file_to_log:
+        file_to_log.write(string)
+        file_to_log.write("\n")
+        file_to_log.flush()

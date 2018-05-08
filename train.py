@@ -6,10 +6,10 @@ import losses
 import os
 import numpy as np
 import time
-
+import config
 
 class Train(object):
-    def __init__(self, num_gpu, config, train_sequences, val_sequence, tensorboard_meta, start_epoch=0,
+    def __init__(self, num_gpu, config, train_sequences, val_sequence, tensorboard_meta=False, start_epoch=0,
                  restore_file=None):
         # configurations
         self.cfg = config
@@ -73,13 +73,15 @@ class Train(object):
                 type(self.num_gpu) is int and
                 self.cfg.batch_size % self.num_gpu == 0)
 
-    def prep(self):
-        pass
+        self.__log_files_and_configs()
+        self.__build_model_inputs_and_labels()
+        self.__build_model_and_summary()
+        self.__load_data_set()
 
     def train(self):
-        pass
+        self.__run_train()
 
-    def load_data_set(self):
+    def __load_data_set(self):
         tools.printf("Loading training data...")
         self.train_data_gen = data_roller.StatefulRollerDataGen(self.cfg, self.cfg.dataset_path, self.train_sequences,
                                                                 frames=None)
@@ -87,7 +89,7 @@ class Train(object):
         self.val_data_gen = data_roller.StatefulRollerDataGen(self.cfg, self.cfg.dataset_path, [self.val_sequence],
                                                               frames=None)
 
-    def log_files_and_configs(self):
+    def __log_files_and_configs(self):
         self.results_dir_path = tools.create_results_dir("train_seq")
         self.curr_dir_path = os.path.dirname(os.path.realpath(__file__))
         tools.log_file_content(self.results_dir_path, [os.path.realpath(__file__),
@@ -95,8 +97,10 @@ class Train(object):
                                                        os.path.join(self.curr_dir_path, "model.py"),
                                                        os.path.join(self.curr_dir_path, "losses.py"),
                                                        os.path.join(self.curr_dir_path, "config.py")])
+        tools.set_log_file(os.path.join(self.results_dir_path, "print_logs.txt"))
+        config.print_configs(self.cfg)
 
-    def build_model_inputs_and_labels(self):
+    def __build_model_inputs_and_labels(self):
         # All time major
         self.t_inputs = tf.placeholder(tf.float32, name="inputs",
                                        shape=[self.cfg.timesteps + 1, self.cfg.batch_size, self.cfg.input_channels,
@@ -125,7 +129,7 @@ class Train(object):
         self.t_alpha = tf.placeholder(tf.float32, name="alpha", shape=[])
         self.t_lr = tf.placeholder(tf.float32, name="se3_lr", shape=[])
 
-    def build_model_and_summary(self):
+    def __build_model_and_summary(self):
         # split the tensors
         with tf.variable_scope("tower_split"), tf.device("/cpu:0"):
             # splitted tensors
@@ -215,7 +219,7 @@ class Train(object):
         self.op_val_merged_summary = tf.summary.merge([val_loss_sum, val_fc_sum, val_se3_sum, val_z_sum])
 
     # validation loss
-    def run_val_loss(self, i_epoch):
+    def __run_val_loss(self, i_epoch):
         curr_lstm_states = np.zeros([2, self.cfg.lstm_layers, self.cfg.batch_size, self.cfg.lstm_size])
 
         self.val_data_gen.next_epoch(randomize=False)
@@ -249,12 +253,12 @@ class Train(object):
         return np.average(val_se3_losses_log)
 
     @staticmethod
-    def set_from_schedule(schedule, i_epoch):
+    def __set_from_schedule(schedule, i_epoch):
         switch_points = np.array(list(schedule.keys()))
         set_point = switch_points[switch_points <= i_epoch].max()
         return schedule[set_point]
 
-    def run_train(self):
+    def __run_train(self):
         config = tf.ConfigProto(allow_soft_placement=True)
         with tf.Session(config=config) as self.tf_session:
             if self.restore_file:
