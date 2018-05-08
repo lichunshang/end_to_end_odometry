@@ -9,7 +9,6 @@ import numpy as np
 import time
 
 # =================== CONFIGURATIONS ========================
-# cfg = config.SeqTrainConfigs
 cfg = config.SeqTrainLidarConfig
 config.print_configs(cfg)
 
@@ -31,6 +30,16 @@ alpha_schedule = {0: 0.99,  # epoch: alpha
 alpha_set = 0.99
 
 tensorboard_meta = False
+
+# ================ LOADING DATASET ===================
+tools.printf("Loading training data...")
+train_sequences = ["00", "01", "02", "08", "09"]
+train_data_gen = data.StatefulRollerDataGen(cfg, config.dataset_path, train_sequences,
+                                            frames=None)
+tools.printf("Loading validation data...")
+validation_sequences = ["07"]
+val_data_gen = data.StatefulRollerDataGen(cfg, config.dataset_path, validation_sequences,
+                                          frames=None)
 
 # =================== MODEL + LOSSES + Optimizer ========================
 tools.printf("Building losses...")
@@ -111,17 +120,6 @@ val_se3_sum = tf.summary.scalar("se3_losses_val", se3_losses)
 val_z_sum = tf.summary.scalar("z_loss_val", z_loss)
 
 val_merged_summary_op = tf.summary.merge([val_loss_sum, val_fc_sum, val_se3_sum, val_z_sum])
-
-# ================ LOADING DATASET ===================
-
-tools.printf("Loading training data...")
-train_sequences = ["00", "01", "02", "08", "09"]
-train_data_gen = data.StatefulRollerDataGen(cfg, config.dataset_path, train_sequences,
-                                            frames=None)
-tools.printf("Loading validation data...")
-validation_sequences = ["07"]
-val_data_gen = data.StatefulRollerDataGen(cfg, config.dataset_path, validation_sequences,
-                                          frames=None)
 
 
 # ============== For Validation =============
