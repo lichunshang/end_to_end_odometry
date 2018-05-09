@@ -237,13 +237,20 @@ def se3_layer(inputs, initial_poses):
         return tf.stack(outputs, axis=1)
 
 def initializer_layer(inputs, batch_size, cfg):
-    with tf.variable_scope("initializer_layer" reuse=tf.AUTO_REUSE):
+    with tf.variable_scope("initializer_layer", reuse=tf.AUTO_REUSE):
         print("Building Initializer Network")
         init_list = tf.unstack(inputs[:cfg.init_length, ...], axis=0)
         init_feed = tf.concat(init_list, axis=1)
-        initializer = tf.contrib.layers.fully_connected(init_feed,  batch_size * cfg.lstm_layers * 2, scope="fc",
+        initializer = tf.contrib.layers.fully_connected(init_feed, cfg.lstm_layers * 2 * cfg.lstm_size, scope="fc",
                                                            activation_fn=tf.nn.tanh)
-        lstm_network_state = tf.reshape(initializer, [2, cfg.lstm_layers, batch_size, cfg.lstm_size])
+
+        # Doing this manually to make sure data from different batches isn't mixed
+        listed = tf.unstack(initializer, axis=0)
+        states = []
+        for elem in listed:
+            states.append(tf.reshape(elem, [2, cfg.lstm_layers, cfg.lstm_size]))
+
+        lstm_network_state = tf.stack(states, axis=2)
 
         return lstm_network_state
 
@@ -252,7 +259,7 @@ def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, is_training,
     cnn_outputs = cnn_layer(inputs, cnn_model_lidar, is_training, get_activations)
 
     if use_initializer:
-        feed_init_states = initializer_layer(cnn_outputs, lstm_initial_state.shape[2], cfg)
+        feed_init_states = initializer_layer(cnn_outputs, int(lstm_initial_state.shape[2]), cfg)
     else:
         feed_init_states = lstm_initial_state
 
