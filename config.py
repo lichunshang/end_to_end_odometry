@@ -78,10 +78,6 @@ class SeqEvalLidarConfig(Configs):
     lstm_layers = 1
     sequence_stride = 1
 
-    num_epochs = 200
-    k_fc = 50
-    k_se3 = 500
-
 
 class SeqCamEvalConfig(Configs):
     timesteps = 1
