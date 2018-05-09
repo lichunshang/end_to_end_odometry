@@ -8,19 +8,14 @@ import os
 
 dir_name = "trajectory_results"
 kitti_seqs = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]
-#kitti_seqs = ["01"]
-
-# if kitti_seq in ["11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21"]:
-#     save_ground_truth = False
-# else:
-#     save_ground_truth = True
 
 save_ground_truth = True
 cfg = config.SeqEvalLidarConfig
 
 tools.printf("Building eval model....")
-inputs, lstm_initial_state, initial_poses, \
-is_training, fc_outputs, se3_outputs, lstm_states = model.build_seq_model(cfg)
+inputs, lstm_initial_state, initial_poses, is_training = model.seq_model_inputs(cfg)
+fc_outputs, se3_outputs, lstm_states = \
+    model.build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, is_training)
 
 for kitti_seq in kitti_seqs:
     tools.printf("Loading training data...")
@@ -31,7 +26,7 @@ for kitti_seq in kitti_seqs:
         os.makedirs(results_dir_path)
 
     # ==== Read Model Checkpoints =====
-    restore_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/train_seq_20180418-16-37-02/best_val/model_best_val_checkpoint-143"
+    restore_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/train_seq_20180509-00-04-46_2channel128batchsize2gpu/model_epoch_checkpoint-125"
 
     variable_to_load = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, "^(cnn_layer|rnn_layer|fc_layer).*")
     tf_restore_saver = tf.train.Saver(variable_to_load)
@@ -57,13 +52,13 @@ for kitti_seq in kitti_seqs:
 
             # Run training session
             _curr_lstm_states, _se3_outputs, _fc_outputs = sess.run(
-                [lstm_states, se3_outputs, fc_outputs],
-                feed_dict={
-                    inputs: batch_data,
-                    lstm_initial_state: curr_lstm_states,
-                    initial_poses: init_pose,
-                    is_training: False,
-                },
+                    [lstm_states, se3_outputs, fc_outputs],
+                    feed_dict={
+                        inputs: batch_data,
+                        lstm_initial_state: curr_lstm_states,
+                        initial_poses: init_pose,
+                        is_training: False,
+                    },
             )
             curr_lstm_states = _curr_lstm_states
             init_pose = _se3_outputs[-1]

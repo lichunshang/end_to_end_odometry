@@ -236,13 +236,14 @@ def se3_layer(inputs, initial_poses):
 
         return tf.stack(outputs, axis=1)
 
+
 def initializer_layer(inputs, cfg):
     with tf.variable_scope("initializer_layer", reuse=tf.AUTO_REUSE):
         print("Building Initializer Network")
         init_list = tf.unstack(inputs[:cfg.init_length, ...], axis=0)
         init_feed = tf.concat(init_list, axis=1)
         initializer = tf.contrib.layers.fully_connected(init_feed, cfg.lstm_layers * 2 * cfg.lstm_size, scope="fc",
-                                                           activation_fn=tf.nn.tanh)
+                                                        activation_fn=tf.nn.tanh)
 
         # Doing this manually to make sure data from different batches isn't mixed
         listed = tf.unstack(initializer, axis=0)
@@ -254,7 +255,28 @@ def initializer_layer(inputs, cfg):
 
         return lstm_network_state
 
-def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, is_training, get_activations=False, use_initializer=False):
+
+def seq_model_inputs(cfg):
+    # All time major
+    inputs = tf.placeholder(tf.float32, name="inputs",
+                            shape=[cfg.timesteps + 1, cfg.batch_size, cfg.input_channels,
+                                   cfg.input_height, cfg.input_width])
+
+    # init LSTM states, 2 (cell + hidden states), 2 layers, batch size, and 1024 state size
+    lstm_initial_state = tf.placeholder(tf.float32, name="lstm_init_state",
+                                        shape=[2, cfg.lstm_layers, cfg.batch_size,
+                                               cfg.lstm_size])
+
+    # init poses, initial position for each example in the batch
+    initial_poses = tf.placeholder(tf.float32, name="initial_poses", shape=[cfg.batch_size, 7])
+
+    # is training
+    is_training = tf.placeholder(tf.bool, name="is_training", shape=[])
+    return inputs, lstm_initial_state, initial_poses, is_training
+
+
+def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, is_training, get_activations=False,
+                    use_initializer=False):
     print("Building CNN...")
     cnn_outputs = cnn_layer(inputs, cnn_model_lidar, is_training, get_activations)
 

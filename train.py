@@ -8,11 +8,12 @@ import numpy as np
 import time
 import config
 
+
 class Train(object):
-    def __init__(self, num_gpu, config, train_sequences, val_sequence, tensorboard_meta=False, start_epoch=0,
+    def __init__(self, num_gpu, cfg, train_sequences, val_sequence, tensorboard_meta=False, start_epoch=0,
                  restore_file=None):
         # configurations
-        self.cfg = config
+        self.cfg = cfg
         self.num_gpu = num_gpu
         self.train_sequences = train_sequences
         self.val_sequence = val_sequence
@@ -104,21 +105,8 @@ class Train(object):
         self.tf_saver_restore = tf.train.Saver()
 
     def __build_model_inputs_and_labels(self):
-        # All time major
-        self.t_inputs = tf.placeholder(tf.float32, name="inputs",
-                                       shape=[self.cfg.timesteps + 1, self.cfg.batch_size, self.cfg.input_channels,
-                                              self.cfg.input_height, self.cfg.input_width])
-
-        # init LSTM states, 2 (cell + hidden states), 2 layers, batch size, and 1024 state size
-        self.t_lstm_initial_state = tf.placeholder(tf.float32, name="lstm_init_state",
-                                                   shape=[2, self.cfg.lstm_layers, self.cfg.batch_size,
-                                                          self.cfg.lstm_size])
-
-        # init poses, initial position for each example in the batch
-        self.t_initial_poses = tf.placeholder(tf.float32, name="initial_poses", shape=[self.cfg.batch_size, 7])
-
-        # is training
-        self.t_is_training = tf.placeholder(tf.bool, name="is_training", shape=[])
+        self.t_inputs, self.t_lstm_initial_state, self.t_initial_poses, self.t_is_training = \
+            model.seq_model_inputs(self.cfg)
 
         # 7 for translation + quat
         self.t_se3_labels = tf.placeholder(tf.float32, name="se3_labels",
@@ -266,8 +254,8 @@ class Train(object):
         return schedule[set_point]
 
     def __run_train(self):
-        config = tf.ConfigProto(allow_soft_placement=True)
-        with tf.Session(config=config) as self.tf_session:
+        sess_config = tf.ConfigProto(allow_soft_placement=True)
+        with tf.Session(config=sess_config) as self.tf_session:
             if self.restore_file:
                 tools.printf("Restoring model weights from %s..." % self.restore_file)
                 self.tf_saver_restore.restore(self.tf_session, self.restore_file)
