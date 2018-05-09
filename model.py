@@ -237,16 +237,24 @@ def se3_layer(inputs, initial_poses):
         return tf.stack(outputs, axis=1)
 
 
-def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, is_training, get_activations=False):
-    print("Building sequence to sequence training model")
-
-    # inputs, lstm_initial_state, initial_poses, is_training = model_inputs(cfg)
-
+def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, is_training, get_activations=False, use_initializer=False):
     print("Building CNN...")
     cnn_outputs = cnn_layer(inputs, cnn_model_lidar, is_training, get_activations)
 
-    print("Building RNN...")
-    lstm_outputs, lstm_states = rnn_layer(cfg, cnn_outputs, lstm_initial_state)
+    if use_initializer:
+        print("Building Initializer Network")
+        init_list = tf.unstack(cnn_outputs[:cfg.init_length, ...], axis=0)
+        init_feed = tf.concat(init_list, axis=1)
+        initializer = tf.contrib.layers.fully_connected(init_feed, cfg.lstm_size * cfg.lstm_layers * 2, scope="fc",
+                                                           activation_fn=tf.nn.tanh)
+        lstm_network_state = tf.reshape(initializer, [2, cfg.lstm_layers, cfg.batch_size, cfg.lstm_size])
+
+        print("Building RNN...")
+        lstm_outputs, lstm_states = rnn_layer(cfg, cnn_outputs, lstm_network_state)
+
+    else:
+        print("Building RNN...")        
+        lstm_outputs, lstm_states = rnn_layer(cfg, cnn_outputs, lstm_initial_state)
 
     print("Building FC...")
     fc_outputs = fc_layer(lstm_outputs, pair_train_fc_layer)

@@ -23,6 +23,7 @@ for seq in sequences:
             except EOFError:
                 break
 
+    counter = 0
     with (open(pickle_dir + seq + "_range.pik", "rb")) as opfile:
         while True:
             try:
