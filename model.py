@@ -237,6 +237,25 @@ def se3_layer(inputs, initial_poses):
         return tf.stack(outputs, axis=1)
 
 
+def initializer_layer(inputs, cfg):
+    with tf.variable_scope("initializer_layer", reuse=tf.AUTO_REUSE):
+        print("Building Initializer Network")
+        init_list = tf.unstack(inputs[:cfg.init_length, ...], axis=0)
+        init_feed = tf.concat(init_list, axis=1)
+        initializer = tf.contrib.layers.fully_connected(init_feed, cfg.lstm_layers * 2 * cfg.lstm_size, scope="fc",
+                                                        activation_fn=tf.nn.tanh)
+
+        # Doing this manually to make sure data from different batches isn't mixed
+        listed = tf.unstack(initializer, axis=0)
+        states = []
+        for elem in listed:
+            states.append(tf.reshape(elem, [2, cfg.lstm_layers, cfg.lstm_size]))
+
+        lstm_network_state = tf.stack(states, axis=2)
+
+        return lstm_network_state
+
+
 def seq_model_inputs(cfg):
     # All time major
     inputs = tf.placeholder(tf.float32, name="inputs",
@@ -256,18 +275,18 @@ def seq_model_inputs(cfg):
     return inputs, lstm_initial_state, initial_poses, is_training
 
 
-# Note that the batch size from cfg here might be inconsistent with the input tensors because it may be
-# split among GPUs
-def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, is_training, get_activations=False):
-    print("Building sequence to sequence training model")
-
-    # inputs, lstm_initial_state, initial_poses, is_training = model_inputs(cfg)
-
+def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, is_training, get_activations=False,
+                    use_initializer=False):
     print("Building CNN...")
     cnn_outputs = cnn_layer(inputs, cnn_model_lidar, is_training, get_activations)
 
+    if use_initializer:
+        feed_init_states = initializer_layer(cnn_outputs, cfg)
+    else:
+        feed_init_states = lstm_initial_state
+
     print("Building RNN...")
-    lstm_outputs, lstm_states = rnn_layer(cfg, cnn_outputs, lstm_initial_state)
+    lstm_outputs, lstm_states = rnn_layer(cfg, cnn_outputs, feed_init_states)
 
     print("Building FC...")
     fc_outputs = fc_layer(lstm_outputs, pair_train_fc_layer)

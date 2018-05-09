@@ -146,7 +146,7 @@ class Train(object):
                 tools.printf("Building model...")
                 fc_outputs, se3_outputs, lstm_states = \
                     model.build_seq_model(self.cfg, ts_inputs[i], ts_lstm_initial_state[i], ts_initial_poses[i],
-                                          self.t_is_training, get_activations=True)
+                                          self.t_is_training, get_activations=True, use_initializer=True)
 
                 # this returns lstm states as a tuple, we need to stack them
                 lstm_states = tf.stack(lstm_states, 0)
