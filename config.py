@@ -35,7 +35,7 @@ class SeqTrainConfigs(Configs):
 class SeqTrainLidarConfig(Configs):
     sequence_stride = 1
     timesteps = 1
-    batch_size = 24
+    batch_size = 80
     input_width = 1152
     input_height = 64
     input_channels = 3
@@ -49,7 +49,7 @@ class SeqTrainLidarConfig(Configs):
     k_fc = 50
     k_se3 = 500
 
-    num_epochs = 200
+    num_epochs = 2
     alpha_schedule = {0: 0.99,
                       20: 0.9,
                       40: 0.5,

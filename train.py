@@ -160,6 +160,8 @@ class Train(object):
                     model.build_seq_model(self.cfg, ts_inputs[i], ts_lstm_initial_state[i], ts_initial_poses[i],
                                           self.t_is_training, get_activations=True)
 
+                # this returns lstm states as a tuple, we need to stack them
+                lstm_states = tf.stack(lstm_states, 0)
                 ts_lstm_states.append(lstm_states)
 
                 with tf.variable_scope("loss"):
@@ -176,7 +178,7 @@ class Train(object):
 
         with tf.variable_scope("tower_join"), tf.device("/cpu:0"):
             # join the lstm states
-            self.t_lstm_states = tf.stack(ts_lstm_states, 2)
+            self.t_lstm_states = tf.concat(ts_lstm_states, 2)
             for k, v in ts_losses_dict.items():
                 ts_losses_dict[k] = tf.reduce_mean(v)
 
@@ -222,7 +224,7 @@ class Train(object):
         self.op_val_merged_summary = tf.summary.merge([val_loss_sum, val_fc_sum, val_se3_sum, val_z_sum])
 
     # validation loss
-    def __run_val_loss(self, i_epoch):
+    def __run_val_loss(self, i_epoch, alpha_set):
         curr_lstm_states = np.zeros([2, self.cfg.lstm_layers, self.cfg.batch_size, self.cfg.lstm_size])
 
         self.val_data_gen.next_epoch(randomize=False)
@@ -241,9 +243,11 @@ class Train(object):
                     feed_dict={
                         self.t_inputs: batch_data,
                         self.t_se3_labels: se3_ground_truth[1:, :, :],
+                        self.t_fc_labels: fc_ground_truth,
                         self.t_lstm_initial_state: curr_lstm_states,
                         self.t_initial_poses: init_poses,
-                        self.t_is_training: False
+                        self.t_is_training: False,
+                        self.t_alpha: alpha_set
                     },
                     options=self.tf_run_options,
                     run_metadata=self.tf_run_metadata
@@ -335,7 +339,7 @@ class Train(object):
                                 options=self.tf_run_options,
                                 run_metadata=self.tf_run_metadata)
 
-                    data_roller.update_lstm_state(lstm_states_dic, np.stack(_curr_lstm_states, 0), curr_seq, batch_id)
+                    data_roller.update_lstm_state(lstm_states_dic, _curr_lstm_states, curr_seq, batch_id)
 
                     if self.tensorboard_meta:
                         self.tf_tb_writer.add_run_metadata(self.tf_run_metadata,
@@ -348,7 +352,7 @@ class Train(object):
                 self.tf_tb_writer.add_summary(_train_image_summary, (i_epoch + 1) * total_batches)
 
                 tools.printf("Evaluating validation loss...")
-                curr_val_loss = self.run_val_loss(i_epoch)
+                curr_val_loss = self.__run_val_loss(i_epoch, alpha_set)
 
                 # check for best results
                 if curr_val_loss < best_val_loss:
