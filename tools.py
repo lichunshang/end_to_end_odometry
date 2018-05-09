@@ -67,10 +67,10 @@ def foldl(fn, elems, dtype=None, initializer=None, parallel_iterations=10, back_
             return [i + 1, ta]
 
         _, r_a = control_flow_ops.while_loop(
-            lambda i, a: i < n + 1, compute, [i, ta],
-            parallel_iterations=parallel_iterations,
-            back_prop=back_prop,
-            swap_memory=swap_memory)
+                lambda i, a: i < n + 1, compute, [i, ta],
+                parallel_iterations=parallel_iterations,
+                back_prop=back_prop,
+                swap_memory=swap_memory)
 
         # TODO(akshayka): Remove the in_graph_mode check once caching devices are
         # supported in Eager
@@ -172,9 +172,18 @@ def ensure_file_dir_exists(path):
     make_dir_if_not_exist(os.path.dirname(path))
     return path
 
+
 def log_file_content(log_path, file_paths):
     for f in file_paths:
         copyfile(f, ensure_file_dir_exists(os.path.join(log_path, "code_log", os.path.basename(f))))
+
+
+file_to_log = None
+
+
+def set_log_file(path):
+    global file_to_log
+    file_to_log = open(path, "a")
 
 
 def printf(string=""):
@@ -182,51 +191,7 @@ def printf(string=""):
     sys.stdout.write("\n")
     sys.stdout.flush()
 
-
-class Losses(object):
-    def __init__(self, name, epochs, batches):
-        self.name = name
-        self.storage = np.zeros([epochs, batches], dtype=np.float32)
-
-    def log(self, i_epoch, i_batch, val):
-        self.storage[i_epoch, i_batch] = val
-
-    def write_to_disk(self, path):
-        np.save(os.path.join(path, self.name), self.storage)
-
-    def get_val(self, i_epoch, i_batch):
-        return self.storage[i_epoch, i_batch]
-
-    def get_ave(self, i_epoch):
-        return np.average(self.storage[i_epoch, :])
-
-
-class LossesSet(object):
-    def __init__(self, losses_names, epochs, batches):
-        self.dict = collections.OrderedDict()
-        for name in losses_names:
-            self.dict[name] = Losses(name, epochs, batches)
-
-    def log(self, losses_vals_map, i_epoch, i_batch):
-        for key in self.dict:
-            self.dict[key].log(i_epoch, i_batch, losses_vals_map[key])
-
-    def batch_string(self, i_epoch, i_batch):
-        string = ""
-        for name in self.dict:
-            val = self.dict[name].get_val(i_epoch, i_batch)
-            string += "%s: %.3f, " % (name, val)
-
-        return string
-
-    def epoch_string(self, i_epoch):
-        string = ""
-        for name in self.dict:
-            val = self.dict[name].get_ave(i_epoch)
-            string += "ave_%s: %.3f, " % (name, val)
-
-        return string
-
-    def write_to_disk(self, path):
-        for key in self.dict:
-            self.dict[key].write_to_disk(path)
+    if file_to_log:
+        file_to_log.write(string)
+        file_to_log.write("\n")
+        file_to_log.flush()

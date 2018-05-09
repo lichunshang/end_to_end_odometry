@@ -4,15 +4,20 @@ import tools
 import config
 import native_lstm
 
+
 # CNN Block
 # is_training to control whether to apply dropout
-def cnn_model(inputs, is_training):
+def cnn_model(inputs, is_training, get_activations=False):
     with tf.variable_scope("cnn_model"):
         conv_1 = tf.contrib.layers.conv2d(inputs, num_outputs=64, kernel_size=(7, 7,),
                                           stride=(2, 2), padding="same", scope="conv_1", data_format="NCHW",
                                           weights_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
                                           biases_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
                                           activation_fn=tf.nn.leaky_relu)
+
+        if get_activations:
+            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, conv_1)
+
         dropout_conv_1 = tf.contrib.layers.dropout(conv_1, keep_prob=1.0, is_training=is_training,
                                                    scope="dropout_conv_1")
         conv_2 = tf.contrib.layers.conv2d(dropout_conv_1, num_outputs=128, kernel_size=(5, 5,),
@@ -29,14 +34,14 @@ def cnn_model(inputs, is_training):
                                           biases_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
                                           activation_fn=tf.nn.leaky_relu)
         dropout_conv_3 = tf.contrib.layers.dropout(conv_3, keep_prob=1, is_training=is_training,
-                                                    scope="dropout_conv_3")
+                                                   scope="dropout_conv_3")
         conv_3_1 = tf.contrib.layers.conv2d(conv_3, num_outputs=256, kernel_size=(3, 3,),
                                             stride=(1, 1), padding="same", scope="conv_3_1", data_format="NCHW",
                                             weights_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
-                                          biases_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
+                                            biases_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
                                             activation_fn=tf.nn.leaky_relu)
         dropout_conv_3_1 = tf.contrib.layers.dropout(conv_3_1, keep_prob=1, is_training=is_training,
-                                                      scope="dropout_conv_3_1")
+                                                     scope="dropout_conv_3_1")
 
         conv_4 = tf.contrib.layers.conv2d(conv_3_1, num_outputs=512, kernel_size=(3, 3,),
                                           stride=(2, 2), padding="same", scope="conv_4", data_format="NCHW",
@@ -150,7 +155,7 @@ def pair_train_fc_layer_1024(inputs):
         return fc_6
 
 
-def cnn_over_timesteps(inputs, is_training, get_activations):
+def cnn_over_timesteps(inputs, cnn_model, is_training, get_activations):
     with tf.variable_scope("cnn_over_timesteps"):
         unstacked_inputs = tf.unstack(inputs, axis=0)
 
@@ -159,7 +164,7 @@ def cnn_over_timesteps(inputs, is_training, get_activations):
         for i in range(len(unstacked_inputs) - 1):
             # stack images along channels
             image_stacked = tf.concat((unstacked_inputs[i], unstacked_inputs[i + 1]), axis=1)
-            outputs.append(cnn_model_lidar(image_stacked, is_training, get_activations))
+            outputs.append(cnn_model(image_stacked, is_training, get_activations))
 
         return tf.stack(outputs, axis=0)
 
@@ -177,9 +182,9 @@ def se3_comp_over_timesteps(inputs, initial_pose):
         return tf.stack(poses)
 
 
-def cnn_layer(inputs, is_training, get_activations):
+def cnn_layer(inputs, cnn_model, is_training, get_activations):
     with tf.variable_scope("cnn_layer", reuse=tf.AUTO_REUSE):
-        outputs = cnn_over_timesteps(inputs, is_training, get_activations)
+        outputs = cnn_over_timesteps(inputs, cnn_model, is_training, get_activations)
 
     outputs = tf.reshape(outputs,
                          [outputs.shape[0], outputs.shape[1], outputs.shape[2] * outputs.shape[3] * outputs.shape[4]])
@@ -191,14 +196,16 @@ def rnn_layer(cfg, inputs, initial_state):
     with tf.variable_scope("rnn_layer", reuse=tf.AUTO_REUSE):
         initial_state = tuple(tf.unstack(initial_state))
 
-        #need to break up LSTMs to get states in the middle
+        # need to break up LSTMs to get states in the middle
         mid_offset = cfg.sequence_stride
         if mid_offset < inputs.shape[0]:
-            lstm1 = native_lstm.CudnnLSTM(cfg.lstm_layers, cfg.lstm_size, name='rnn_layer', variable_namespace="rnn_layer")
+            lstm1 = native_lstm.CudnnLSTM(cfg.lstm_layers, cfg.lstm_size, name='rnn_layer',
+                                          variable_namespace="rnn_layer")
             lstm1.build(inputs[0:mid_offset, :, :].shape)
             mid_output, output_state = lstm1(inputs[0:mid_offset, :, :], initial_state=initial_state, training=True)
 
-            lstm2 = native_lstm.CudnnLSTM(cfg.lstm_layers, cfg.lstm_size, name='rnn_layer', variable_namespace="rnn_layer")
+            lstm2 = native_lstm.CudnnLSTM(cfg.lstm_layers, cfg.lstm_size, name='rnn_layer',
+                                          variable_namespace="rnn_layer")
             lstm2.build(inputs[mid_offset:, :, :].shape)
             end_output, _ = lstm2(inputs[mid_offset:, :, :], initial_state=output_state, training=True)
 
@@ -229,60 +236,35 @@ def se3_layer(inputs, initial_poses):
 
         return tf.stack(outputs, axis=1)
 
-
-def model_inputs(cfg):
-    # All time major
-    inputs = tf.placeholder(tf.float32, name="inputs",
-                            shape=[cfg.timesteps + 1, cfg.batch_size, cfg.input_channels, cfg.input_height,
-                                   cfg.input_width])
-
-    # accommodate the pairwise training
-    if hasattr(cfg, "lstm_layers"):
-        # init LSTM states, 2 (cell + hidden states), 2 layers, batch size, and 1024 state size
-        lstm_initial_state = tf.placeholder(tf.float32, name="lstm_init_state",
-                                            shape=[2, cfg.lstm_layers, cfg.batch_size, cfg.lstm_size])
-    else:
-        lstm_initial_state = None
-
-    # init poses, initial position for each example in the batch
-    initial_poses = tf.placeholder(tf.float32, name="initial_poses", shape=[cfg.batch_size, 7])
-
-    # is training
-    is_training = tf.placeholder(tf.bool, name="is_training", shape=[])
-
-    return inputs, lstm_initial_state, initial_poses, is_training
-
-
-def model_labels(cfg):
-    # 7 for translation + quat
-    se3_labels = tf.placeholder(tf.float32, name="se3_labels", shape=[cfg.timesteps, cfg.batch_size, 7])
-
-    # 6 for translation + rpy, labels not needed for covars
-    fc_labels = tf.placeholder(tf.float32, name="se3_labels", shape=[cfg.timesteps, cfg.batch_size, 6])
-
-    return se3_labels, fc_labels
-
-def build_seq_model(cfg, get_activations=False, use_initializer=False):
-    print("Building sequence to sequence training model")
-
-    if use_initializer:
-        inputs, _, initial_poses, is_training = model_inputs(cfg)
-    else:
-        inputs, lstm_initial_state, initial_poses, is_training = model_inputs(cfg)
-
-    print("Building CNN...")
-    cnn_outputs = cnn_layer(inputs, is_training, get_activations)
-
-    if use_initializer:
+def initializer_layer(inputs, cfg):
+    with tf.variable_scope("initializer_layer", reuse=tf.AUTO_REUSE):
         print("Building Initializer Network")
-        init_list = tf.unstack(cnn_outputs[:cfg.init_length, ...], axis=0)
+        init_list = tf.unstack(inputs[:cfg.init_length, ...], axis=0)
         init_feed = tf.concat(init_list, axis=1)
-        initializer = tf.contrib.layers.fully_connected(init_feed, cfg.lstm_size * cfg.lstm_layers * 2, scope="fc",
+        initializer = tf.contrib.layers.fully_connected(init_feed, cfg.lstm_layers * 2 * cfg.lstm_size, scope="fc",
                                                            activation_fn=tf.nn.tanh)
-        lstm_initial_state = tf.reshape(initializer, [2, cfg.lstm_layers, cfg.batch_size, cfg.lstm_size])
+
+        # Doing this manually to make sure data from different batches isn't mixed
+        listed = tf.unstack(initializer, axis=0)
+        states = []
+        for elem in listed:
+            states.append(tf.reshape(elem, [2, cfg.lstm_layers, cfg.lstm_size]))
+
+        lstm_network_state = tf.stack(states, axis=2)
+
+        return lstm_network_state
+
+def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, is_training, get_activations=False, use_initializer=False):
+    print("Building CNN...")
+    cnn_outputs = cnn_layer(inputs, cnn_model_lidar, is_training, get_activations)
+
+    if use_initializer:
+        feed_init_states = initializer_layer(cnn_outputs, cfg)
+    else:
+        feed_init_states = lstm_initial_state
 
     print("Building RNN...")
-    lstm_outputs, lstm_states = rnn_layer(cfg, cnn_outputs, lstm_initial_state)
+    lstm_outputs, lstm_states = rnn_layer(cfg, cnn_outputs, feed_init_states)
 
     print("Building FC...")
     fc_outputs = fc_layer(lstm_outputs, pair_train_fc_layer)
@@ -291,27 +273,4 @@ def build_seq_model(cfg, get_activations=False, use_initializer=False):
     # at this point the outputs from the fully connected layer are  [x, y, z, yaw, pitch, roll, 6 x covars]
     se3_outputs = se3_layer(fc_outputs, initial_poses)
 
-    return inputs, lstm_initial_state, initial_poses, is_training, fc_outputs, se3_outputs, lstm_states
-
-def build_model_w_init(cfg, get_activations=False):
-    print("Building S2S train mdl w/ init network")
-
-    inputs, lstm_initial_state, initial_poses, is_training = model_inputs(cfg)
-
-    print("Building CNN")
-    cnn_outputs = cnn_layer(inputs, is_training, get_activations)
-
-def build_pair_model(cfg):
-    print("Building sequence to sequence training model")
-
-    inputs, _, _, is_training = model_inputs(cfg)
-
-    print("Building CNN...")
-    
-    cnn_outputs = cnn_layer(inputs, is_training)
-
-    print("Building FC...")
-    
-    fc_outputs = fc_layer(cnn_outputs, pair_train_fc_layer)
-
-    return inputs, is_training, fc_outputs
+    return fc_outputs, se3_outputs, lstm_states

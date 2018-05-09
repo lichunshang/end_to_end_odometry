@@ -7,6 +7,7 @@ if machine == "cs4li":
     dataset_path = "/home/cs4li/Dev/KITTI/dataset/"
     lidar_pickles_path = "/home/cs4li/Dev/KITTI/dataset/sequences/lidar_pickles/"
 
+
 class Configs(object):
     timesteps = 0
     batch_size = 0
@@ -31,32 +32,15 @@ class SeqTrainConfigs(Configs):
     k_se3 = 500
 
 
-class SeqTrainConfigsSmallSteps(Configs):
-    timesteps = 8
-    batch_size = 6
-    input_width = 1280
-    input_height = 384
-    input_channels = 3
-
-    bidir_aug = True
-
-    lstm_size = 256
-    lstm_layers = 2
-    sequence_stride = 8
-
-    num_epochs = 200
-    k_fc = 50
-    k_se3 = 500
-
-
 class SeqTrainLidarConfig(Configs):
     sequence_stride = 10
     timesteps = 10
     init_length = 3
-    batch_size = 2
+    batch_size = 10
+
     input_width = 1152
     input_height = 64
-    input_channels = 3
+    input_channels = 2
 
     bidir_aug = True
     use_init = True
@@ -65,9 +49,22 @@ class SeqTrainLidarConfig(Configs):
     lstm_size = 256
     lstm_layers = 1
 
-    num_epochs = 200
     k_fc = 50
     k_se3 = 500
+
+    num_epochs = 200
+    alpha_schedule = {0: 0.99,
+                      20: 0.9,
+                      40: 0.5,
+                      60: 0.1,
+                      80: 0.025}
+
+    lr_schedule = {0: 0.0001,
+                   3: 0.00008,
+                   7: 0.00005,
+                   13: 0.000002,
+                   20: 0.000001,
+                   50: 0.0000001}
 
 
 class SeqEvalLidarConfig(Configs):
@@ -75,7 +72,7 @@ class SeqEvalLidarConfig(Configs):
     batch_size = 1
     input_width = 1152
     input_height = 64
-    input_channels = 3
+    input_channels = 2
 
     bidir_aug = False
     data_type = "lidar"
@@ -85,24 +82,6 @@ class SeqEvalLidarConfig(Configs):
     sequence_stride = 1
 
     num_epochs = 200
-    k_fc = 50
-    k_se3 = 500
-
-
-class SeqTrainConfigsSmallStepsValidation(Configs):
-    timesteps = 1
-    batch_size = 40
-    input_width = 1280
-    input_height = 384
-    input_channels = 3
-
-    bidir_aug = False
-
-    lstm_size = 256
-    lstm_layers = 1
-    sequence_stride = 1
-
-    num_epochs = 100
     k_fc = 50
     k_se3 = 500
 

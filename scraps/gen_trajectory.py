@@ -1,7 +1,6 @@
 import data_roller as data
 import config
 import model
-import simple_model
 import tools
 import tensorflow as tf
 import numpy as np
