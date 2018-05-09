@@ -38,7 +38,7 @@ class SeqTrainLidarConfig(Configs):
     batch_size = 24
     input_width = 1152
     input_height = 64
-    input_channels = 3
+    input_channels = 2
 
     bidir_aug = True
     data_type = "lidar"
@@ -69,7 +69,7 @@ class SeqEvalLidarConfig(Configs):
     batch_size = 1
     input_width = 1152
     input_height = 64
-    input_channels = 3
+    input_channels = 2
 
     bidir_aug = False
     data_type = "lidar"
