@@ -39,18 +39,6 @@ class LidarDataLoader(object):
                 i += 1
             assert (i == num_frames)
 
-        with (open(os.path.join(pickles_dir, seq + "_mask.pik"), "rb")) as opfile:
-            i = 0
-            while True:
-                try:
-                    cur_image = pickle.load(opfile)
-                    self.data[i, 2, :, :] = cur_image
-                    self.data[i, 2, :, :] = np.subtract(self.data[i, 2, :, :], 0.5, dtype=np.float16)
-                except EOFError:
-                    break
-                i += 1
-            assert (i == num_frames)
-
         # select the range of frames
         if frames:
             self.data = self.data[frames]

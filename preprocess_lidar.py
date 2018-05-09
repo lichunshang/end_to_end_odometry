@@ -47,9 +47,8 @@ for seq in sequences:
 
                 # 0 is distance and 1 is intensity
                 for j in range(0, 2):
-                    # images[scan_idx, j, 63 - i, mask] = np.interp(np.flatnonzero(mask), np.flatnonzero(~mask),
-                    #                                               strip_mean.statistic[j, ~mask])
-                    images[scan_idx, j, 63 - i, mask] = 0  # no interpolation, assign zero
+                    images[scan_idx, j, 63 - i, mask] = np.interp(np.flatnonzero(mask), np.flatnonzero(~mask),
+                                                                  strip_mean.statistic[j, ~mask])
                     images[scan_idx, j, 63 - i, ~mask] = strip_mean.statistic[j, ~mask]
 
                 # save the mask
