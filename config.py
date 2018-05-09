@@ -49,7 +49,7 @@ class SeqTrainLidarConfig(Configs):
     k_fc = 50
     k_se3 = 500
 
-    num_epochs = 2
+    num_epochs = 200
     alpha_schedule = {0: 0.99,
                       20: 0.9,
                       40: 0.5,
