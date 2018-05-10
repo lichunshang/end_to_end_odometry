@@ -175,8 +175,13 @@ class Train(object):
 
         tools.printf("Building optimizer...")
         with tf.variable_scope("optimizer", reuse=tf.AUTO_REUSE):
+            if self.cfg.only_train_init:
+                train_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, "initializer_layer")
+            else:
+                train_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
+
             self.op_trainer = tf.train.AdamOptimizer(learning_rate=self.t_lr). \
-                minimize(self.t_total_loss, colocate_gradients_with_ops=True)
+                minimize(self.t_total_loss, colocate_gradients_with_ops=True, var_list=train_vars)
 
         # tensorboard summaries
         tools.printf("Building tensorboard summaries...")
@@ -261,6 +266,8 @@ class Train(object):
                 self.tf_saver_restore.restore(self.tf_session, self.restore_file)
 
             else:
+                if self.cfg.only_train_init:
+                    raise ValueError("Set to only train initializer, but restore file was not provided!?!?!")
                 tools.printf("Initializing variables...")
                 self.tf_session.run(tf.global_variables_initializer())
 

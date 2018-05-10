@@ -44,6 +44,7 @@ class SeqTrainLidarConfig(Configs):
 
     bidir_aug = True
     use_init = True
+    only_train_init = True
     data_type = "lidar"
 
     lstm_size = 256
