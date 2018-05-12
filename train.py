@@ -100,7 +100,7 @@ class Train(object):
         config.print_configs(self.cfg)
 
     def __init_tf_savers(self):
-        self.tf_saver_checkpoint = tf.train.Saver(max_to_keep=3)
+        self.tf_saver_checkpoint = tf.train.Saver(max_to_keep=2)
         self.tf_saver_best = tf.train.Saver(max_to_keep=2)
         self.tf_saver_restore = tf.train.Saver()
 
