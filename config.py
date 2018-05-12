@@ -35,7 +35,7 @@ class SeqTrainConfigs(Configs):
 class SeqTrainLidarConfig(Configs):
     sequence_stride = 10
     timesteps = 10
-    init_length = 3
+    init_length = 6
     batch_size = 10
 
     input_width = 1152
@@ -44,7 +44,7 @@ class SeqTrainLidarConfig(Configs):
 
     bidir_aug = True
     use_init = True
-    only_train_init = True
+    only_train_init = False
     data_type = "lidar"
 
     lstm_size = 256
