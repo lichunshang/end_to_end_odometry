@@ -10,7 +10,7 @@ import gc
 
 class LidarDataLoader(object):
     def __init__(self, config, base_dir, seq, frames=None):
-        pickles_dir = os.path.join(base_dir, "sequences", "lidar_pickles")
+        pickles_dir = config.lidar_pickles_path
         seq_data = pykitti.odometry(base_dir, seq)
         num_frames = len(seq_data.poses)
         self.data = np.zeros([num_frames, config.input_channels, config.input_height, config.input_width], dtype=np.float16)
