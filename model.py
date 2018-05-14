@@ -240,6 +240,8 @@ def se3_layer(inputs, initial_poses):
 def initializer_layer(inputs, cfg):
     with tf.variable_scope("initializer_layer", reuse=tf.AUTO_REUSE):
         print("Building Initializer Network")
+        if cfg.init_length > inputs.shape[0]:
+            raise ValueError("Invalid initializer size")
         init_list = tf.unstack(inputs[:cfg.init_length, ...], axis=0)
         init_feed = tf.concat(init_list, axis=1)
         initializer = tf.contrib.layers.fully_connected(init_feed, cfg.lstm_layers * 2 * cfg.lstm_size, scope="fc",
@@ -275,12 +277,11 @@ def seq_model_inputs(cfg):
     return inputs, lstm_initial_state, initial_poses, is_training
 
 
-def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, is_training, get_activations=False,
-                    use_initializer=False):
+def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, is_training, get_activations=False):
     print("Building CNN...")
     cnn_outputs = cnn_layer(inputs, cnn_model_lidar, is_training, get_activations)
 
-    if use_initializer:
+    if cfg.use_init:
         feed_init_states = initializer_layer(cnn_outputs, cfg)
     else:
         feed_init_states = lstm_initial_state

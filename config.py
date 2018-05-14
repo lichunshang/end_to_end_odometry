@@ -5,7 +5,7 @@ machine = "cs4li"
 if machine == "cs4li":
     save_path = "/home/cs4li/Dev/end_to_end_visual_odometry/results/"
     dataset_path = "/home/cs4li/Dev/KITTI/dataset/"
-    lidar_pickles_path = "/home/cs4li/Dev/KITTI/dataset/sequences/lidar_pickles/"
+    lidar_pickles_path = "/home/cs4li/Dev/KITTI/dataset/sequences/lidar_pickles_no_interp/"
 
 
 class Configs(object):
@@ -33,17 +33,17 @@ class SeqTrainConfigs(Configs):
 
 
 class SeqTrainLidarConfig(Configs):
-    sequence_stride = 10
-    timesteps = 10
+    sequence_stride = 1
+    timesteps = 1
     init_length = 6
-    batch_size = 10
+    batch_size = 128
 
     input_width = 1152
     input_height = 64
     input_channels = 2
 
     bidir_aug = True
-    use_init = True
+    use_init = False
     only_train_init = False
     data_type = "lidar"
 
