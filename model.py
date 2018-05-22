@@ -274,15 +274,25 @@ def seq_model_inputs(cfg):
 
     # is training
     is_training = tf.placeholder(tf.bool, name="is_training", shape=[])
-    return inputs, lstm_initial_state, initial_poses, is_training
+
+    # switch between previous states and state initializer
+    use_initializer = tf.placeholder(tf.bool, name="use_initializer", shape=[])
+
+    return inputs, lstm_initial_state, initial_poses, is_training, use_initializer
 
 
-def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, is_training, get_activations=False):
+def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, is_training, use_initializer, get_activations=False):
     print("Building CNN...")
     cnn_outputs = cnn_layer(inputs, cnn_model_lidar, is_training, get_activations)
 
+    def f1():
+        return initializer_layer(cnn_outputs, cfg)
+
+    def f2():
+        return lstm_initial_state
+
     if cfg.use_init:
-        feed_init_states = initializer_layer(cnn_outputs, cfg)
+        feed_init_states = tf.cond(use_initializer, true_fn=f1, false_fn=f2)
     else:
         feed_init_states = lstm_initial_state
 

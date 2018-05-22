@@ -111,7 +111,7 @@ class Train(object):
             self.tf_saver_restore = tf.train.Saver()
 
     def __build_model_inputs_and_labels(self):
-        self.t_inputs, self.t_lstm_initial_state, self.t_initial_poses, self.t_is_training = \
+        self.t_inputs, self.t_lstm_initial_state, self.t_initial_poses, self.t_is_training, self.t_use_initializer = \
             model.seq_model_inputs(self.cfg)
 
         # 7 for translation + quat
@@ -152,7 +152,7 @@ class Train(object):
                 tools.printf("Building model...")
                 fc_outputs, se3_outputs, lstm_states = \
                     model.build_seq_model(self.cfg, ts_inputs[i], ts_lstm_initial_state[i], ts_initial_poses[i],
-                                          self.t_is_training, get_activations=True)
+                                          self.t_is_training, self.t_use_initializer, get_activations=True)
 
                 # this returns lstm states as a tuple, we need to stack them
                 lstm_states = tf.stack(lstm_states, 0)
@@ -230,6 +230,8 @@ class Train(object):
 
         val_se3_losses_log = np.zeros([self.val_data_gen.total_batches()])
 
+        use_init_val = True
+
         while self.val_data_gen.has_next_batch():
             j_batch = self.val_data_gen.curr_batch()
 
@@ -246,11 +248,14 @@ class Train(object):
                         self.t_lstm_initial_state: curr_lstm_states,
                         self.t_initial_poses: init_poses,
                         self.t_is_training: False,
+                        self.t_use_initializer: use_init_val,
                         self.t_alpha: alpha_set
                     },
                     options=self.tf_run_options,
                     run_metadata=self.tf_run_metadata
             )
+
+            use_init_val = False
 
             curr_lstm_states = np.stack(_curr_lstm_states, 0)
             self.tf_tb_writer.add_summary(_summary, i_epoch * self.val_data_gen.total_batches() + j_batch)
@@ -319,6 +324,11 @@ class Train(object):
                     # shift se3 ground truth to be relative to the first pose
                     init_poses = se3_ground_truth[0, :, :]
 
+                    nrnd = np.random.rand(1)
+                    use_init_train = False
+                    if j_batch == 0 or nrnd < self.cfg.init_prob:
+                        use_init_train = True
+
                     # Run training session
                     _, _curr_lstm_states, _train_summary, _train_image_summary, _total_losses = \
                         self.tf_session.run(
@@ -334,6 +344,7 @@ class Train(object):
                                     self.t_lr: lr_set,
                                     self.t_alpha: alpha_set,
                                     self.t_is_training: True,
+                                    self.t_use_initializer: use_init_train,
                                     self.t_sequence_id: int(curr_seq),
                                     self.t_epoch: i_epoch
                                 },
