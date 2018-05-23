@@ -102,7 +102,7 @@ class Train(object):
     def __init_tf_savers(self):
         self.tf_saver_checkpoint = tf.train.Saver(max_to_keep=2)
         self.tf_saver_best = tf.train.Saver(max_to_keep=2)
-        if self.cfg.only_train_init:
+        if self.cfg.only_train_init and self.cfg.dont_restore_init:
             varlist = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="cnn_layer") + \
                       tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="fc_layer") + \
                       tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="rnn_layer")
