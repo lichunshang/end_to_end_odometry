@@ -6,14 +6,15 @@ import random
 import os
 import pickle
 import gc
+import config
 
 
 class LidarDataLoader(object):
-    def __init__(self, config, base_dir, seq, frames=None):
-        pickles_dir = os.path.join(base_dir, "sequences", "lidar_pickles")
+    def __init__(self, cfg, base_dir, seq, frames=None):
+        pickles_dir = config.lidar_pickles_path
         seq_data = pykitti.odometry(base_dir, seq)
         num_frames = len(seq_data.poses)
-        self.data = np.zeros([num_frames, config.input_channels, config.input_height, config.input_width], dtype=np.float16)
+        self.data = np.zeros([num_frames, cfg.input_channels, cfg.input_height, cfg.input_width], dtype=np.float16)
 
         with (open(os.path.join(pickles_dir, seq + "_range.pik"), "rb")) as opfile:
             i = 0
@@ -50,8 +51,8 @@ class LidarDataLoader(object):
 class StatefulRollerDataGen(object):
 
     # This version of the data generator slides along n frames at a time
-    def __init__(self, config, base_dir, sequences, frames=None):
-        self.cfg = config
+    def __init__(self, cfg, base_dir, sequences, frames=None):
+        self.cfg = cfg
         self.data_type = "cam"
         self.sequences = sequences
         self.curr_batch_sequence = 0

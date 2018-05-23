@@ -100,12 +100,18 @@ class Train(object):
         config.print_configs(self.cfg)
 
     def __init_tf_savers(self):
-        self.tf_saver_checkpoint = tf.train.Saver(max_to_keep=3)
+        self.tf_saver_checkpoint = tf.train.Saver(max_to_keep=2)
         self.tf_saver_best = tf.train.Saver(max_to_keep=2)
-        self.tf_saver_restore = tf.train.Saver()
+        if self.cfg.only_train_init and self.cfg.dont_restore_init:
+            varlist = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="cnn_layer") + \
+                      tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="fc_layer") + \
+                      tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="rnn_layer")
+            self.tf_saver_restore = tf.train.Saver(var_list=varlist)
+        else:
+            self.tf_saver_restore = tf.train.Saver()
 
     def __build_model_inputs_and_labels(self):
-        self.t_inputs, self.t_lstm_initial_state, self.t_initial_poses, self.t_is_training = \
+        self.t_inputs, self.t_lstm_initial_state, self.t_initial_poses, self.t_is_training, self.t_use_initializer = \
             model.seq_model_inputs(self.cfg)
 
         # 7 for translation + quat
@@ -146,7 +152,7 @@ class Train(object):
                 tools.printf("Building model...")
                 fc_outputs, se3_outputs, lstm_states = \
                     model.build_seq_model(self.cfg, ts_inputs[i], ts_lstm_initial_state[i], ts_initial_poses[i],
-                                          self.t_is_training, get_activations=True, use_initializer=True)
+                                          self.t_is_training, self.t_use_initializer, get_activations=True)
 
                 # this returns lstm states as a tuple, we need to stack them
                 lstm_states = tf.stack(lstm_states, 0)
@@ -175,8 +181,13 @@ class Train(object):
 
         tools.printf("Building optimizer...")
         with tf.variable_scope("optimizer", reuse=tf.AUTO_REUSE):
+            if self.cfg.only_train_init:
+                train_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, "initializer_layer")
+            else:
+                train_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
+
             self.op_trainer = tf.train.AdamOptimizer(learning_rate=self.t_lr). \
-                minimize(self.t_total_loss, colocate_gradients_with_ops=True)
+                minimize(self.t_total_loss, colocate_gradients_with_ops=True, var_list=train_vars)
 
         # tensorboard summaries
         tools.printf("Building tensorboard summaries...")
@@ -219,6 +230,8 @@ class Train(object):
 
         val_se3_losses_log = np.zeros([self.val_data_gen.total_batches()])
 
+        use_init_val = True
+
         while self.val_data_gen.has_next_batch():
             j_batch = self.val_data_gen.curr_batch()
 
@@ -235,11 +248,14 @@ class Train(object):
                         self.t_lstm_initial_state: curr_lstm_states,
                         self.t_initial_poses: init_poses,
                         self.t_is_training: False,
+                        self.t_use_initializer: use_init_val,
                         self.t_alpha: alpha_set
                     },
                     options=self.tf_run_options,
                     run_metadata=self.tf_run_metadata
             )
+
+            use_init_val = False
 
             curr_lstm_states = np.stack(_curr_lstm_states, 0)
             self.tf_tb_writer.add_summary(_summary, i_epoch * self.val_data_gen.total_batches() + j_batch)
@@ -256,13 +272,15 @@ class Train(object):
     def __run_train(self):
         sess_config = tf.ConfigProto(allow_soft_placement=True)
         with tf.Session(config=sess_config) as self.tf_session:
+            self.tf_session.run(tf.global_variables_initializer())
             if self.restore_file:
                 tools.printf("Restoring model weights from %s..." % self.restore_file)
                 self.tf_saver_restore.restore(self.tf_session, self.restore_file)
 
             else:
+                if self.cfg.only_train_init:
+                    raise ValueError("Set to only train initializer, but restore file was not provided!?!?!")
                 tools.printf("Initializing variables...")
-                self.tf_session.run(tf.global_variables_initializer())
 
             # initialize tensorboard writer
             self.tf_tb_writer = tf.summary.FileWriter(os.path.join(self.results_dir_path, 'graph_viz'))
@@ -306,6 +324,11 @@ class Train(object):
                     # shift se3 ground truth to be relative to the first pose
                     init_poses = se3_ground_truth[0, :, :]
 
+                    nrnd = np.random.rand(1)
+                    use_init_train = False
+                    if j_batch == 0 or nrnd < self.cfg.init_prob:
+                        use_init_train = True
+
                     # Run training session
                     _, _curr_lstm_states, _train_summary, _train_image_summary, _total_losses = \
                         self.tf_session.run(
@@ -321,6 +344,7 @@ class Train(object):
                                     self.t_lr: lr_set,
                                     self.t_alpha: alpha_set,
                                     self.t_is_training: True,
+                                    self.t_use_initializer: use_init_train,
                                     self.t_sequence_id: int(curr_seq),
                                     self.t_epoch: i_epoch
                                 },
