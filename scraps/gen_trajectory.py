@@ -8,6 +8,7 @@ import os
 
 dir_name = "trajectory_results"
 kitti_seqs = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]
+restore_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/train_seq_20180509-00-04-46_2channel128batchsize2gpu/model_epoch_checkpoint-125"
 
 save_ground_truth = True
 config_class = config.SeqTrainLidarConfig
@@ -50,8 +51,6 @@ for kitti_seq in kitti_seqs:
         os.makedirs(results_dir_path)
 
     # ==== Read Model Checkpoints =====
-    restore_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/train_seq_20180509-00-04-46_2channel128batchsize2gpu/model_epoch_checkpoint-125"
-
     variable_to_load = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, "^(cnn_layer|rnn_layer|fc_layer).*")
     tf_restore_saver = tf.train.Saver(variable_to_load)
 
