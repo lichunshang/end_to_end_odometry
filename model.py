@@ -306,4 +306,4 @@ def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, is_training,
     # at this point the outputs from the fully connected layer are  [x, y, z, yaw, pitch, roll, 6 x covars]
     se3_outputs = se3_layer(fc_outputs, initial_poses)
 
-    return fc_outputs, se3_outputs, lstm_states
+    return fc_outputs, se3_outputs, lstm_states, feed_init_states

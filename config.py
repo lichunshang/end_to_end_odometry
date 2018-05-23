@@ -43,13 +43,13 @@ class SeqTrainLidarConfig(Configs):
     input_channels = 2
 
     bidir_aug = True
+
     use_init = True
-    only_train_init = True
-    dont_restore_init = False
+    only_train_init = True  # only used when use init is True
+    dont_restore_init = False  # only used when use init is True
+    init_prob = 1
 
     data_type = "lidar"
-
-    init_prob = 1
 
     lstm_size = 256
     lstm_layers = 1

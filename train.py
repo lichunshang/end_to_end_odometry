@@ -102,7 +102,7 @@ class Train(object):
     def __init_tf_savers(self):
         self.tf_saver_checkpoint = tf.train.Saver(max_to_keep=2)
         self.tf_saver_best = tf.train.Saver(max_to_keep=2)
-        if self.cfg.only_train_init and self.cfg.dont_restore_init:
+        if self.cfg.use_init and self.cfg.only_train_init and self.cfg.dont_restore_init:
             varlist = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="cnn_layer") + \
                       tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="fc_layer") + \
                       tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="rnn_layer")
@@ -150,7 +150,7 @@ class Train(object):
 
             with tf.name_scope("tower_%d" % i), tf.device(device_setter):
                 tools.printf("Building model...")
-                fc_outputs, se3_outputs, lstm_states = \
+                fc_outputs, se3_outputs, lstm_states, _ = \
                     model.build_seq_model(self.cfg, ts_inputs[i], ts_lstm_initial_state[i], ts_initial_poses[i],
                                           self.t_is_training, self.t_use_initializer, get_activations=True)
 
@@ -181,7 +181,7 @@ class Train(object):
 
         tools.printf("Building optimizer...")
         with tf.variable_scope("optimizer", reuse=tf.AUTO_REUSE):
-            if self.cfg.only_train_init:
+            if self.cfg.use_init and self.cfg.only_train_init:
                 train_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, "initializer_layer")
             else:
                 train_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
@@ -278,7 +278,7 @@ class Train(object):
                 self.tf_saver_restore.restore(self.tf_session, self.restore_file)
 
             else:
-                if self.cfg.only_train_init:
+                if self.cfg.use_init and self.cfg.only_train_init:
                     raise ValueError("Set to only train initializer, but restore file was not provided!?!?!")
                 tools.printf("Initializing variables...")
 
