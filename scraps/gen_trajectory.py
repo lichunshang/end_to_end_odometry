@@ -10,7 +10,19 @@ dir_name = "trajectory_results"
 kitti_seqs = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]
 
 save_ground_truth = True
-cfg = config.SeqEvalLidarConfig
+config_class = config.SeqTrainLidarConfig
+cfg = config_class()
+cfg_original = config_class()
+
+
+# These are the configuration required for step by step trajectory generation
+cfg.timesteps = 1
+cfg.sequence_stride = 1
+cfg.batch_size = 1
+cfg.bidir_aug = False
+cfg.use_init = False
+
+
 
 tools.printf("Building eval model....")
 inputs, lstm_initial_state, initial_poses, is_training = model.seq_model_inputs(cfg)
