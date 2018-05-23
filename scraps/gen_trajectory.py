@@ -8,7 +8,7 @@ import os
 
 dir_name = "trajectory_results"
 kitti_seqs = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]
-restore_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/train_seq_20180509-00-04-46_2channel128batchsize2gpu/model_epoch_checkpoint-125"
+restore_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/train_seq_20180522-14-03-38/model_epoch_checkpoint-199"
 
 save_ground_truth = True
 config_class = config.SeqTrainLidarConfig
@@ -23,6 +23,7 @@ cfg.batch_size = 1
 cfg.bidir_aug = False
 cfg.use_init = False
 cfg_state_init.batch_size = 1
+cfg_state_init.bidir_aug = False
 
 tools.printf("Building eval model....")
 inputs, lstm_initial_state, initial_poses, _, _ = model.seq_model_inputs(cfg)
@@ -30,28 +31,32 @@ fc_outputs, se3_outputs, lstm_states, _ = \
     model.build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, tf.constant(False, dtype=tf.bool),
                           tf.constant(False, dtype=tf.bool))
 
-tools.printf("Building eval model for initial LSTM states...")
-inputs_state_init, _, _, _, _ = model.seq_model_inputs(cfg)
-_, _, _, feed_init_states = \
-    model.build_seq_model(cfg_state_init, inputs_state_init,
-                          tf.constant(np.zeros([2, cfg.lstm_layers, cfg.batch_size, cfg.lstm_size]), dtype=tf.float32),
-                          tf.constant(np.array([[0., 0., 0., 1., 0., 0., 0.]]), dtype=tf.float32),
-                          tf.constant(False, dtype=tf.bool),
-                          tf.constant(False, dtype=tf.bool))
+if cfg_state_init.use_init:
+    tools.printf("Building eval model for initial LSTM states...")
+    inputs_state_init, _, _, _, _ = model.seq_model_inputs(cfg_state_init)
+    _, _, _, feed_init_states = \
+        model.build_seq_model(cfg_state_init, inputs_state_init,
+                              tf.constant(np.zeros([2, cfg_state_init.lstm_layers, cfg_state_init.batch_size,
+                                                    cfg_state_init.lstm_size]),
+                                          dtype=tf.float32),
+                              tf.constant(np.array([[0., 0., 0., 1., 0., 0., 0.]]), dtype=tf.float32),
+                              tf.constant(False, dtype=tf.bool),
+                              tf.constant(False, dtype=tf.bool))
 
 for kitti_seq in kitti_seqs:
     tools.printf("Loading eval data...")
     data_gen = data.StatefulRollerDataGen(cfg, config.dataset_path, [kitti_seq])
-    tools.printf("Loading eval data for initial LSTM states...")
-    data_gen_state_init = data.StatefulRollerDataGen(cfg_state_init, config.dataset_path, [kitti_seq],
-                                                     frames=[range(0, cfg_state_init.timesteps)])
+    if cfg_state_init.use_init:
+        tools.printf("Loading eval data for initial LSTM states...")
+        data_gen_state_init = data.StatefulRollerDataGen(cfg_state_init, config.dataset_path, [kitti_seq],
+                                                         frames=[range(0, cfg_state_init.timesteps + 1)])
 
     results_dir_path = os.path.join(config.save_path, dir_name)
     if not os.path.exists(results_dir_path):
         os.makedirs(results_dir_path)
 
     # ==== Read Model Checkpoints =====
-    variable_to_load = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, "^(cnn_layer|rnn_layer|fc_layer).*")
+    variable_to_load = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, "^(?!optimizer).*")
     tf_restore_saver = tf.train.Saver(variable_to_load)
 
     with tf.Session() as sess:
@@ -67,11 +72,12 @@ for kitti_seq in kitti_seqs:
 
         # if an initializer is used, get the current starting LSTM state from running network
         if cfg_state_init.use_init:
+            tools.printf("Calculating initial LSTM state from initializer network...")
             _, _, batch_data_init_state, _, _ = data_gen_state_init.next_batch()
             curr_lstm_states = sess.run(
                     feed_init_states,
                     feed_dict={
-                        inputs: batch_data_init_state,
+                        inputs_state_init: batch_data_init_state,
                     },
             )
         else:
