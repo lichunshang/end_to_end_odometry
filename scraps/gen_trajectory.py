@@ -15,7 +15,8 @@ cfg = config.SeqEvalLidarConfig
 tools.printf("Building eval model....")
 inputs, lstm_initial_state, initial_poses, is_training = model.seq_model_inputs(cfg)
 fc_outputs, se3_outputs, lstm_states = \
-    model.build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, is_training)
+    model.build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, is_training,
+                          tf.constant(False, dtype=tf.bool))
 
 for kitti_seq in kitti_seqs:
     tools.printf("Loading training data...")
