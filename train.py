@@ -102,7 +102,13 @@ class Train(object):
     def __init_tf_savers(self):
         self.tf_saver_checkpoint = tf.train.Saver(max_to_keep=2)
         self.tf_saver_best = tf.train.Saver(max_to_keep=2)
-        self.tf_saver_restore = tf.train.Saver()
+        if self.cfg.only_train_init and self.cfg.dont_restore_init:
+            varlist = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="cnn_layer") + \
+                      tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="fc_layer") + \
+                      tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="rnn_layer")
+            self.tf_saver_restore = tf.train.Saver(var_list=varlist)
+        else:
+            self.tf_saver_restore = tf.train.Saver()
 
     def __build_model_inputs_and_labels(self):
         self.t_inputs, self.t_lstm_initial_state, self.t_initial_poses, self.t_is_training, self.t_use_initializer = \
@@ -266,6 +272,7 @@ class Train(object):
     def __run_train(self):
         sess_config = tf.ConfigProto(allow_soft_placement=True)
         with tf.Session(config=sess_config) as self.tf_session:
+            self.tf_session.run(tf.global_variables_initializer())
             if self.restore_file:
                 tools.printf("Restoring model weights from %s..." % self.restore_file)
                 self.tf_saver_restore.restore(self.tf_session, self.restore_file)
@@ -274,7 +281,6 @@ class Train(object):
                 if self.cfg.only_train_init:
                     raise ValueError("Set to only train initializer, but restore file was not provided!?!?!")
                 tools.printf("Initializing variables...")
-                self.tf_session.run(tf.global_variables_initializer())
 
             # initialize tensorboard writer
             self.tf_tb_writer = tf.summary.FileWriter(os.path.join(self.results_dir_path, 'graph_viz'))
