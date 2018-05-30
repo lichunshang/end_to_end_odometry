@@ -2,7 +2,7 @@ import os
 import numpy as np
 import transformations
 
-data_dir = "/home/cs4li/Dev/end_to_end_visual_odometry/results/trajectory_results/"
+data_dir = "/home/cs4li/Dev/end_to_end_odometry/results/trajectory_results/"
 
 sequences = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]
 

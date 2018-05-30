@@ -8,7 +8,7 @@ import os
 
 dir_name = "trajectory_results"
 kitti_seqs = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]
-restore_model_file = "/home/cs4li/Dev/end_to_end_visual_odometry/results/train_seq_20180522-14-03-38/model_epoch_checkpoint-199"
+restore_model_file = "/home/cs4li/Dev/end_to_end_odometry/results/train_seq_20180522-14-03-38/model_epoch_checkpoint-199"
 
 save_ground_truth = True
 config_class = config.SeqTrainLidarConfig

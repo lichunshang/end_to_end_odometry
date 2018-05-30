@@ -1,7 +1,7 @@
 import numpy as np
 
 txt_path = "/home/cs4li/Downloads/15.txt"
-dest_path = "/home/cs4li/Dev/end_to_end_visual_odometry/results/trajectory_results/ground_truth_15"
+dest_path = "/home/cs4li/Dev/end_to_end_odometry/results/trajectory_results/ground_truth_15"
 
 ground_truth = True
 

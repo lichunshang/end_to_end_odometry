@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import tools
 
-data_dir = "/home/cs4li/Dev/end_to_end_visual_odometry/results/trajectory_results_1/"
+data_dir = "/home/cs4li/Dev/end_to_end_odometry/results/trajectory_results_1/"
 
 losses_to_overlay = [
     (data_dir + "run_results_trajectory_results_1-tag-se3_losses.csv", {"linewidth": 1.0, "color": "r"}, "Training Loss"),
