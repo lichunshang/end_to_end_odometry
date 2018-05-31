@@ -72,34 +72,6 @@ class SeqTrainLidarConfig(Configs):
                    50: 0.0000001}
 
 
-class SeqEvalLidarConfig(Configs):
-    timesteps = 1
-    batch_size = 1
-    input_width = 1152
-    input_height = 64
-    input_channels = 2
-
-    bidir_aug = False
-    data_type = "lidar"
-
-    lstm_size = 256
-    lstm_layers = 1
-    sequence_stride = 1
-
-
-class SeqCamEvalConfig(Configs):
-    timesteps = 1
-    batch_size = 1
-    input_width = 1280
-    input_height = 384
-    input_channels = 3
-    sequence_stride = 1
-    bidir_aug = False
-
-    lstm_size = 256
-    lstm_layers = 2
-
-
 def print_configs(cfg):
     for attr in dir(cfg):
         if not callable(getattr(cfg, attr)) and not attr.startswith("__"):

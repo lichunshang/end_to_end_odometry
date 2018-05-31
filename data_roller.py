@@ -48,6 +48,132 @@ class LidarDataLoader(object):
         return self.data[idx]
 
 
+# to facilitate loading of raw data
+class DataLoader(object):
+    raw_range = {
+        "00": (0, 4540),
+        "01": (0, 1100),
+        "02": (0, 4660),
+        # "03": (0, 800),  # does not exist
+        "04": (0, 270),
+        "05": (0, 2760),
+        "06": (0, 1100),
+        "07": (0, 1100),
+        "08": (1100, 5170),
+        "09": (0, 1590),
+        "10": (0, 1200),
+    }
+
+    raw_path = {
+        "00": ("2011_10_03", "0027"),
+        "01": ("2011_10_03", "0042"),
+        "02": ("2011_10_03", "0034"),
+        # "03": ("2011_09_26", "0067"),  # does not exist
+        "04": ("2011_09_30", "0016"),
+        "05": ("2011_09_30", "0018"),
+        "06": ("2011_09_30", "0020"),
+        "07": ("2011_09_30", "0027"),
+        "08": ("2011_09_30", "0028"),
+        "09": ("2011_09_30", "0033"),
+        "10": ("2011_09_30", "0034"),
+    }
+
+    def __init__(self, cfg, base_dir, seq, frames=None):
+
+        if seq == "03" or seq not in self.raw_path.keys():
+            raise ValueError("%s sequence not supported" % seq)
+
+        self.cfg = cfg
+
+        if frames:
+            range_start = self.raw_range[seq][0] + frames.start
+            range_stop = range_start + frames.stop
+        else:
+            range_start = self.raw_range[seq][0]
+            range_stop = self.raw_range[seq][1]
+
+        self.data_raw_kitti = pykitti.raw(base_dir, self.raw_path[seq][0], self.raw_path[seq][1],
+                                          frames=range(range_start, range_stop))
+        self.data_odom_kitti = pykitti.odometry(base_dir, seq, frames=frames)
+        self.data_lidar_image = LidarDataLoader(self.cfg, base_dir, seq, frames=frames)
+
+    def get_cam_img(self, idx):
+        if self.cfg.input_channels == 1:
+            img = self.data_odom_kitti.get_cam0(idx)
+        elif self.cfg.input_channels == 3:
+            img = self.data_odom_kitti.get_cam2(idx)
+        else:
+            raise ValueError("Invalid number of channels for data")
+        img = img.resize((self.cfg.input_width, self.cfg.input_height))
+        img = np.array(img)
+        if self.cfg.input_channels == 3:
+            img = img[..., [2, 1, 0]]
+        img = np.reshape(img, [img.shape[0], img.shape[1], self.cfg.input_channels])
+        img = np.moveaxis(np.array(img), 2, 0)
+
+        return img
+
+    def get_lidar_img(self, idx):
+        return self.data_lidar_image.get(idx)
+
+    def get_img(self, idx):
+        if self.cfg.data_type == "cam":
+            return self.get_cam_img(idx)
+        elif self.cfg.data_type == "lidar":
+            return self.get_lidar_img(idx)
+
+    def get_poses_in_corresponding_frame(self):
+        if self.cfg.input_channels == 1:
+            return self.data_odom_kitti.poses
+
+        poses = self.data_odom_kitti.poses
+
+        T_cam0_xxx = None
+        if self.cfg.data_type == "cam" and self.cfg.input_channels == 3:
+            T_cam2_cam0 = self.data_odom_kitti.calib.T_cam2_velo. \
+                dot(np.linalg.inv(self.data_odom_kitti.calib.T_cam0_velo))
+            T_cam0_xxx = np.linalg.inv(T_cam2_cam0)
+        elif self.cfg.data == "lidar":
+            T_cam0_xxx = self.data_odom_kitti.calib.T_cam0_velo
+
+        for i in range(0, len(poses)):
+            tf_inv = np.linalg.inv(T_cam0_xxx)
+            poses[i] = np.dot(tf_inv, np.dot(poses[i], T_cam0_xxx))
+
+    def get_num_frames(self):
+        return len(self.data_odom_kitti.poses)
+
+    def get_imu_in_corresponding_frame(self, idx):
+        wx = self.data_raw_kitti.oxts[idx].packet.wx
+        wy = self.data_raw_kitti.oxts[idx].packet.wx
+        wz = self.data_raw_kitti.oxts[idx].packet.wx
+        ax = self.data_raw_kitti.oxts[idx].packet.ax
+        ay = self.data_raw_kitti.oxts[idx].packet.ay
+        az = self.data_raw_kitti.oxts[idx].packet.az
+
+        T_xxx_imu = None
+        if self.cfg.data_type == "cam" and self.cfg.input_channels == 1:
+            T_xxx_imu = self.data_raw_kitti.calib.T_cam0_imu
+        elif self.cfg.data_type == "cam" and self.cfg.input_channels == 3:
+            T_xxx_imu = self.data_raw_kitti.calib.T_cam2_imu
+        elif self.cfg.data_type == "lidar":
+            T_xxx_imu = self.data_raw_kitti.calib.T_velo_imu
+
+        rate_imu = np.array((wx, wy, wz,))
+        accel_imu = np.array((ax, ay, az,))
+
+        # transforms angular rate to xxx
+        rate_xxx = T_xxx_imu[0:3, 0:3].dot(rate_imu)
+
+        r = T_xxx_imu[0:2, 3]  # vector from imu to xxx
+        w = rate_imu
+        a = accel_imu
+        # this transformation of linear acceleration assumes the angular acceleration is zero
+        accel_xxx = a + np.cross(w, np.cross(w, r))
+
+        return np.concatenate((rate_xxx, accel_xxx))
+
+
 class StatefulRollerDataGen(object):
 
     # This version of the data generator slides along n frames at a time
@@ -111,8 +237,8 @@ class StatefulRollerDataGen(object):
             num_frames = len(seq_data.poses)
 
             self.input_frames[seq] = np.zeros(
-                [num_frames, self.cfg.input_channels, self.cfg.input_height, self.cfg.input_width],
-                dtype=frames_data_type)
+                    [num_frames, self.cfg.input_channels, self.cfg.input_height, self.cfg.input_width],
+                    dtype=frames_data_type)
             self.poses[seq] = seq_data.poses
             self.se3_ground_truth[seq] = np.zeros([num_frames, 7], dtype=np.float32)
             self.se3_mirror_ground_truth[seq] = np.zeros([num_frames, 7], dtype=np.float32)
@@ -181,11 +307,11 @@ class StatefulRollerDataGen(object):
                     self.fc_mirror_ground_truth[seq][i_img] = np.concatenate([trans_forward_mirror, ypr_forward_mirror])
                     self.fc_reverse_ground_truth[seq][i_img] = np.concatenate([trans_reverse, ypr_reverse])
                     self.fc_reverse_mirror_ground_truth[seq][i_img] = np.concatenate(
-                        [trans_reverse_mirror, ypr_reverse_mirror])
+                            [trans_reverse_mirror, ypr_reverse_mirror])
 
             # How many examples the sequence contains, were it to be processed using a batch size of 1
             sequence_examples = np.ceil((num_frames - self.cfg.timesteps) / self.cfg.sequence_stride).astype(
-                np.int32)
+                    np.int32)
             # how many batches in the sequence, cutting off any extra
             if self.cfg.bidir_aug:
                 self.batch_counts[seq] = np.floor(2 * sequence_examples / self.cfg.batch_size).astype(np.int32)
