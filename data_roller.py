@@ -230,16 +230,16 @@ class StatefulRollerDataGen(object):
         self.total_frames = 0
 
         for i_seq, seq in enumerate(sequences):
-            seq_data = pykitti.odometry(base_dir, seq, frames=frames[i_seq])
+            seq_loader = DataLoader(self.cfg, base_dir, seq, frames=frames[i_seq])
             lidar_data = None
             if self.data_type == "lidar":
                 lidar_data = LidarDataLoader(self.cfg, base_dir, seq, frames=frames[i_seq])
-            num_frames = len(seq_data.poses)
+            num_frames = seq_loader.get_num_frames()
 
             self.input_frames[seq] = np.zeros(
                     [num_frames, self.cfg.input_channels, self.cfg.input_height, self.cfg.input_width],
                     dtype=frames_data_type)
-            self.poses[seq] = seq_data.poses
+            self.poses[seq] = seq_loader.get_poses_in_corresponding_frame()
             self.se3_ground_truth[seq] = np.zeros([num_frames, 7], dtype=np.float32)
             self.se3_mirror_ground_truth[seq] = np.zeros([num_frames, 7], dtype=np.float32)
             self.fc_ground_truth[seq] = np.zeros([num_frames - 1, 6], dtype=np.float32)
@@ -251,23 +251,7 @@ class StatefulRollerDataGen(object):
                 if i_img % 100 == 0:
                     tools.printf("Loading sequence %s %.1f%% " % (seq, (i_img / num_frames) * 100))
 
-                # swap axis to channels first
-                if self.data_type == "lidar":
-                    img = lidar_data.get(i_img)
-                else:
-                    if self.cfg.input_channels == 1:
-                        img = seq_data.get_cam0(i_img)
-                    elif self.cfg.input_channels == 3:
-                        img = seq_data.get_cam2(i_img)
-                    else:
-                        raise ValueError("Invalid number of channels for data")
-                    img = img.resize((self.cfg.input_width, self.cfg.input_height))
-                    img = np.array(img)
-                    if self.cfg.input_channels == 3:
-                        img = img[..., [2, 1, 0]]
-                    img = np.reshape(img, [img.shape[0], img.shape[1], self.cfg.input_channels])
-                    img = np.moveaxis(np.array(img), 2, 0)
-
+                img = seq_loader.get_img(i_img)
                 self.input_frames[seq][i_img, :] = img
 
                 # now convert all the ground truth from 4x4 to xyz + quat, this is after the SE3 layer
