@@ -310,9 +310,6 @@ class Train(object):
                 tools.printf("alpha set to %f" % alpha_set)
                 tools.printf("learning rate set to %f" % lr_set)
 
-                init_poses = np.zeros([self.cfg.batch_size, 7], dtype=np.float32)
-                init_poses[:, 3] = np.ones([self.cfg.batch_size], dtype=np.float32)
-
                 while self.train_data_gen.has_next_batch():
                     j_batch = self.train_data_gen.curr_batch()
 

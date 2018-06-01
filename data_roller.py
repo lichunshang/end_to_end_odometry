@@ -333,6 +333,10 @@ class StatefulRollerDataGen(object):
         self.set_batch_offsets()
         self.next_epoch(False)
 
+    # get the first pose of a given sequence
+    def get_sequence_initial_pose(self, seq):
+        return self.se3_ground_truth[seq][0, :]
+
     def next_batch(self):
         n = self.cfg.timesteps + 1  # number of frames in an example
         # prepare a batch from huge matrix of training data

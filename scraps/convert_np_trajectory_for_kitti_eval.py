@@ -24,8 +24,6 @@ for seq in sequences:
     kitti_file = open(os.path.join(data_dir, "kitti_evals", "%s.txt" % seq), "w")
     trajectory = np.load(np_file)
 
-    write_trj(kitti_file, np.array([0, 0, 0, 1, 0, 0, 0]))
-
     for i in range(0, trajectory.shape[0]):
         write_trj(kitti_file, trajectory[i])
 
