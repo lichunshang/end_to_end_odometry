@@ -179,7 +179,6 @@ class StatefulRollerDataGen(object):
     # This version of the data generator slides along n frames at a time
     def __init__(self, cfg, base_dir, sequences, frames=None):
         self.cfg = cfg
-        self.data_type = "cam"
         self.sequences = sequences
         self.curr_batch_sequence = 0
         self.current_batch = 0
@@ -187,13 +186,11 @@ class StatefulRollerDataGen(object):
         if (self.cfg.bidir_aug == True) and (self.cfg.batch_size % 2 != 0):
             raise ValueError("Batch size must be even")
 
-        if hasattr(self.cfg, "data_type"):
-            self.data_type = self.cfg.data_type
-        if self.data_type != "cam" and self.data_type != "lidar":
+        if self.cfg.data_type != "cam" and self.cfg.data_type != "lidar":
             raise ValueError("lidar or camera for data type!")
 
         frames_data_type = np.uint8
-        if self.data_type == "lidar":
+        if self.cfg.data_type == "lidar":
             frames_data_type = np.float16
 
         if not frames:
@@ -231,9 +228,6 @@ class StatefulRollerDataGen(object):
 
         for i_seq, seq in enumerate(sequences):
             seq_loader = DataLoader(self.cfg, base_dir, seq, frames=frames[i_seq])
-            lidar_data = None
-            if self.data_type == "lidar":
-                lidar_data = LidarDataLoader(self.cfg, base_dir, seq, frames=frames[i_seq])
             num_frames = seq_loader.get_num_frames()
 
             self.input_frames[seq] = np.zeros(
@@ -347,7 +341,7 @@ class StatefulRollerDataGen(object):
             else:
                 # data going backwards
                 idx = start_idx[i_b] - idx_offset
-                if self.data_type == "lidar":
+                if self.cfg.data_type == "lidar":
                     batch[:, i_b, :, :] = self.input_frames[cur_seq][idx - n:idx, :, :, :]
                     se3_ground_truth[:, i_b, :] = self.se3_mirror_ground_truth[cur_seq][idx - n:idx, :]
                     fc_ground_truth[:, i_b, :] = self.fc_reverse_mirror_ground_truth[cur_seq][idx - n:idx - 1, :]
@@ -366,7 +360,7 @@ class StatefulRollerDataGen(object):
                     se3_ground_truth[:, i_b, :] = np.flip(se3_ground_truth[:, i_b, :], axis=0)
                     fc_ground_truth[:, i_b, :] = np.flip(fc_ground_truth[:, i_b, :], axis=0)
 
-        if not self.data_type == "lidar":
+        if self.cfg.data_type == "cam":
             batch = np.divide(batch, 255.0, dtype=np.float32)  # ensure float32
             batch = np.subtract(batch, 0.5, dtype=np.float32)
 
