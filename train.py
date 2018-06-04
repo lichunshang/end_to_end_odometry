@@ -11,7 +11,7 @@ import config
 
 class Train(object):
     def __init__(self, num_gpu, cfg, train_sequences, val_sequence, tensorboard_meta=False, start_epoch=0,
-                 restore_file=None):
+                 restore_file=None, train_frames_range=None, val_frames_range=None):
         # configurations
         self.cfg = cfg
         self.num_gpu = num_gpu
@@ -22,6 +22,8 @@ class Train(object):
         self.curr_dir_path = ""
         self.start_epoch = start_epoch
         self.restore_file = restore_file
+        self.train_frames_range = train_frames_range
+        self.val_frames_range = val_frames_range
 
         # data managers
         self.train_data_gen = None
@@ -69,10 +71,10 @@ class Train(object):
                 type(self.num_gpu) is int and
                 self.cfg.batch_size % self.num_gpu == 0)
 
-        self.__log_files_and_configs()
-        self.__build_model_inputs_and_labels()
-        self.__build_model_and_summary()
-        self.__init_tf_savers()
+        # self.__log_files_and_configs()
+        # self.__build_model_inputs_and_labels()
+        # self.__build_model_and_summary()
+        # self.__init_tf_savers()
         self.__load_data_set()
 
     def train(self):
@@ -81,10 +83,10 @@ class Train(object):
     def __load_data_set(self):
         tools.printf("Loading training data...")
         self.train_data_gen = data_roller.StatefulRollerDataGen(self.cfg, config.dataset_path, self.train_sequences,
-                                                                frames=None)
+                                                                frames=self.train_frames_range)
         tools.printf("Loading validation data...")
         self.val_data_gen = data_roller.StatefulRollerDataGen(self.cfg, config.dataset_path, [self.val_sequence],
-                                                              frames=None)
+                                                              frames=self.val_frames_range)
 
     def __log_files_and_configs(self):
         self.results_dir_path = tools.create_results_dir("train_seq")

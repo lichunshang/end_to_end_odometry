@@ -25,6 +25,8 @@ class LidarDataLoader(object):
                 except EOFError:
                     break
                 i += 1
+                if i % 1000 == 0:
+                    tools.printf("Loading lidar range seq. %s %.1f%% " % (seq, (i / num_frames) * 100))
             assert (i == num_frames)
 
         with (open(os.path.join(pickles_dir, seq + "_intensity.pik"), "rb")) as opfile:
@@ -38,6 +40,8 @@ class LidarDataLoader(object):
                 except EOFError:
                     break
                 i += 1
+                if i % 1000 == 0:
+                    tools.printf("Loading lidar intensity seq. %s %.1f%% " % (seq, (i / num_frames) * 100))
             assert (i == num_frames)
 
         # select the range of frames
@@ -90,12 +94,29 @@ class DataLoader(object):
             range_stop = range_start + frames.stop
         else:
             range_start = self.raw_range[seq][0]
-            range_stop = self.raw_range[seq][1]
+            range_stop = self.raw_range[seq][1] + 1
 
         self.data_raw_kitti = pykitti.raw(base_dir, self.raw_path[seq][0], self.raw_path[seq][1],
                                           frames=range(range_start, range_stop))
         self.data_odom_kitti = pykitti.odometry(base_dir, seq, frames=frames)
         self.data_lidar_image = LidarDataLoader(self.cfg, base_dir, seq, frames=frames)
+
+        self.imu_measurements = []
+
+        self.__load_imu()
+
+    def __load_imu(self):
+        num_frames = self.get_num_frames()
+
+        for i in range(0, num_frames):
+            wx = self.data_raw_kitti.oxts[i].packet.wx
+            wy = self.data_raw_kitti.oxts[i].packet.wx
+            wz = self.data_raw_kitti.oxts[i].packet.wx
+            ax = self.data_raw_kitti.oxts[i].packet.ax
+            ay = self.data_raw_kitti.oxts[i].packet.ay
+            az = self.data_raw_kitti.oxts[i].packet.az
+
+            self.imu_measurements.append(np.array([wx, wy, wz, ax, ay, az, ]))
 
     def get_cam_img(self, idx):
         if self.cfg.input_channels == 1:
@@ -127,29 +148,29 @@ class DataLoader(object):
             return self.data_odom_kitti.poses
 
         poses = self.data_odom_kitti.poses
+        transformed_poses = []
 
         T_cam0_xxx = None
         if self.cfg.data_type == "cam" and self.cfg.input_channels == 3:
             T_cam2_cam0 = self.data_odom_kitti.calib.T_cam2_velo. \
                 dot(np.linalg.inv(self.data_odom_kitti.calib.T_cam0_velo))
             T_cam0_xxx = np.linalg.inv(T_cam2_cam0)
-        elif self.cfg.data == "lidar":
+        elif self.cfg.data_type == "lidar":
             T_cam0_xxx = self.data_odom_kitti.calib.T_cam0_velo
 
         for i in range(0, len(poses)):
-            tf_inv = np.linalg.inv(T_cam0_xxx)
-            poses[i] = np.dot(tf_inv, np.dot(poses[i], T_cam0_xxx))
+            T_cam0_xxx_inv = np.linalg.inv(T_cam0_xxx)
+            transformed_pose = np.dot(T_cam0_xxx_inv, np.dot(poses[i], T_cam0_xxx))
+            transformed_poses.append(transformed_pose)
+
+        return transformed_poses
 
     def get_num_frames(self):
         return len(self.data_odom_kitti.poses)
 
-    def get_imu_in_corresponding_frame(self, idx):
-        wx = self.data_raw_kitti.oxts[idx].packet.wx
-        wy = self.data_raw_kitti.oxts[idx].packet.wx
-        wz = self.data_raw_kitti.oxts[idx].packet.wx
-        ax = self.data_raw_kitti.oxts[idx].packet.ax
-        ay = self.data_raw_kitti.oxts[idx].packet.ay
-        az = self.data_raw_kitti.oxts[idx].packet.az
+    def transform_imu_into_corresponding_frame(self, imu_meas):
+        rate_imu = imu_meas[0:3]
+        accel_imu = imu_meas[3:6]
 
         T_xxx_imu = None
         if self.cfg.data_type == "cam" and self.cfg.input_channels == 1:
@@ -158,9 +179,6 @@ class DataLoader(object):
             T_xxx_imu = self.data_raw_kitti.calib.T_cam2_imu
         elif self.cfg.data_type == "lidar":
             T_xxx_imu = self.data_raw_kitti.calib.T_velo_imu
-
-        rate_imu = np.array((wx, wy, wz,))
-        accel_imu = np.array((ax, ay, az,))
 
         # transforms angular rate to xxx
         rate_xxx = T_xxx_imu[0:3, 0:3].dot(rate_imu)
@@ -172,6 +190,15 @@ class DataLoader(object):
         accel_xxx = a + np.cross(w, np.cross(w, r))
 
         return np.concatenate((rate_xxx, accel_xxx))
+
+    def get_imu_in_corresponding_frame(self, idx):
+        imu_meas_t = self.transform_imu_into_corresponding_frame(self.imu_measurements[idx])
+        imu_meas_tm1 = self.transform_imu_into_corresponding_frame(self.imu_measurements[idx - 1])
+
+        # average the two imu measurements
+        imu_meas_ave = (imu_meas_t + imu_meas_tm1) / 2
+
+        return imu_meas_ave
 
 
 class StatefulRollerDataGen(object):
