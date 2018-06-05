@@ -14,8 +14,8 @@ class LidarDataLoader(object):
     def __init__(self, cfg, base_dir, seq, frames=None):
         pickles_dir = config.lidar_pickles_path
         seq_data = pykitti.odometry(base_dir, seq)
-        num_frames = len(seq_data.poses)
-        self.data = np.zeros([num_frames, cfg.input_channels, cfg.input_height, cfg.input_width], dtype=np.float16)
+        self.num_frames = len(seq_data.poses)
+        self.data = np.zeros([self.num_frames, cfg.input_channels, cfg.input_height, cfg.input_width], dtype=np.float16)
 
         with (open(os.path.join(pickles_dir, seq + "_range.pik"), "rb")) as opfile:
             i = 0
@@ -27,8 +27,8 @@ class LidarDataLoader(object):
                     break
                 i += 1
                 if i % 1000 == 0:
-                    tools.printf("Loading lidar range seq. %s %.1f%% " % (seq, (i / num_frames) * 100))
-            assert (i == num_frames)
+                    tools.printf("Loading lidar range seq. %s %.1f%% " % (seq, (i / self.num_frames) * 100))
+            assert (i == self.num_frames)
 
         with (open(os.path.join(pickles_dir, seq + "_intensity.pik"), "rb")) as opfile:
             i = 0
@@ -42,8 +42,8 @@ class LidarDataLoader(object):
                     break
                 i += 1
                 if i % 1000 == 0:
-                    tools.printf("Loading lidar intensity seq. %s %.1f%% " % (seq, (i / num_frames) * 100))
-            assert (i == num_frames)
+                    tools.printf("Loading lidar intensity seq. %s %.1f%% " % (seq, (i / self.num_frames) * 100))
+            assert (i == self.num_frames)
 
         # select the range of frames
         if frames:
@@ -102,20 +102,21 @@ class DataLoader(object):
         self.data_odom_kitti = pykitti.odometry(base_dir, seq, frames=frames)
         self.data_lidar_image = LidarDataLoader(self.cfg, base_dir, seq, frames=frames)
 
+        assert (len(self.data_raw_kitti.oxts) == len(self.data_odom_kitti.poses) and
+                len(self.data_odom_kitti.poses) == self.data_lidar_image.num_frames)
+
         self.imu_measurements = []
         self.imu_measurements_reversed = []
 
         self.__load_imu()
-
-        print("Hello")
 
     def __load_imu(self):
         num_frames = self.get_num_frames()
 
         for i in range(0, num_frames):
             wx = self.data_raw_kitti.oxts[i].packet.wx
-            wy = self.data_raw_kitti.oxts[i].packet.wx
-            wz = self.data_raw_kitti.oxts[i].packet.wx
+            wy = self.data_raw_kitti.oxts[i].packet.wy
+            wz = self.data_raw_kitti.oxts[i].packet.wz
             ax = self.data_raw_kitti.oxts[i].packet.ax
             ay = self.data_raw_kitti.oxts[i].packet.ay
             az = self.data_raw_kitti.oxts[i].packet.az
@@ -136,7 +137,7 @@ class DataLoader(object):
             g_accel_cc = R_gc.dot(np.array([ax, ay, az]))
             g_accel_cc[2] -= scipy.constants.g  # subtract gravity
             g_accel_cc = -g_accel_cc
-            g_accel_cc += scipy.constants.g  # add gravity back in
+            g_accel_cc[2] += scipy.constants.g  # add gravity back in
             c_accel_cc_reversed = R_gc_inv.dot(g_accel_cc)
 
             imu_reversed = np.array(
@@ -216,13 +217,13 @@ class DataLoader(object):
             T_xc = self.data_raw_kitti.calib.T_cam0_imu
         elif self.cfg.data_type == "cam" and self.cfg.input_channels == 3:
             T_xc = self.data_raw_kitti.calib.T_cam2_imu
-        elif T_xc.cfg.data_type == "lidar":
+        elif self.cfg.data_type == "lidar":
             T_xc = self.data_raw_kitti.calib.T_velo_imu
 
         # transforms angular rate to xxx
         rate_x = T_xc[0:3, 0:3].dot(rate_c)
 
-        r = T_xc[0:2, 3]  # vector from imu to xxx
+        r = T_xc[0:3, 3]  # vector from imu to xxx
         w = rate_c
         a = accel_c
         # this transformation of linear acceleration assumes the angular acceleration is zero
