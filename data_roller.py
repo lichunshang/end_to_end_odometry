@@ -7,6 +7,7 @@ import os
 import pickle
 import gc
 import config
+import scipy.constants
 
 
 class LidarDataLoader(object):
@@ -102,8 +103,11 @@ class DataLoader(object):
         self.data_lidar_image = LidarDataLoader(self.cfg, base_dir, seq, frames=frames)
 
         self.imu_measurements = []
+        self.imu_measurements_reversed = []
 
         self.__load_imu()
+
+        print("Hello")
 
     def __load_imu(self):
         num_frames = self.get_num_frames()
@@ -117,6 +121,27 @@ class DataLoader(object):
             az = self.data_raw_kitti.oxts[i].packet.az
 
             self.imu_measurements.append(np.array([wx, wy, wz, ax, ay, az, ]))
+
+            # now we need to simulate IMU measurements in the reverse direction
+            roll = self.data_raw_kitti.oxts[i].packet.roll
+            pitch = self.data_raw_kitti.oxts[i].packet.pitch
+            yaw = self.data_raw_kitti.oxts[i].packet.yaw
+
+            # for accelerometer need to remove gravity vector and negate the values
+            # first put the acceleration measurement in earth frame
+            # Rotation of car imu (c) with respect to the ground truth (g)
+            R_gc = transformations.euler_matrix(yaw, pitch, roll, axes="rzyx")[0:3, 0:3]
+            R_gc_inv = np.linalg.inv(R_gc)
+
+            g_accel_cc = R_gc.dot(np.array([ax, ay, az]))
+            g_accel_cc[2] -= scipy.constants.g  # subtract gravity
+            g_accel_cc = -g_accel_cc
+            g_accel_cc += scipy.constants.g  # add gravity back in
+            c_accel_cc_reversed = R_gc_inv.dot(g_accel_cc)
+
+            imu_reversed = np.array(
+                    [-wx, -wy, -wz, c_accel_cc_reversed[0], c_accel_cc_reversed[1], c_accel_cc_reversed[2]])
+            self.imu_measurements_reversed.append(imu_reversed)
 
     def get_cam_img(self, idx):
         if self.cfg.input_channels == 1:
@@ -168,32 +193,57 @@ class DataLoader(object):
     def get_num_frames(self):
         return len(self.data_odom_kitti.poses)
 
-    def transform_imu_into_corresponding_frame(self, imu_meas):
+    def mirror_imu_on_xz(self, imu_meas):
         rate_imu = imu_meas[0:3]
         accel_imu = imu_meas[3:6]
 
-        T_xxx_imu = None
+        # reflection on xz
+        H = np.eye(3, 3)
+        H[1][1] = -1
+
+        rate_imu = H.dot(rate_imu)
+        accel_imu = H.dot(accel_imu)
+
+        return np.concatenate((rate_imu, accel_imu))
+
+    def transform_imu_into_corresponding_frame(self, imu_meas):
+        rate_c = imu_meas[0:3]
+        accel_c = imu_meas[3:6]
+
+        # transformation that maps measurement from car imu (c) to other sensor (x)
+        T_xc = None
         if self.cfg.data_type == "cam" and self.cfg.input_channels == 1:
-            T_xxx_imu = self.data_raw_kitti.calib.T_cam0_imu
+            T_xc = self.data_raw_kitti.calib.T_cam0_imu
         elif self.cfg.data_type == "cam" and self.cfg.input_channels == 3:
-            T_xxx_imu = self.data_raw_kitti.calib.T_cam2_imu
-        elif self.cfg.data_type == "lidar":
-            T_xxx_imu = self.data_raw_kitti.calib.T_velo_imu
+            T_xc = self.data_raw_kitti.calib.T_cam2_imu
+        elif T_xc.cfg.data_type == "lidar":
+            T_xc = self.data_raw_kitti.calib.T_velo_imu
 
         # transforms angular rate to xxx
-        rate_xxx = T_xxx_imu[0:3, 0:3].dot(rate_imu)
+        rate_x = T_xc[0:3, 0:3].dot(rate_c)
 
-        r = T_xxx_imu[0:2, 3]  # vector from imu to xxx
-        w = rate_imu
-        a = accel_imu
+        r = T_xc[0:2, 3]  # vector from imu to xxx
+        w = rate_c
+        a = accel_c
         # this transformation of linear acceleration assumes the angular acceleration is zero
-        accel_xxx = a + np.cross(w, np.cross(w, r))
+        accel_x = T_xc[0:3, 0:3].dot(a + np.cross(w, np.cross(w, r)))
 
-        return np.concatenate((rate_xxx, accel_xxx))
+        return np.concatenate((rate_x, accel_x))
 
-    def get_imu_in_corresponding_frame(self, idx):
-        imu_meas_t = self.transform_imu_into_corresponding_frame(self.imu_measurements[idx])
-        imu_meas_tm1 = self.transform_imu_into_corresponding_frame(self.imu_measurements[idx - 1])
+    def get_averaged_imu_in_corresponding_frame(self, idx, reverse=False, mirror=False):
+        if reverse:
+            imu_meas_t = self.imu_measurements_reversed[idx]
+            imu_meas_tm1 = self.imu_measurements_reversed[idx - 1]
+        else:
+            imu_meas_t = self.imu_measurements[idx]
+            imu_meas_tm1 = self.imu_measurements[idx - 1]
+
+        if mirror:
+            imu_meas_t = self.mirror_imu_on_xz(imu_meas_t)
+            imu_meas_tm1 = self.mirror_imu_on_xz(imu_meas_tm1)
+
+        imu_meas_t = self.transform_imu_into_corresponding_frame(imu_meas_t)
+        imu_meas_tm1 = self.transform_imu_into_corresponding_frame(imu_meas_tm1)
 
         # average the two imu measurements
         imu_meas_ave = (imu_meas_t + imu_meas_tm1) / 2
@@ -236,6 +286,12 @@ class StatefulRollerDataGen(object):
         self.fc_reverse_ground_truth = {}
         self.fc_mirror_ground_truth = {}
         self.fc_reverse_mirror_ground_truth = {}
+
+        self.imu_measurements = {}
+        self.imu_measurements_mirror = {}
+        self.imu_measurements_reverse = {}
+        self.imu_measurements_reverse_mirror = {}
+
         # This keeps track of the number of batches in each sequence
         self.batch_counts = {}
         # this holds the batch ids for each sequence. It is randomized and the order determines the order in
@@ -267,6 +323,11 @@ class StatefulRollerDataGen(object):
             self.fc_reverse_ground_truth[seq] = np.zeros([num_frames - 1, 6], dtype=np.float32)
             self.fc_mirror_ground_truth[seq] = np.zeros([num_frames - 1, 6], dtype=np.float32)
             self.fc_reverse_mirror_ground_truth[seq] = np.zeros([num_frames - 1, 6], dtype=np.float32)
+
+            self.imu_measurements[seq] = np.zeros([num_frames - 1, 6], dtype=np.float32)
+            self.imu_measurements_mirror[seq] = np.zeros([num_frames - 1, 6], dtype=np.float32)
+            self.imu_measurements_reverse[seq] = np.zeros([num_frames - 1, 6], dtype=np.float32)
+            self.imu_measurements_reverse_mirror[seq] = np.zeros([num_frames - 1, 6], dtype=np.float32)
 
             for i_img in range(num_frames):
                 if i_img % 100 == 0:
@@ -314,6 +375,12 @@ class StatefulRollerDataGen(object):
                     self.fc_reverse_mirror_ground_truth[seq][i_img] = np.concatenate(
                             [trans_reverse_mirror, ypr_reverse_mirror])
 
+                    get_imu = seq_loader.get_averaged_imu_in_corresponding_frame
+                    self.imu_measurements[seq][i_img] = get_imu(i_img, mirror=False, reverse=False)
+                    self.imu_measurements_mirror[seq][i_img] = get_imu(i_img, mirror=True, reverse=False)
+                    self.imu_measurements_reverse[seq][i_img] = get_imu(i_img, mirror=False, reverse=True)
+                    self.imu_measurements_reverse_mirror[seq][i_img] = get_imu(i_img, mirror=True, reverse=True)
+
             # How many examples the sequence contains, were it to be processed using a batch size of 1
             sequence_examples = np.ceil((num_frames - self.cfg.timesteps) / self.cfg.sequence_stride).astype(
                     np.int32)
@@ -349,6 +416,7 @@ class StatefulRollerDataGen(object):
                          dtype=np.float32)
         se3_ground_truth = np.zeros([n, self.cfg.batch_size, 7], dtype=np.float32)
         fc_ground_truth = np.zeros([self.cfg.timesteps, self.cfg.batch_size, 6], dtype=np.float32)
+        imu_measurements = np.zeros([self.cfg.timesteps, self.cfg.batch_size, 6], dtype=np.float32)
 
         # check if at the end of the current sequence, and move to next if required
         cur_seq = self.sequences[self.sequence_ordering[self.current_batch]]
@@ -365,6 +433,7 @@ class StatefulRollerDataGen(object):
                 batch[:, i_b, :, :, :] = self.input_frames[cur_seq][idx:idx + n, :, :, :]
                 se3_ground_truth[:, i_b, :] = self.se3_ground_truth[cur_seq][idx:idx + n, :]
                 fc_ground_truth[:, i_b, :] = self.fc_ground_truth[cur_seq][idx:idx + n - 1, :]
+                imu_measurements[:, i_b, :] = self.imu_measurements[cur_seq][idx:idx + n - 1, :]
             else:
                 # data going backwards
                 idx = start_idx[i_b] - idx_offset
@@ -372,20 +441,24 @@ class StatefulRollerDataGen(object):
                     batch[:, i_b, :, :] = self.input_frames[cur_seq][idx - n:idx, :, :, :]
                     se3_ground_truth[:, i_b, :] = self.se3_mirror_ground_truth[cur_seq][idx - n:idx, :]
                     fc_ground_truth[:, i_b, :] = self.fc_reverse_mirror_ground_truth[cur_seq][idx - n:idx - 1, :]
+                    imu_measurements[:, i_b, :] = self.imu_measurements_reverse_mirror[cur_seq][idx - n:idx - 1, :]
                     # flip along time axis
                     batch[:, i_b, :, :] = np.flip(batch[:, i_b, :, :], axis=0)
                     # flip image along width axis
                     batch[:, i_b, :, :] = np.flip(batch[:, i_b, :, :], axis=3)
                     se3_ground_truth[:, i_b, :] = np.flip(se3_ground_truth[:, i_b, :], axis=0)
                     fc_ground_truth[:, i_b, :] = np.flip(fc_ground_truth[:, i_b, :], axis=0)
+                    imu_measurements[:, i_b, :] = np.flip(imu_measurements[:, i_b, :], axis=0)
                 else:
                     batch[:, i_b, :, :] = self.input_frames[cur_seq][idx - n:idx, :, :, :]
                     se3_ground_truth[:, i_b, :] = self.se3_ground_truth[cur_seq][idx - n:idx, :]
                     fc_ground_truth[:, i_b, :] = self.fc_reverse_ground_truth[cur_seq][idx - n:idx - 1, :]
+                    imu_measurements[:, i_b, :] = self.imu_measurements_reverse[cur_seq][idx - n:idx - 1, :]
                     # flip along time axis
                     batch[:, i_b, :, :] = np.flip(batch[:, i_b, :, :], axis=0)
                     se3_ground_truth[:, i_b, :] = np.flip(se3_ground_truth[:, i_b, :], axis=0)
                     fc_ground_truth[:, i_b, :] = np.flip(fc_ground_truth[:, i_b, :], axis=0)
+                    imu_measurements[:, i_b, :] = np.flip(imu_measurements[:, i_b, :], axis=0)
 
         if self.cfg.data_type == "cam":
             batch = np.divide(batch, 255.0, dtype=np.float32)  # ensure float32
@@ -394,7 +467,7 @@ class StatefulRollerDataGen(object):
         self.current_batch += 1
         self.sequence_batch[cur_seq] += 1
 
-        return batch_id, cur_seq, batch, fc_ground_truth, se3_ground_truth
+        return batch_id, cur_seq, batch, fc_ground_truth, se3_ground_truth, imu_measurements
 
     def has_next_batch(self):
         return self.current_batch < self.batch_cnt
