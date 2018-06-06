@@ -1,11 +1,8 @@
 import tools
 
-machine = "cs4li"
-
-if machine == "cs4li":
-    save_path = "/home/cs4li/Dev/end_to_end_visual_odometry/results/"
-    dataset_path = "/home/cs4li/Dev/KITTI/dataset/"
-    lidar_pickles_path = "/home/cs4li/Dev/KITTI/dataset/sequences/lidar_pickles/"
+save_path = "/home/bapskiko/git/end_to_end_visual_odometry/results"
+dataset_path = "/media/bapskiko/SpinDrive/kitti/dataset"
+lidar_pickles_path = "/home/bapskiko/git/end_to_end_visual_odometry/pickles"
 
 
 class Configs(object):

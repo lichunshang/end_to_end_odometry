@@ -105,8 +105,8 @@ class Train(object):
         self.tf_saver_restore = tf.train.Saver()
 
     def __build_model_inputs_and_labels(self):
-        self.t_inputs, self.t_lstm_initial_state, self.t_initial_poses, self.t_is_training = \
-            model.seq_model_inputs(self.cfg)
+        self.t_inputs, self.t_lstm_initial_state, self.t_initial_poses, self.t_imu_data, self.t_ekf_initial_state, \
+            self.t_ekf_initial_covariance, self.t_is_training = model.seq_model_inputs(self.cfg)
 
         # 7 for translation + quat
         self.t_se3_labels = tf.placeholder(tf.float32, name="se3_labels",
@@ -127,10 +127,15 @@ class Train(object):
             ts_inputs = tf.split(self.t_inputs, self.num_gpu, 1)
             ts_lstm_initial_state = tf.split(self.t_lstm_initial_state, self.num_gpu, 2)
             ts_initial_poses = tf.split(self.t_initial_poses, self.num_gpu, 0)
+            ts_imu_data = tf.split(self.t_imu_data, self.num_gpu, 1)
+            ts_ekf_initial_state = tf.split(self.t_ekf_initial_state, self.num_gpu, 0)
+            ts_ekf_initial_covar = tf.split(self.t_ekf_initial_covariance, self.num_gpu, 0)
             ts_se3_labels = tf.split(self.t_se3_labels, self.num_gpu, 1)
             ts_fc_labels = tf.split(self.t_fc_labels, self.num_gpu, 1)
 
             # list to store results
+            ts_ekf_states = []
+            ts_ekf_covar_states = []
             ts_lstm_states = []
             losses_keys = ["se3_loss", "se3_xyz_loss", "se3_quat_loss",
                            "fc_loss", "fc_xyz_loss", "fc_ypr_loss", "x_loss", "y_loss", "z_loss",
@@ -144,19 +149,29 @@ class Train(object):
 
             with tf.name_scope("tower_%d" % i), tf.device(device_setter):
                 tools.printf("Building model...")
-                fc_outputs, se3_outputs, lstm_states = \
+
+                # def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ekf_initial_state,
+                #                     ekf_initial_covariance,
+                #                     gyro_bias_covar, acc_bias_covar, gyro_covar, acc_covar, is_training,
+                #                     get_activations=False,
+                #                     use_initializer=False):
+
+                fc_outputs, fc_covar, se3_outputs, lstm_states, ekf_states, ekf_covar_states = \
                     model.build_seq_model(self.cfg, ts_inputs[i], ts_lstm_initial_state[i], ts_initial_poses[i],
+                                          ts_imu_data[i], ts_ekf_initial_state[i], ts_ekf_initial_covar[i],
                                           self.t_is_training, get_activations=True, use_initializer=True)
 
                 # this returns lstm states as a tuple, we need to stack them
                 lstm_states = tf.stack(lstm_states, 0)
                 ts_lstm_states.append(lstm_states)
+                ts_ekf_states.append(ekf_states)
+                ts_ekf_covar_states.append(ekf_covar_states)
 
                 with tf.variable_scope("loss"):
                     se3_loss, se3_xyz_loss, se3_quat_loss \
                         = losses.se3_losses(se3_outputs, ts_se3_labels[i], self.cfg.k_se3)
                     fc_loss, fc_xyz_loss, fc_ypr_loss, x_loss, y_loss, z_loss \
-                        = losses.pair_train_fc_losses(fc_outputs, ts_fc_labels[i], self.cfg.k_fc)
+                        = losses.fc_losses(fc_outputs, fc_covar, ts_fc_labels[i], self.cfg.k_fc)
                     total_loss = (1 - self.t_alpha) * se3_loss + self.t_alpha * fc_loss
 
                     for k, v in ts_losses_dict.items():
@@ -169,6 +184,9 @@ class Train(object):
             self.t_lstm_states = tf.concat(ts_lstm_states, 2)
             for k, v in ts_losses_dict.items():
                 ts_losses_dict[k] = tf.reduce_mean(v)
+
+            self.t_ekf_states = tf.concat(ts_ekf_states, 1)
+            self.t_ekf_covar_states = tf.concat(ts_ekf_covar_states, 1)
 
             self.t_total_loss = ts_losses_dict["total_loss"]
             self.t_se3_loss = ts_losses_dict["se3_loss"]

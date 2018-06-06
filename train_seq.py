@@ -1,7 +1,7 @@
 import train
 import config
 
-trainer = train.Train(num_gpu=2,
+trainer = train.Train(num_gpu=1,
                       cfg=config.SeqTrainLidarConfig,
                       train_sequences=["00", "01", "02", "08", "09"],
                       val_sequence="07",

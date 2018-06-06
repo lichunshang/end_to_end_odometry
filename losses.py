@@ -74,30 +74,35 @@ def reduce_prod_6(x):
 
 
 # assumes time major
-def fc_losses(outputs, labels_u):
+def fc_losses(outputs, output_covar, labels_u, k):
     with tf.variable_scope("fc_losses"):
         diff_u = outputs[:, :, 0:6] - labels_u
-        L = outputs[:, :, 6:12]
+        diff_u2 = tf.square(diff_u)
 
-        # The network outputs Q=LL* through the Cholesky decomposition,
-        # we assume L is diagonal, Q is always psd
-        Q = tf.multiply(L, L)
+        # dense covariance
+        Q = output_covar
 
         # determinant of a diagonal matrix is product of it diagonal
-        log_det_Q = tf.log(tf.reduce_prod(Q, axis=2) + 1e-3)
+        log_det_Q = tf.log(tf.matrix_determinant(Q) + 1e-3)
 
         # inverse of a diagonal matrix is elemental inverse
-        inv_Q = tf.div(tf.constant(1, dtype=tf.float32), Q + 1e-3)
+        inv_Q = tf.matrix_inverse(Q + 1e-3)
 
         # sum of determinants along the time
         sum_det_Q = tf.reduce_sum(log_det_Q, axis=0)
 
         # sum of diff_u' * inv_Q * diff_u
-        s = tf.reduce_sum(tf.multiply(diff_u, tf.multiply(inv_Q, diff_u)), axis=(0, 2,))
+        s = tf.reduce_sum(tf.squeeze(tf.matmul(tf.expand_dims(diff_u, axis=-1), tf.matmul(inv_Q, tf.expand_dims(diff_u, axis=-1)), transpose_a=True)), axis=0)
 
         t = tf.cast(tf.shape(outputs)[0], tf.float32)
 
         # add and multiplies of sum by 1 / t
         loss = (s + sum_det_Q) / t
 
-        return tf.reduce_mean(loss)
+        xloss = tf.sqrt(tf.reduce_mean(tf.reduce_sum(diff_u2[..., 0], axis=0), axis=0))
+        yloss = tf.sqrt(tf.reduce_mean(tf.reduce_sum(diff_u2[..., 1], axis=0), axis=0))
+        zloss = tf.sqrt(tf.reduce_mean(tf.reduce_sum(diff_u2[..., 2], axis=0), axis=0))
+        xyzloss = tf.reduce_mean(tf.reduce_sum(diff_u2[..., 0:3], axis=[0, 2]), axis=0)
+        yprloss = tf.reduce_mean(tf.reduce_sum(diff_u2[..., 3:6], axis=[0, 2]), axis=0)
+
+        return tf.reduce_mean(loss), xyzloss, yprloss, xloss, yloss, zloss
