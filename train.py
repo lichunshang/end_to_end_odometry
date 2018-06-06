@@ -150,12 +150,6 @@ class Train(object):
             with tf.name_scope("tower_%d" % i), tf.device(device_setter):
                 tools.printf("Building model...")
 
-                # def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ekf_initial_state,
-                #                     ekf_initial_covariance,
-                #                     gyro_bias_covar, acc_bias_covar, gyro_covar, acc_covar, is_training,
-                #                     get_activations=False,
-                #                     use_initializer=False):
-
                 fc_outputs, fc_covar, se3_outputs, lstm_states, ekf_states, ekf_covar_states = \
                     model.build_seq_model(self.cfg, ts_inputs[i], ts_lstm_initial_state[i], ts_initial_poses[i],
                                           ts_imu_data[i], ts_ekf_initial_state[i], ts_ekf_initial_covar[i],

@@ -36,12 +36,6 @@ def pair_train_fc_losses(outputs, labels_u, k):
         diff_p = outputs[:, :, 0:3] - labels_u[:, :, 0:3]
         diff_e = outputs[:, :, 3:6] - labels_u[:, :, 3:6]
 
-        # too_big = tf.greater(diff_e, tf.constant(m.pi, dtype=tf.float32))
-        # too_small = tf.less(diff_e, tf.constant(-m.pi, dtype=tf.float32))
-
-        # wrapped_diff_e = tf.where(too_big, tf.subtract(diff_e, tf.constant(2 * m.pi, dtype=tf.float32)),
-        #                           tf.where(too_small, tf.add(diff_e, tf.constant(2 * m.pi, dtype=tf.float32)), diff_e))
-
         # takes the the dot product and sum it up along time
         diff_p_sq = tf.multiply(diff_p, diff_p)
         sum_diff_p_dot_p = tf.reduce_sum(diff_p_sq, axis=(0, 2,))
@@ -91,8 +85,12 @@ def fc_losses(outputs, output_covar, labels_u, k):
         # sum of determinants along the time
         sum_det_Q = tf.reduce_sum(log_det_Q, axis=0)
 
+        # need to scale angular error by k
+        ksq = tf.sqrt(k)
+        diff_u_scaled = tf.concat([diff_u[..., 0:3], ksq * diff_u[..., 3:6]], axis=-1)
+
         # sum of diff_u' * inv_Q * diff_u
-        s = tf.reduce_sum(tf.squeeze(tf.matmul(tf.expand_dims(diff_u, axis=-1), tf.matmul(inv_Q, tf.expand_dims(diff_u, axis=-1)), transpose_a=True)), axis=0)
+        s = tf.reduce_sum(tf.squeeze(tf.matmul(tf.expand_dims(diff_u_scaled, axis=-1), tf.matmul(inv_Q, tf.expand_dims(diff_u_scaled, axis=-1)), transpose_a=True)), axis=0)
 
         t = tf.cast(tf.shape(outputs)[0], tf.float32)
 
