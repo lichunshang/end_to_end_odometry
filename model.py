@@ -144,8 +144,8 @@ def pair_train_fc_layer(inputs):
     with tf.variable_scope("pair_train_fc_model", reuse=tf.AUTO_REUSE):
         fc_128 = tf.contrib.layers.fully_connected(inputs, 128, scope="fc_128", activation_fn=tf.nn.relu,
                                                    weights_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0005))
-        fc_6 = tf.contrib.layers.fully_connected(fc_128, 6, scope="fc_6", activation_fn=None)
-        return fc_6
+        fc_12 = tf.contrib.layers.fully_connected(fc_128, 12, scope="fc_12", activation_fn=None)
+        return fc_12
 
 
 def pair_train_fc_layer_1024(inputs):
@@ -240,6 +240,8 @@ def se3_layer(inputs, initial_poses):
 def initializer_layer(inputs, cfg):
     with tf.variable_scope("initializer_layer", reuse=tf.AUTO_REUSE):
         print("Building Initializer Network")
+        if cfg.init_length > inputs.shape[0]:
+            raise ValueError("Invalid initializer size")
         init_list = tf.unstack(inputs[:cfg.init_length, ...], axis=0)
         init_feed = tf.concat(init_list, axis=1)
         initializer = tf.contrib.layers.fully_connected(init_feed, cfg.lstm_layers * 2 * cfg.lstm_size, scope="fc",
@@ -272,16 +274,25 @@ def seq_model_inputs(cfg):
 
     # is training
     is_training = tf.placeholder(tf.bool, name="is_training", shape=[])
-    return inputs, lstm_initial_state, initial_poses, is_training
+
+    # switch between previous states and state initializer
+    use_initializer = tf.placeholder(tf.bool, name="use_initializer", shape=[])
+
+    return inputs, lstm_initial_state, initial_poses, is_training, use_initializer
 
 
-def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, is_training, get_activations=False,
-                    use_initializer=False):
+def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, is_training, use_initializer, get_activations=False):
     print("Building CNN...")
     cnn_outputs = cnn_layer(inputs, cnn_model_lidar, is_training, get_activations)
 
-    if use_initializer:
-        feed_init_states = initializer_layer(cnn_outputs, cfg)
+    def f1():
+        return initializer_layer(cnn_outputs, cfg)
+
+    def f2():
+        return lstm_initial_state
+
+    if cfg.use_init:
+        feed_init_states = tf.cond(use_initializer, true_fn=f1, false_fn=f2)
     else:
         feed_init_states = lstm_initial_state
 
@@ -295,4 +306,4 @@ def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, is_training,
     # at this point the outputs from the fully connected layer are  [x, y, z, yaw, pitch, roll, 6 x covars]
     se3_outputs = se3_layer(fc_outputs, initial_poses)
 
-    return fc_outputs, se3_outputs, lstm_states
+    return fc_outputs, se3_outputs, lstm_states, feed_init_states
