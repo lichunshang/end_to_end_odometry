@@ -3,7 +3,7 @@ import tools
 machine = "cs4li"
 
 if machine == "cs4li":
-    save_path = "/home/cs4li/Dev/end_to_end_visual_odometry/results/"
+    save_path = "/home/cs4li/Dev/end_to_end_odometry/results/"
     dataset_path = "/home/cs4li/Dev/KITTI/dataset/"
     lidar_pickles_path = "/home/cs4li/Dev/KITTI/dataset/sequences/lidar_pickles_no_interp"
 
@@ -43,13 +43,14 @@ class SeqTrainLidarConfig(Configs):
     input_channels = 2
 
     bidir_aug = True
+
     use_init = True
-    only_train_init = False
-    dont_restore_init = False
+
+    only_train_init = True  # only used when use init is True
+    dont_restore_init = False  # only used when use init is True
+    init_prob = 1
 
     data_type = "lidar"
-
-    init_prob = 0.6
 
     lstm_size = 256
     lstm_layers = 1
@@ -65,34 +66,6 @@ class SeqTrainLidarConfig(Configs):
                    40: 0.000002,
                    80: 0.000001,
                    130: 0.0000001}
-
-
-class SeqEvalLidarConfig(Configs):
-    timesteps = 1
-    batch_size = 1
-    input_width = 1152
-    input_height = 64
-    input_channels = 2
-
-    bidir_aug = False
-    data_type = "lidar"
-
-    lstm_size = 256
-    lstm_layers = 1
-    sequence_stride = 1
-
-
-class SeqCamEvalConfig(Configs):
-    timesteps = 1
-    batch_size = 1
-    input_width = 1280
-    input_height = 384
-    input_channels = 3
-    sequence_stride = 1
-    bidir_aug = False
-
-    lstm_size = 256
-    lstm_layers = 2
 
 
 def print_configs(cfg):

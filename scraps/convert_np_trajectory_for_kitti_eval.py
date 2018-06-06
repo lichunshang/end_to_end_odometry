@@ -1,8 +1,9 @@
 import os
 import numpy as np
 import transformations
+import config
 
-data_dir = "/home/cs4li/Dev/end_to_end_visual_odometry/results/trajectory_results/"
+data_dir = os.path.join(config.save_path, "trajectory_results")
 
 sequences = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]
 
@@ -22,8 +23,6 @@ for seq in sequences:
     np_file = os.path.join(data_dir, "trajectory_%s.npy" % seq)
     kitti_file = open(os.path.join(data_dir, "kitti_evals", "%s.txt" % seq), "w")
     trajectory = np.load(np_file)
-
-    write_trj(kitti_file, np.array([0, 0, 0, 1, 0, 0, 0]))
 
     for i in range(0, trajectory.shape[0]):
         write_trj(kitti_file, trajectory[i])

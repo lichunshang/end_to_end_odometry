@@ -53,4 +53,4 @@ flownet_weight_file = "/home/cs4li/git/tf_flownet2/FlowNet2_src/checkpoints/weig
 
 with tf.Session() as sess:
     tf_saver.restore(sess, flownet_weight_file)
-    tf_saver2.save(sess, "/home/cs4li/Dev/end_to_end_visual_odometry/results/flownet_weights/flownet_s_weights")
+    tf_saver2.save(sess, "/home/cs4li/Dev/end_to_end_odometry/results/flownet_weights/flownet_s_weights")
