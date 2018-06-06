@@ -108,7 +108,8 @@ class Train(object):
                       tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="rnn_layer")
             self.tf_saver_restore = tf.train.Saver(var_list=varlist)
         else:
-            self.tf_saver_restore = tf.train.Saver()
+            varlist = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
+            self.tf_saver_restore = tf.train.Saver(var_list=varlist)
 
     def __build_model_inputs_and_labels(self):
         self.t_inputs, self.t_lstm_initial_state, self.t_initial_poses, self.t_is_training, self.t_use_initializer = \
@@ -162,7 +163,7 @@ class Train(object):
                     se3_loss, se3_xyz_loss, se3_quat_loss \
                         = losses.se3_losses(se3_outputs, ts_se3_labels[i], self.cfg.k_se3)
                     fc_loss, fc_xyz_loss, fc_ypr_loss, x_loss, y_loss, z_loss \
-                        = losses.pair_train_fc_losses(fc_outputs, ts_fc_labels[i], self.cfg.k_fc)
+                        = losses.fc_losses(fc_outputs, ts_fc_labels[i], self.cfg.k_fc)
                     total_loss = (1 - self.t_alpha) * se3_loss + self.t_alpha * fc_loss
 
                     for k, v in ts_losses_dict.items():
