@@ -279,7 +279,7 @@ class StatefulRollerDataGen(object):
 
         # Mirror in y-z plane
         self.H = np.identity(3, dtype=np.float32)
-        self.H[0][0] = -1.0
+        self.H[1][1] = -1.0
 
         self.se3_ground_truth = {}
         self.se3_mirror_ground_truth = {}
