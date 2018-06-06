@@ -33,10 +33,10 @@ class SeqTrainConfigs(Configs):
 
 
 class SeqTrainLidarConfig(Configs):
-    sequence_stride = 4
-    timesteps = 4
+    sequence_stride = 8
+    timesteps = 8
     init_length = 1
-    batch_size = 26
+    batch_size = 16
 
     input_width = 1152
     input_height = 64
@@ -45,6 +45,7 @@ class SeqTrainLidarConfig(Configs):
     bidir_aug = True
 
     use_init = True
+
     only_train_init = True  # only used when use init is True
     dont_restore_init = False  # only used when use init is True
     init_prob = 1
@@ -58,18 +59,13 @@ class SeqTrainLidarConfig(Configs):
     k_se3 = 500
 
     num_epochs = 200
-    alpha_schedule = {0: 0.99,
-                      20: 0.9,
-                      40: 0.5,
-                      60: 0.1,
-                      80: 0.025}
+    alpha_schedule = {0: 0.8}
 
     lr_schedule = {0: 0.0001,
-                   3: 0.00008,
-                   7: 0.00005,
-                   13: 0.000002,
-                   20: 0.000001,
-                   50: 0.0000001}
+                   20: 0.00005,
+                   40: 0.000002,
+                   80: 0.000001,
+                   130: 0.0000001}
 
 
 def print_configs(cfg):

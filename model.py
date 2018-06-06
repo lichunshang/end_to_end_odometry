@@ -144,8 +144,8 @@ def pair_train_fc_layer(inputs):
     with tf.variable_scope("pair_train_fc_model", reuse=tf.AUTO_REUSE):
         fc_128 = tf.contrib.layers.fully_connected(inputs, 128, scope="fc_128", activation_fn=tf.nn.relu,
                                                    weights_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0005))
-        fc_6 = tf.contrib.layers.fully_connected(fc_128, 6, scope="fc_6", activation_fn=None)
-        return fc_6
+        fc_12 = tf.contrib.layers.fully_connected(fc_128, 12, scope="fc_12", activation_fn=None)
+        return fc_12
 
 
 def pair_train_fc_layer_1024(inputs):
