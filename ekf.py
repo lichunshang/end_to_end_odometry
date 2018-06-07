@@ -1,7 +1,6 @@
 import tensorflow as tf
 import math as m
 
-
 # This is a simple ekf layer to fuse angular rate measurements with the network output
 
 # The states of the EKF are:
@@ -190,7 +189,7 @@ def getLittleJacobian(eulers):
 
 # Measurement model is h(x(t)) = [p(t), R(t)]^T
 
-# the measurements should have shape timesteps x batches x 6. order is x, y, z, yaw, pitch, roll
+# the measurements should have shape timesteps x batches x 6. order is yaw, pitch, roll, x, y, z,
 # prev biases should have shape batches x 3
 # covar matrices should be 3x3, except for prev_covar which is batch_size x 17x17 and nn_covar which is time x batch x 6 x 6
 
@@ -410,4 +409,62 @@ def run_update(imu_meas, dt, prev_state, prev_covar, gfull, g, fkstat, Hk, lift_
     Sk = tf.matmul(Hk, tf.matmul(pred_covar, Hk, transpose_b=True)) + nn_covar
     Kk = tf.matmul(pred_covar, tf.matmul(Hk, tf.matrix_inverse(Sk), transpose_a=True))
 
-    return tf.squeeze(tf.expand_dims(pred_state, axis=-1) + tf.matmul(Kk, yk)), pred_covar - tf.matmul(Kk, tf.matmul(Hk, pred_covar))
+    return tf.squeeze(tf.expand_dims(pred_state, axis=-1) + tf.matmul(Kk, yk), axis=2), pred_covar - tf.matmul(Kk, tf.matmul(Hk, pred_covar))
+
+
+def full_ekf_layer_eager(imu_meas, nn_meas, nn_covar, prev_state, prev_covar, gyro_bias_covar, acc_bias_covar, gyro_covar,
+                   acc_covar, dt=tf.constant(0.1, dtype=tf.float32)):
+    with tf.variable_scope("ekf_layer", reuse=tf.AUTO_REUSE):
+        prev_states = []
+        covar_output = []
+
+        prev_states.append(prev_state)
+        covar_output.append(prev_covar)
+
+# state update. Reused variables are calculated
+        lift_g_covar = tf.tile(tf.expand_dims(gyro_covar, axis=0), [imu_meas.shape[1], 1, 1])
+        lift_a_covar = tf.tile(tf.expand_dims(acc_covar, axis=0), [imu_meas.shape[1], 1, 1])
+        lift_g_bias_covar = tf.tile(tf.expand_dims(gyro_bias_covar, axis=0), [imu_meas.shape[1], 1, 1])
+        lift_a_bias_covar = tf.tile(tf.expand_dims(acc_bias_covar, axis=0), [imu_meas.shape[1], 1, 1])
+
+        g = tf.constant(-9.80665, dtype=tf.float32)
+        gfull = tf.tile(tf.expand_dims(tf.contrib.eager.Variable([[0], [0], [g]], trainable=False), axis=0), [imu_meas.shape[1], 1, 1])
+
+        diRo = tf.contrib.eager.Variable([[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, -dt, 0],
+                            [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, -dt]], trainable=False)
+
+        dbacc = tf.contrib.eager.Variable([[0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0]], trainable=False, dtype=tf.float32)
+
+        diRim1 = tf.contrib.eager.Variable([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -dt, 0, 0],
+                              [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -dt, 0],
+                              [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -dt]], trainable=False)
+
+        dbgy = tf.contrib.eager.Variable([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
+                           [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
+                           [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]], trainable=False, dtype=tf.float32)
+
+        # Prepare the constant part of Fk and tile across all batches
+        fkstat = tf.tile(tf.expand_dims(tf.concat([diRo, dbacc, diRim1, dbgy], axis=0), axis=0), [imu_meas.shape[1], 1, 1])
+
+# hk is mercifully constant
+        hk = tf.contrib.eager.Variable([[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                         [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                         [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+                         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],
+                         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0]], trainable=False, dtype=tf.float32)
+
+        Hk = tf.tile(tf.expand_dims(hk, axis=0), [imu_meas.shape[1], 1, 1])
+
+
+        for i in range(imu_meas.shape[0]):
+            next_state, next_covariance = run_update(imu_meas[i, ...], dt, prev_states[i], covar_output[i], gfull, g, fkstat,
+                                                     Hk, lift_g_bias_covar, lift_a_bias_covar, lift_g_covar, lift_a_covar, nn_meas[i, ...],
+                                                     nn_covar[i, ...])
+
+            prev_states.append(next_state)
+            covar_output.append(next_covariance)
+
+    return tf.stack(prev_states), tf.stack(covar_output)
