@@ -35,11 +35,16 @@ class Train(object):
         self.t_lr = None
         self.t_inputs = None
         self.t_lstm_initial_state = None
+        self.t_ekf_initial_state = None
+        self.t_ekf_initial_covariance = None
         self.t_initial_poses = None
         self.t_is_training = None
+        self.t_use_initializer = None
         self.t_se3_labels = None
         self.t_fc_labels = None
         self.t_lstm_states = None
+        self.t_ekf_states = None
+        self.t_ekf_covar_states = None
         self.t_se3_loss = None
         self.t_total_loss = None
         self.t_sequence_id = None
@@ -71,10 +76,10 @@ class Train(object):
                 type(self.num_gpu) is int and
                 self.cfg.batch_size % self.num_gpu == 0)
 
-        # self.__log_files_and_configs()
-        # self.__build_model_inputs_and_labels()
-        # self.__build_model_and_summary()
-        # self.__init_tf_savers()
+        self.__log_files_and_configs()
+        self.__build_model_inputs_and_labels()
+        self.__build_model_and_summary()
+        self.__init_tf_savers()
         self.__load_data_set()
 
     def train(self):
@@ -114,8 +119,8 @@ class Train(object):
             self.tf_saver_restore = tf.train.Saver(var_list=varlist)
 
     def __build_model_inputs_and_labels(self):
-        self.t_inputs, self.t_lstm_initial_state, self.t_initial_poses, self.t_is_training, self.t_use_initializer = \
-            model.seq_model_inputs(self.cfg)
+        self.t_inputs, self.t_lstm_initial_state, self.t_initial_poses, self.t_imu_data, self.t_ekf_initial_state, \
+            self.t_ekf_initial_covariance, self.t_is_training, self.t_use_initializer = model.seq_model_inputs(self.cfg)
 
         # 7 for translation + quat
         self.t_se3_labels = tf.placeholder(tf.float32, name="se3_labels",
@@ -136,10 +141,15 @@ class Train(object):
             ts_inputs = tf.split(self.t_inputs, self.num_gpu, 1)
             ts_lstm_initial_state = tf.split(self.t_lstm_initial_state, self.num_gpu, 2)
             ts_initial_poses = tf.split(self.t_initial_poses, self.num_gpu, 0)
+            ts_imu_data = tf.split(self.t_imu_data, self.num_gpu, 1)
+            ts_ekf_initial_state = tf.split(self.t_ekf_initial_state, self.num_gpu, 0)
+            ts_ekf_initial_covar = tf.split(self.t_ekf_initial_covariance, self.num_gpu, 0)
             ts_se3_labels = tf.split(self.t_se3_labels, self.num_gpu, 1)
             ts_fc_labels = tf.split(self.t_fc_labels, self.num_gpu, 1)
 
             # list to store results
+            ts_ekf_states = []
+            ts_ekf_covar_states = []
             ts_lstm_states = []
             losses_keys = ["se3_loss", "se3_xyz_loss", "se3_quat_loss",
                            "fc_loss", "fc_xyz_loss", "fc_ypr_loss", "x_loss", "y_loss", "z_loss",
@@ -153,19 +163,23 @@ class Train(object):
 
             with tf.name_scope("tower_%d" % i), tf.device(device_setter):
                 tools.printf("Building model...")
-                fc_outputs, se3_outputs, lstm_states, _ = \
+
+                fc_outputs, fc_covar, se3_outputs, lstm_states, ekf_states, ekf_covar_states = \
                     model.build_seq_model(self.cfg, ts_inputs[i], ts_lstm_initial_state[i], ts_initial_poses[i],
-                                          self.t_is_training, self.t_use_initializer, get_activations=True)
+                                          ts_imu_data[i], ts_ekf_initial_state[i], ts_ekf_initial_covar[i],
+                                          self.t_is_training, get_activations=True, use_initializer=self.t_use_initializer)
 
                 # this returns lstm states as a tuple, we need to stack them
                 lstm_states = tf.stack(lstm_states, 0)
                 ts_lstm_states.append(lstm_states)
+                ts_ekf_states.append(ekf_states)
+                ts_ekf_covar_states.append(ekf_covar_states)
 
                 with tf.variable_scope("loss"):
                     se3_loss, se3_xyz_loss, se3_quat_loss \
                         = losses.se3_losses(se3_outputs, ts_se3_labels[i], self.cfg.k_se3)
                     fc_loss, fc_xyz_loss, fc_ypr_loss, x_loss, y_loss, z_loss \
-                        = losses.fc_losses(fc_outputs, ts_fc_labels[i], self.cfg.k_fc)
+                        = losses.fc_losses(fc_outputs, fc_covar, ts_fc_labels[i], self.cfg.k_fc)
                     total_loss = (1 - self.t_alpha) * se3_loss + self.t_alpha * fc_loss
 
                     for k, v in ts_losses_dict.items():
@@ -178,6 +192,9 @@ class Train(object):
             self.t_lstm_states = tf.concat(ts_lstm_states, 2)
             for k, v in ts_losses_dict.items():
                 ts_losses_dict[k] = tf.reduce_mean(v)
+
+            self.t_ekf_states = tf.concat(ts_ekf_states, 1)
+            self.t_ekf_covar_states = tf.concat(ts_ekf_covar_states, 1)
 
             self.t_total_loss = ts_losses_dict["total_loss"]
             self.t_se3_loss = ts_losses_dict["se3_loss"]
@@ -290,14 +307,21 @@ class Train(object):
             self.tf_tb_writer.add_graph(tf.get_default_graph())
             self.tf_tb_writer.flush()
 
-            # initialize lstm states
+            # initialize lstm and ekf states
             curr_lstm_states = np.zeros([2, self.cfg.lstm_layers, self.cfg.batch_size, self.cfg.lstm_size],
                                         dtype=np.float32)
+            curr_ekf_state = np.zeros([self.cfg.batch_size, 17], dtype=np.float32)
+            curr_ekf_cov_state = np.repeat(np.expand_dims(np.identity(17, dtype=np.float32), axis=0), repeats=self.cfg.batch_size, axis=0)
+
             lstm_states_dic = {}
+            ekf_states_dic = {}
+            ekf_cov_states_dic = {}
             for seq in self.train_sequences:
                 lstm_states_dic[seq] = np.zeros(
                         [self.train_data_gen.batch_counts[seq], 2, self.cfg.lstm_layers, self.cfg.batch_size,
                          self.cfg.lstm_size], dtype=np.float32)
+                ekf_states_dic[seq] = np.zeros([self.train_data_gen.batch_counts[seq], self.cfg.batch_size, 17], dtype=np.float32)
+                ekf_cov_states_dic[seq] = np.repeat(np.expand_dims(curr_ekf_cov_state, axis=0), self.train_data_gen.batch_counts[seq], axis=0)
 
             _train_image_summary = None
             total_batches = self.train_data_gen.total_batches()
@@ -317,9 +341,11 @@ class Train(object):
                     j_batch = self.train_data_gen.curr_batch()
 
                     # get inputs
-                    batch_id, curr_seq, batch_data, fc_ground_truth, se3_ground_truth = self.train_data_gen.next_batch()
+                    batch_id, curr_seq, batch_data, fc_ground_truth, se3_ground_truth, imu_measurements = self.train_data_gen.next_batch()
                     data_roller.get_init_lstm_state(lstm_states_dic, curr_lstm_states, curr_seq, batch_id,
                                                     self.cfg.bidir_aug)
+
+                    data_roller.get_init_ekf_states(ekf_states_dic, ekf_cov_states_dic, curr_ekf_state, curr_ekf_cov_state, curr_seq, batch_id, self.cfg.bidir_aug)
 
                     # shift se3 ground truth to be relative to the first pose
                     init_poses = se3_ground_truth[0, :, :]
@@ -330,9 +356,9 @@ class Train(object):
                         use_init_train = True
 
                     # Run training session
-                    _, _curr_lstm_states, _train_summary, _train_image_summary, _total_losses = \
+                    _, _curr_lstm_states, _curr_ekf_states, _curr_ekf_covar, _train_summary, _train_image_summary, _total_losses = \
                         self.tf_session.run(
-                                [self.op_trainer, self.t_lstm_states,
+                                [self.op_trainer, self.t_lstm_states, self.t_ekf_states, self.t_ekf_covar_states,
                                  self.op_train_merged_summary, self.op_train_image_summary,
                                  self.t_total_loss],
                                 feed_dict={
@@ -346,12 +372,16 @@ class Train(object):
                                     self.t_is_training: True,
                                     self.t_use_initializer: use_init_train,
                                     self.t_sequence_id: int(curr_seq),
-                                    self.t_epoch: i_epoch
+                                    self.t_epoch: i_epoch,
+                                    self.t_ekf_initial_state: curr_ekf_state,
+                                    self.t_ekf_initial_covariance: curr_ekf_cov_state,
+                                    self.t_imu_data: imu_measurements
                                 },
                                 options=self.tf_run_options,
                                 run_metadata=self.tf_run_metadata)
 
                     data_roller.update_lstm_state(lstm_states_dic, _curr_lstm_states, curr_seq, batch_id)
+                    data_roller.update_ekf_state(ekf_states_dic, ekf_cov_states_dic, _curr_ekf_states, _curr_ekf_covar, curr_seq, batch_id)
 
                     if self.tensorboard_meta:
                         self.tf_tb_writer.add_run_metadata(self.tf_run_metadata,

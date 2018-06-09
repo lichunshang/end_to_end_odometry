@@ -544,6 +544,33 @@ def get_init_lstm_state(lstm_states, lstm_init_states, cur_seq, batch_id, bidir_
             lstm_init_states[:, :, 0, :] = np.zeros(lstm_init_states[:, :, 0, :].shape, dtype=np.float32)
             lstm_init_states[:, :, 1:, :] = lstm_states[cur_seq][-1, :, :, 0:-1, :]
 
+def update_ekf_state(ekf_states, ekf_cov_states, ekf_update, ekf_cov_update, cur_seq, batch_id):
+    ekf_states[cur_seq][batch_id, ...] = ekf_update
+    ekf_cov_states[cur_seq][batch_id, ...] = ekf_cov_update
+
+def get_init_ekf_states(ekf_states, ekf_cov_states, ekf_init_states, ekf_cov_init_states, cur_seq, batch_id, bidir_aug):
+    if batch_id > 0:
+        ekf_init_states = ekf_states[cur_seq][batch_id - 1, ...]
+        ekf_cov_init_states = ekf_cov_states[cur_seq][batch_id - 1, ...]
+    else:
+        if bidir_aug:
+            mid = ekf_init_states.shape[0] / 2
+            mid = int(mid)
+            ekf_init_states[0, ...] = np.zeros(ekf_init_states[0, ...].shape, dtype=np.float32)
+            ekf_init_states[1:mid, ...] = ekf_states[cur_seq][-1, 0:(mid - 1), ...]
+            ekf_init_states[mid, ...] = np.zeros(ekf_init_states[0, ...].shape, dtype=np.float32)
+            ekf_init_states[mid + 1:, ...] = ekf_states[cur_seq][-1, mid:-1, ...]
+
+            ekf_cov_init_states[0, ...] = np.identity(ekf_init_states[0, ...].shape[0], dtype=np.float32)
+            ekf_cov_init_states[1:mid, ...] = ekf_cov_states[cur_seq][-1, 0:(mid - 1), ...]
+            ekf_cov_init_states[mid, ...] = np.identity(ekf_init_states[0, ...].shape[0], dtype=np.float32)
+            ekf_cov_init_states[mid + 1:, ...] = ekf_cov_states[cur_seq][-1, mid:-1, ...]
+        else:
+            ekf_init_states[0, ...] = np.zeros(ekf_init_states[0, ...].shape, dtype=np.float32)
+            ekf_init_states[1:, ...] = ekf_states[cur_seq][-1, 0:-1, ...]
+
+            ekf_cov_init_states[0, ...] = np.identity(ekf_init_states[0, ...].shape[0], dtype=np.float32)
+            ekf_cov_init_states[1:, ...] = ekf_cov_states[cur_seq][-1, 0:-1, ...]
 
 def reset_select_init_pose(init_pose, mask):
     for i in range(0, len(mask)):
