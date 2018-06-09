@@ -428,20 +428,20 @@ def full_ekf_layer_eager(imu_meas, nn_meas, nn_covar, prev_state, prev_covar, gy
         lift_a_bias_covar = tf.tile(tf.expand_dims(acc_bias_covar, axis=0), [imu_meas.shape[1], 1, 1])
 
         g = tf.constant(-9.80665, dtype=tf.float32)
-        gfull = tf.tile(tf.expand_dims(tf.contrib.eager.Variable([[0], [0], [g]], trainable=False), axis=0), [imu_meas.shape[1], 1, 1])
+        gfull = tf.tile(tf.expand_dims(tfe.Variable([[0], [0], [g]], trainable=False), axis=0), [imu_meas.shape[1], 1, 1])
 
-        diRo = tf.contrib.eager.Variable([[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, -dt, 0],
+        diRo = tfe.Variable([[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, -dt, 0],
                             [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, -dt]], trainable=False)
 
-        dbacc = tf.contrib.eager.Variable([[0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+        dbacc = tfe.Variable([[0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
                             [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
                             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0]], trainable=False, dtype=tf.float32)
 
-        diRim1 = tf.contrib.eager.Variable([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -dt, 0, 0],
+        diRim1 = tfe.Variable([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -dt, 0, 0],
                               [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -dt, 0],
                               [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -dt]], trainable=False)
 
-        dbgy = tf.contrib.eager.Variable([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
+        dbgy = tfe.Variable([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]], trainable=False, dtype=tf.float32)
 
