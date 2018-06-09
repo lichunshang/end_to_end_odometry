@@ -48,6 +48,7 @@ class LidarDataLoader(object):
         # select the range of frames
         if frames:
             self.data = self.data[frames]
+            self.num_frames = self.data.shape[0]
 
     def get(self, idx):
         return self.data[idx]
@@ -89,6 +90,7 @@ class DataLoader(object):
             raise ValueError("%s sequence not supported" % seq)
 
         self.cfg = cfg
+        self.imu_time_sync_shift = 1  # we discovered IMU seems to be delayed, so we shifted it forward
 
         if frames:
             range_start = self.raw_range[seq][0] + frames.start
@@ -99,10 +101,14 @@ class DataLoader(object):
 
         self.data_raw_kitti = pykitti.raw(base_dir, self.raw_path[seq][0], self.raw_path[seq][1],
                                           frames=range(range_start, range_stop))
+        self.data_imu_kitti = pykitti.raw(base_dir, self.raw_path[seq][0], self.raw_path[seq][1],
+                                          frames=range(range_start + self.imu_time_sync_shift,
+                                                       range_stop + self.imu_time_sync_shift))
         self.data_odom_kitti = pykitti.odometry(base_dir, seq, frames=frames)
         self.data_lidar_image = LidarDataLoader(self.cfg, base_dir, seq, frames=frames)
 
         assert (len(self.data_raw_kitti.oxts) == len(self.data_odom_kitti.poses) and
+                len(self.data_imu_kitti.oxts) == len(self.data_odom_kitti.poses) and
                 len(self.data_odom_kitti.poses) == self.data_lidar_image.num_frames)
 
         self.imu_measurements = []
@@ -114,19 +120,19 @@ class DataLoader(object):
         num_frames = self.get_num_frames()
 
         for i in range(0, num_frames):
-            wx = self.data_raw_kitti.oxts[i].packet.wx
-            wy = self.data_raw_kitti.oxts[i].packet.wy
-            wz = self.data_raw_kitti.oxts[i].packet.wz
-            ax = self.data_raw_kitti.oxts[i].packet.ax
-            ay = self.data_raw_kitti.oxts[i].packet.ay
-            az = self.data_raw_kitti.oxts[i].packet.az
+            wx = self.data_imu_kitti.oxts[i].packet.wx
+            wy = self.data_imu_kitti.oxts[i].packet.wy
+            wz = self.data_imu_kitti.oxts[i].packet.wz
+            ax = self.data_imu_kitti.oxts[i].packet.ax
+            ay = self.data_imu_kitti.oxts[i].packet.ay
+            az = self.data_imu_kitti.oxts[i].packet.az
 
             self.imu_measurements.append(np.array([wx, wy, wz, ax, ay, az, ]))
 
             # now we need to simulate IMU measurements in the reverse direction
-            roll = self.data_raw_kitti.oxts[i].packet.roll
-            pitch = self.data_raw_kitti.oxts[i].packet.pitch
-            yaw = self.data_raw_kitti.oxts[i].packet.yaw
+            roll = self.data_imu_kitti.oxts[i].packet.roll
+            pitch = self.data_imu_kitti.oxts[i].packet.pitch
+            yaw = self.data_imu_kitti.oxts[i].packet.yaw
 
             # for accelerometer need to remove gravity vector and negate the values
             # first put the acceleration measurement in earth frame
@@ -200,9 +206,9 @@ class DataLoader(object):
 
         # reflection on xz
         H = np.eye(3, 3)
-        H[1][1] = -1
+        H[1][1] = -1.0
 
-        rate_imu = H.dot(rate_imu)
+        rate_imu = -H.dot(rate_imu)
         accel_imu = H.dot(accel_imu)
 
         return np.concatenate((rate_imu, accel_imu))
@@ -233,7 +239,7 @@ class DataLoader(object):
 
     def get_averaged_imu_in_corresponding_frame(self, idx, reverse=False, mirror=False):
         if reverse:
-            imu_meas_t = self.imu_measurements_reversed[idx]
+            imu_meas_t = self.imu_measurements_reversed[idx + 1]
             imu_meas_tm1 = self.imu_measurements_reversed[idx - 1]
         else:
             imu_meas_t = self.imu_measurements[idx]
@@ -249,7 +255,7 @@ class DataLoader(object):
         # average the two imu measurements
         imu_meas_ave = (imu_meas_t + imu_meas_tm1) / 2
 
-        return imu_meas_ave
+        return imu_meas_t
 
 
 class StatefulRollerDataGen(object):
