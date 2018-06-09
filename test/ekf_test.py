@@ -181,7 +181,7 @@ def no_movement_sample_data():
 
 def test_ekf_update():
     imu_meas, nn_meas, nn_covar, prev_state, prev_covar, gyro_bias_covar, acc_bias_covar, gyro_covar, acc_covar = no_movement_sample_data()
-    ekf.full_ekf_layer_eager(imu_meas, nn_meas, nn_covar, prev_state, prev_covar, gyro_bias_covar, acc_bias_covar, gyro_covar, acc_covar)
+    ekf.full_ekf_layer(imu_meas, nn_meas, nn_covar, prev_state, prev_covar, gyro_bias_covar, acc_bias_covar, gyro_covar, acc_covar)
     return True
 
 def test_pred_jacobians():
@@ -256,10 +256,7 @@ def test_noise_jacobians():
     pred_global_euler = imu_meas[1:3] - dt * x_prev[15:17] - dt * eta[1:3] + x_prev[6:8]
     pred_global_rot = euler2rot2param(pred_global_euler)
 
-    one = np.zeros([3, 1], dtype=np.float32)
-    two = getLittleJacobian(pred_global_euler)
-
-    reuse = np.concatenate((one, two), axis=-1)
+    reuse = np.concatenate((np.zeros([3, 1], dtype=np.float32), getLittleJacobian(pred_global_euler)), axis=-1)
 
     dpi = np.concatenate((dt * getJacobian(pred_rot_euler, x_prev[3:6]) * -dt
                           + (0.5 * dt * dt) * (-dt * g * reuse),
