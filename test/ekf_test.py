@@ -303,6 +303,8 @@ def noise_jacobians():
 
     Janalytical = np.concatenate((dpi, dvi, drotglobal, daccbias, drotrel, dgyrobias), axis=0)
 
+    squared = np.dot(Janalytical, np.transpose(Janalytical))
+
     error = Janalytical - Jnumerical
 
     return np.linalg.norm(error)
