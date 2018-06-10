@@ -9,6 +9,13 @@ import unittest
 import numpy as np
 import numdifftools as nd
 
+#function to map 3 vector to skew symmetric matrix/ces
+def skew(x):
+    mat = np.array([[0, -x[2], x[1]],
+                    [x[2], 0, -x[0]],
+                    [-x[1], x[0], 0]], dtype=np.float32)
+    return mat
+
 # Function to take euler angles (yaw pitch roll convention) R = R_roll R_pitch R_yaw or XYZ and convert to
 # rotation matrices
 
@@ -115,15 +122,15 @@ dt = 0.1
 
 # functions to check analytical derivatives against. the state is packed into a vector
 def pred_state(x):
-    pred_rot_euler = imu_meas[0:3] - dt * x[14:17]
+    pred_rot_euler = dt * imu_meas[0:3] - dt * x[14:17]
     pred_rot = euler2rot(pred_rot_euler)
 
-    pred_global_euler = imu_meas[1:3] - dt * x[15:17] + x[6:8]
+    pred_global_euler = dt * imu_meas[1:3] - dt * x[15:17] + x[6:8]
     pred_global_rot = euler2rot2param(pred_global_euler)
 
-    pos = dt * np.dot(pred_rot, x[3:6]) + (0.5 * dt * dt) * (np.dot(pred_global_rot, gfull) + imu_meas[3:6] - x[8:11])
+    pos = np.dot(pred_rot, dt * x[3:6]) + (0.5 * dt * dt) * (np.dot(pred_global_rot, gfull) + imu_meas[3:6] + 2*np.cross(imu_meas[0:3] - x[14:17], x[3:6]) - x[8:11])
     # velocity prediction
-    vel = np.dot(pred_rot, x[3:6]) + dt * (np.dot(pred_global_rot, gfull) + imu_meas[3:6] - x[8:11])
+    vel = np.dot(pred_rot, x[3:6]) + dt * (np.dot(pred_global_rot, gfull) + imu_meas[3:6] + 2*np.cross(imu_meas[0:3] - x[14:17], x[3:6]) - x[8:11])
 
     # global pitch and roll prediction
     glob_rot = pred_global_euler
@@ -141,15 +148,15 @@ def pred_state(x):
     return np.concatenate((pos, vel, glob_rot, acc_bias, rot_rel, gyro_bias))
 
 def pred_state_with_noise(x, n):
-    pred_rot_euler = imu_meas[0:3] - dt * x[14:17] - dt * n[0:3]
+    pred_rot_euler = dt * imu_meas[0:3] - dt * x[14:17] - dt * n[0:3]
     pred_rot = euler2rot(pred_rot_euler)
 
-    pred_global_euler = imu_meas[1:3] - dt * x[15:17] - dt * n[1:3] + x[6:8]
+    pred_global_euler = dt * imu_meas[1:3] - dt * x[15:17] - dt * n[1:3] + x[6:8]
     pred_global_rot = euler2rot2param(pred_global_euler)
 
-    pos = dt * np.dot(pred_rot, x[3:6]) + (0.5 * dt * dt) * (np.dot(pred_global_rot, gfull) + imu_meas[3:6] - x[8:11] - n[3:6])
+    pos = np.dot(pred_rot, dt * x[3:6]) + (0.5 * dt * dt) * (np.dot(pred_global_rot, gfull) + imu_meas[3:6] + 2*np.cross(imu_meas[0:3] - x[14:17] - n[0:3], x[3:6]) - x[8:11] - n[3:6])
     # velocity prediction
-    vel = np.dot(pred_rot, x[3:6]) + dt * (np.dot(pred_global_rot, gfull) + imu_meas[3:6] - x[8:11] - n[3:6])
+    vel = np.dot(pred_rot, x[3:6]) + dt * (np.dot(pred_global_rot, gfull) + imu_meas[3:6] + 2*np.cross(imu_meas[0:3] - x[14:17] - n[0:3], x[3:6]) - x[8:11] - n[3:6])
 
     # global pitch and roll prediction
     glob_rot = pred_global_euler
@@ -179,12 +186,12 @@ def no_movement_sample_data():
 
     return imu_meas, nn_meas, nn_covar, prev_state, prev_covar, gyro_bias_covar, acc_bias_covar, gyro_covar, acc_covar
 
-def test_ekf_update():
+def ekf_update():
     imu_meas, nn_meas, nn_covar, prev_state, prev_covar, gyro_bias_covar, acc_bias_covar, gyro_covar, acc_covar = no_movement_sample_data()
     ekf.full_ekf_layer(imu_meas, nn_meas, nn_covar, prev_state, prev_covar, gyro_bias_covar, acc_bias_covar, gyro_covar, acc_covar)
     return True
 
-def test_pred_jacobians():
+def pred_jacobians():
     x_prev = np.zeros([17], dtype=np.float32)
     x_prev[3] = 2.0
 
@@ -208,31 +215,36 @@ def test_pred_jacobians():
     # Prepare the constant part of Fk
     fkstat = np.concatenate((diRo, dbacc, diRim1, dbgy), axis=0)
 
-    pred_rot_euler = imu_meas[0:3] - dt * x_prev[14:17]
+    pred_rot_euler = dt * imu_meas[0:3] - dt * x_prev[14:17]
     pred_rot = euler2rot(pred_rot_euler)
 
-    pred_global_euler = imu_meas[1:3] - dt * x_prev[15:17] + x_prev[6:8]
+    pred_global_euler = dt * imu_meas[1:3] - dt * x_prev[15:17] + x_prev[6:8]
     pred_global_rot = euler2rot2param(pred_global_euler)
 
     g = -9.80665
 
     dRglobal_dE = np.concatenate((np.zeros([3, 1], dtype=np.float32), getLittleJacobian(pred_global_euler)), axis=-1)
 
+    # pos = dt * np.dot(pred_rot, x[3:6]) + (0.5 * dt * dt) * (
+    #             np.dot(pred_global_rot, gfull) + imu_meas[3:6] + 2 * np.cross(imu_meas[0:3] - x[14:17], x[3:6]) - x[8:11])
+
     dpi = np.concatenate((np.zeros([3, 3], dtype=np.float32),
-                               dt * pred_rot,
+                               dt * pred_rot + dt * dt * skew(imu_meas[0:3] - x_prev[14:17]),
                                0.5 * dt * dt * g * getLittleJacobian(pred_global_euler),
                                -0.5 * dt * dt * np.eye(3, dtype=np.float32),
                                np.zeros([3, 3], dtype=np.float32),
                                -dt * getJacobian(pred_rot_euler, dt * x_prev[3:6]) -
-                               g * 0.5 * dt * dt * dt * dRglobal_dE), axis=-1)
+                               g * 0.5 * dt * dt * dt * dRglobal_dE +
+                               dt*dt*skew(x_prev[3:6])), axis=-1)
 
     dvi = np.concatenate([tf.zeros([3, 3]),
-                               pred_rot,
+                               pred_rot + 2 * dt * skew(imu_meas[0:3] - x_prev[14:17]),
                                dt * g * getLittleJacobian(pred_global_euler),
                                -dt * np.eye(3, dtype=np.float32),
                                np.zeros([3, 3], dtype=np.float32),
                                -dt * getJacobian(pred_rot_euler, x_prev[3:6]) + \
-                               -g * dt * dt * dRglobal_dE], axis=-1)
+                               -g * dt * dt * dRglobal_dE +
+                               2 * dt * skew(x_prev[3:6])], axis=-1)
 
     Janalytical = np.concatenate((dpi, dvi, fkstat), axis=0)
 
@@ -240,7 +252,7 @@ def test_pred_jacobians():
 
     return np.linalg.norm(error)
 
-def test_noise_jacobians():
+def noise_jacobians():
     x_prev = np.zeros([17], dtype=np.float32)
     x_prev[3] = 2.0
 
@@ -250,22 +262,26 @@ def test_noise_jacobians():
 
     Jnumerical = nd.Jacobian(func)(eta)
 
-    pred_rot_euler = imu_meas[0:3] - dt * x_prev[14:17] - dt * eta[0:3]
+    pred_rot_euler = dt * imu_meas[0:3] - dt * x_prev[14:17] - dt * eta[0:3]
     pred_rot = euler2rot(pred_rot_euler)
 
-    pred_global_euler = imu_meas[1:3] - dt * x_prev[15:17] - dt * eta[1:3] + x_prev[6:8]
+    pred_global_euler = dt * imu_meas[1:3] - dt * x_prev[15:17] - dt * eta[1:3] + x_prev[6:8]
     pred_global_rot = euler2rot2param(pred_global_euler)
 
     reuse = np.concatenate((np.zeros([3, 1], dtype=np.float32), getLittleJacobian(pred_global_euler)), axis=-1)
 
-    dpi = np.concatenate((dt * getJacobian(pred_rot_euler, x_prev[3:6]) * -dt
-                          + (0.5 * dt * dt) * (-dt * g * reuse),
+    # pos = np.dot(pred_rot, dt * x[3:6]) + (0.5 * dt * dt) * (
+    #             np.dot(pred_global_rot, gfull) + imu_meas[3:6] + 2 * np.cross(imu_meas[0:3] - x[14:17] - n[0:3], x[3:6]) - x[8:11] - n[3:6])
+
+    dpi = np.concatenate((getJacobian(pred_rot_euler, dt * x_prev[3:6]) * -dt
+                          + (0.5 * dt * dt) * (-dt * g * reuse)
+                          + dt * dt * skew(x_prev[3:6]),
                           (-0.5 * dt * dt * np.eye(3, dtype=np.float32)),
                           np.zeros([3, 3], dtype=np.float32),
                           np.zeros([3, 3], dtype=np.float32)), axis=-1)
 
     dvi = np.concatenate((getJacobian(pred_rot_euler, x_prev[3:6]) * -dt
-                          + dt * (-dt * g * reuse),
+                          + dt * (-dt * g * reuse) + 2 * dt * skew(x_prev[3:6]),
                           (-dt * np.eye(3, dtype=np.float32)),
                           np.zeros([3, 3], dtype=np.float32),
                           np.zeros([3, 3], dtype=np.float32)), axis=-1)
@@ -287,12 +303,18 @@ def test_noise_jacobians():
 
     Janalytical = np.concatenate((dpi, dvi, drotglobal, daccbias, drotrel, dgyrobias), axis=0)
 
+    squared = np.dot(Janalytical, np.transpose(Janalytical))
+
     error = Janalytical - Jnumerical
 
     return np.linalg.norm(error)
 
 class EkfTest(unittest.TestCase):
     def test(self):
-        self.assertTrue(test_ekf_update())
-        self.assertLess(test_pred_jacobians(), 1.0e-7)
-        self.assertLess(test_noise_jacobians(), 1.0e-7)
+        self.assertTrue(ekf_update())
+
+    def test_state_jacobians(self):
+        self.assertLess(pred_jacobians(), 1.0e-7)
+
+    def test_noise_jacobians(self):
+        self.assertLess(noise_jacobians(), 1.0e-7)

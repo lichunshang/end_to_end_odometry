@@ -3,6 +3,17 @@ import math as m
 
 tfe = tf.contrib.eager
 
+# function to map tensors with inner dimension 3 to 3x3 skew symmetric matrices
+def skew(x):
+    z_el = tf.zeros([x.shape[0], 1, 1])
+    x0 = tf.expand_dims(tf.expand_dims(x[..., 0], axis=-1), axis=-1)
+    x1 = tf.expand_dims(tf.expand_dims(x[..., 1], axis=-1), axis=-1)
+    x2 = tf.expand_dims(tf.expand_dims(x[..., 2], axis=-1), axis=-1)
+    return tf.concat((
+        tf.concat((z_el, -x2, x1), axis=-1),
+        tf.concat((x2, z_el, -x0), axis=-1),
+        tf.concat((-x1, x0, z_el), axis=-1)), axis=-2)
+
 # This is a simple ekf layer to fuse angular rate measurements with the network output
 
 # The states of the EKF are:
@@ -255,21 +266,26 @@ def full_ekf_layer(imu_meas, nn_meas, nn_covar, prev_state, prev_covar, gyro_bia
 # Abstract out one iteration of the ekf
 
 def run_update(imu_meas, dt, prev_state, prev_covar, gfull, g, fkstat, Hk, lift_g_bias_covar, lift_a_bias_covar, lift_g_covar, lift_a_covar, nn_meas, nn_covar):
-    pred_rot_euler = imu_meas[..., 0:3] - dt * prev_state[..., 14:17]
+    pred_rot_euler = dt * imu_meas[..., 0:3] - dt * prev_state[..., 14:17]
     pred_rot = euler2rot(pred_rot_euler)
-    pred_global = imu_meas[..., 1:3] - dt * prev_state[..., 15:17] + prev_state[..., 6:8]
+    pred_global = dt * imu_meas[..., 1:3] - dt * prev_state[..., 15:17] + prev_state[..., 6:8]
 
     pred_global_rot = euler2rot2param(pred_global)
 
     pred_list = []
 
+    # pos = dt * np.dot(pred_rot, x[3:6]) + (0.5 * dt * dt) * (
+    #             np.dot(pred_global_rot, gfull) + imu_meas[3:6] + 2 * np.cross(imu_meas[0:3] - x[14:17], x[3:6]) - x[8:11])
+
     # position prediction
     pred_list.append(
-        dt * tf.squeeze(tf.matmul(pred_rot, tf.expand_dims(prev_state[..., 3:6], axis=-1))) + (0.5 * dt * dt) * \
-        (tf.squeeze(tf.matmul(pred_global_rot, gfull)) + imu_meas[:, 3:6] - prev_state[..., 8:11]))
+        tf.squeeze(tf.matmul(pred_rot, dt * tf.expand_dims(prev_state[..., 3:6], axis=-1))) + (0.5 * dt * dt) * \
+        (tf.squeeze(tf.matmul(pred_global_rot, gfull)) + imu_meas[:, 3:6] +
+         2 * tf.cross(imu_meas[:, 0:3] - prev_state[..., 14:17], prev_state[..., 3:6]) - prev_state[..., 8:11]))
     # velocity prediction
     pred_list.append(tf.squeeze(tf.matmul(pred_rot, tf.expand_dims(prev_state[..., 3:6], axis=-1))) + dt * \
-                     (tf.squeeze(tf.matmul(pred_global_rot, gfull)) + imu_meas[:, 3:6] - prev_state[..., 8:11]))
+                     (tf.squeeze(tf.matmul(pred_global_rot, gfull)) + imu_meas[:, 3:6] +
+                     2 * tf.cross(imu_meas[:, 0:3] - prev_state[..., 14:17], prev_state[..., 3:6]) - prev_state[..., 8:11]))
 
     # global pitch and roll prediction
     pred_list.append(pred_global)
@@ -291,19 +307,21 @@ def run_update(imu_meas, dt, prev_state, prev_covar, gfull, g, fkstat, Hk, lift_
                             axis=-1)
 
     Fk = tf.concat([tf.concat([tf.zeros([imu_meas.shape[0], 3, 3]),
-                               dt * pred_rot,
+                               dt * pred_rot + dt * dt * skew(imu_meas[:, 0:3] - prev_state[..., 14:17]),
                                0.5 * dt * dt * g * getLittleJacobian(pred_global),
                                -0.5 * dt * dt * tf.eye(3, batch_shape=[imu_meas.shape[0]], dtype=tf.float32),
                                tf.zeros([imu_meas.shape[0], 3, 3]),
                                -dt * getJacobian(pred_rot_euler, dt * prev_state[..., 3:6]) -
-                               g * 0.5 * dt * dt * dt * dRglobal_dE], axis=-1),
+                               g * 0.5 * dt * dt * dt * dRglobal_dE +
+                               dt*dt*skew(prev_state[..., 3:6])], axis=-1),
                     tf.concat([tf.zeros([imu_meas.shape[0], 3, 3]),
-                               pred_rot,
+                               pred_rot + 2 * dt * skew(imu_meas[:, 0:3] - prev_state[..., 14:17]),
                                dt * g * getLittleJacobian(pred_global),
                                -dt * tf.eye(3, batch_shape=[imu_meas.shape[0]], dtype=tf.float32),
                                tf.zeros([imu_meas.shape[0], 3, 3]),
                                -dt * getJacobian(pred_rot_euler, prev_state[..., 3:6]) + \
-                               -g * dt * dt * dRglobal_dE], axis=-1)
+                               -g * dt * dt * dRglobal_dE +
+                               2 * dt * skew(prev_state[..., 3:6])], axis=-1)
                     ], axis=1)
 
     Fkfull = tf.concat([Fk, fkstat], axis=1)
@@ -317,14 +335,15 @@ def run_update(imu_meas, dt, prev_state, prev_covar, gfull, g, fkstat, Hk, lift_
 
     reuse = tf.concat((tf.zeros([imu_meas.shape[0], 3, 1], dtype=tf.float32), getLittleJacobian(pred_global)), axis=-1)
 
-    dpi = tf.concat((dt * getJacobian(pred_rot_euler, prev_state[..., 3:6]) * -dt
-                          + (0.5 * dt * dt) * (-dt * g * reuse),
+    dpi = tf.concat((getJacobian(pred_rot_euler, dt * prev_state[..., 3:6]) * -dt
+                          + (0.5 * dt * dt) * (-dt * g * reuse)
+                          + dt * dt * skew(prev_state[..., 3:6]),
                           (-0.5 * dt * dt) * tf.eye(3, batch_shape=[imu_meas.shape[0]], dtype=tf.float32),
                           tf.zeros([imu_meas.shape[0], 3, 3], dtype=tf.float32),
                           tf.zeros([imu_meas.shape[0], 3, 3], dtype=tf.float32)), axis=-1)
 
     dvi = tf.concat((getJacobian(pred_rot_euler, prev_state[..., 3:6]) * -dt
-                          + dt * (-dt * g * reuse),
+                          + dt * (-dt * g * reuse) + 2 * dt * skew(prev_state[..., 3:6]),
                           (-dt * tf.eye(3, batch_shape=[imu_meas.shape[0]], dtype=tf.float32)),
                           tf.zeros([imu_meas.shape[0], 3, 3], dtype=tf.float32),
                           tf.zeros([imu_meas.shape[0], 3, 3], dtype=tf.float32)), axis=-1)
@@ -348,12 +367,22 @@ def run_update(imu_meas, dt, prev_state, prev_covar, gfull, g, fkstat, Hk, lift_
     J_noise = tf.concat((dpi, dvi, drotglobal, daccbias, drotrel, dgyrobias), axis=-2)
 
     # Assemble global covariance matrix
-    Qk = tf.matmul(J_noise, tf.matmul(noise_covar, J_noise, transpose_b=True))
+    Qk = tf.matmul(J_noise, tf.matmul(noise_covar, J_noise, transpose_b=True)) + 1.0e-4 * tf.eye(17, batch_shape=[imu_meas.shape[0]], dtype=tf.float32)
+
+    tf.assert_positive(tf.matrix_determinant(Qk), [Qk, J_noise, noise_covar])
 
     pred_covar = tf.matmul(Fkfull, tf.matmul(prev_covar, Fkfull, transpose_b=True)) + Qk
 
+    tf.assert_positive(tf.matrix_determinant(pred_covar), [Fkfull])
+
     yk = tf.expand_dims(nn_meas, axis=-1) - tf.matmul(Hk, tf.expand_dims(pred_state, axis=-1))
+
+    tf.assert_positive(tf.matrix_determinant(nn_covar), [nn_covar])
+
     Sk = tf.matmul(Hk, tf.matmul(pred_covar, Hk, transpose_b=True)) + nn_covar
+
+    tf.assert_positive(tf.matrix_determinant(Sk), [Sk])
+
     Kk = tf.matmul(pred_covar, tf.matmul(Hk, tf.matrix_inverse(Sk), transpose_a=True))
 
     return tf.squeeze(tf.expand_dims(pred_state, axis=-1) + tf.matmul(Kk, yk), axis=2), pred_covar - tf.matmul(Kk, tf.matmul(Hk, pred_covar))
