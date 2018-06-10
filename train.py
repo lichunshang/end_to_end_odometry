@@ -1,6 +1,8 @@
 import tools
 import data_roller
 import tensorflow as tf
+import tensorflow.contrib.eager as tfe
+from tensorflow.python import debug as tf_debug
 import model
 import losses
 import os
@@ -245,6 +247,8 @@ class Train(object):
     # validation loss
     def __run_val_loss(self, i_epoch, alpha_set):
         curr_lstm_states = np.zeros([2, self.cfg.lstm_layers, self.cfg.batch_size, self.cfg.lstm_size])
+        curr_ekf_state = np.zeros([self.cfg.batch_size, 17])
+        curr_ekf_cov_state = np.repeat(np.expand_dims(np.identity(17, dtype=np.float32), axis=0), repeats=self.cfg.batch_size, axis=0)
 
         self.val_data_gen.next_epoch(randomize=False)
 
@@ -256,28 +260,35 @@ class Train(object):
             j_batch = self.val_data_gen.curr_batch()
 
             # never resets state, there will only be one sequence in validation
-            _, _, batch_data, fc_ground_truth, se3_ground_truth = self.val_data_gen.next_batch()
+            batch_id, curr_seq, batch_data, fc_ground_truth, se3_ground_truth, imu_measurements = self.val_data_gen.next_batch()
 
             init_poses = se3_ground_truth[0, :, :]
-            _curr_lstm_states, _summary, _total_losses, _se3_losses = self.tf_session.run(
-                    [self.t_lstm_states, self.op_val_merged_summary, self.t_total_loss, self.t_se3_loss],
+
+            _curr_lstm_states, _curr_ekf_states, _curr_ekf_covar, _summary, _total_losses, _se3_losses = \
+                self.tf_session.run(
+                    [self.t_lstm_states, self.t_ekf_states, self.t_ekf_covar_states,
+                     self.op_val_merged_summary, self.t_total_loss, self.t_se3_loss],
                     feed_dict={
                         self.t_inputs: batch_data,
                         self.t_se3_labels: se3_ground_truth[1:, :, :],
                         self.t_fc_labels: fc_ground_truth,
                         self.t_lstm_initial_state: curr_lstm_states,
                         self.t_initial_poses: init_poses,
+                        self.t_alpha: alpha_set,
                         self.t_is_training: False,
                         self.t_use_initializer: use_init_val,
-                        self.t_alpha: alpha_set
+                        self.t_ekf_initial_state: curr_ekf_state,
+                        self.t_ekf_initial_covariance: curr_ekf_cov_state,
+                        self.t_imu_data: imu_measurements
                     },
                     options=self.tf_run_options,
-                    run_metadata=self.tf_run_metadata
-            )
+                    run_metadata=self.tf_run_metadata)
 
             use_init_val = False
 
             curr_lstm_states = np.stack(_curr_lstm_states, 0)
+            curr_ekf_state = _curr_ekf_states
+            curr_ekf_cov_state = _curr_ekf_covar
             self.tf_tb_writer.add_summary(_summary, i_epoch * self.val_data_gen.total_batches() + j_batch)
             val_se3_losses_log[j_batch] = _se3_losses
 
@@ -291,7 +302,7 @@ class Train(object):
 
     def __run_train(self):
         sess_config = tf.ConfigProto(allow_soft_placement=True)
-        with tf.Session(config=sess_config) as self.tf_session:
+        with tf_debug.LocalCLIDebugWrapperSession(tf.Session(config=sess_config)) as self.tf_session:
             self.tf_session.run(tf.global_variables_initializer())
             if self.restore_file:
                 tools.printf("Restoring model weights from %s..." % self.restore_file)

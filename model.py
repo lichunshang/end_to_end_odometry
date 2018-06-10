@@ -7,6 +7,7 @@ import numpy as np
 import native_lstm
 import ekf
 
+tfe = tf.contrib.eager
 
 # CNN Block
 # is_training to control whether to apply dropout
@@ -334,10 +335,10 @@ def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ek
     nn_covar = tf.stack(stack1, axis=0)
 
     with tf.variable_scope("imu_noise_params", reuse=tf.AUTO_REUSE):
-        gyro_bias_diag = tf.Variable(tf.random_normal([3], stddev=0.1), name="gyro_bias_sqrt")
-        acc_bias_diag = tf.Variable(tf.random_normal([3], stddev=0.1), name="acc_bias_sqrt")
-        gyro_covar_diag = tf.Variable(tf.random_normal([3], stddev=1), name="gyro_sqrt")
-        acc_covar_diag = tf.Variable(tf.random_normal([3], stddev=1), name="acc_sqrt")
+        gyro_bias_diag = tf.Variable(tf.random_normal([3], stddev=0.1), name="gyro_bias_sqrt", trainable=False)
+        acc_bias_diag = tfe.Variable(tf.random_normal([3], stddev=0.1), name="acc_bias_sqrt", trainable=False)
+        gyro_covar_diag = tfe.Variable(tf.random_normal([3], stddev=1), name="gyro_sqrt", trainable=False)
+        acc_covar_diag = tfe.Variable(tf.random_normal([3], stddev=1), name="acc_sqrt", trainable=False)
 
     gyro_bias_covar = tf.diag(tf.square(gyro_bias_diag))
     acc_bias_covar = tf.diag(tf.square(acc_bias_diag))

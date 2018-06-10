@@ -40,15 +40,17 @@ class SeqTrainLidarConfig(Configs):
     sequence_stride = 2
     timesteps = 2
     init_length = 1
-    batch_size = 2
+    batch_size = 10
 
     input_width = 1152
     input_height = 64
     input_channels = 2
 
-    bidir_aug = True
+    eager = True
 
-    use_init = True
+    bidir_aug = False
+
+    use_init = False
 
     only_train_init = False  # only used when use init is True
     dont_restore_init = False  # only used when use init is True

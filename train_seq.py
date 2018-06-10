@@ -1,8 +1,11 @@
-import train
+from __future__ import absolute_import, division, print_function
 import config
 
+cfg = config.SeqTrainLidarConfig
+import train
+
 trainer = train.Train(num_gpu=1,
-                      cfg=config.SeqTrainLidarConfig,
+                      cfg=cfg,
                       #train_sequences=["00", "01", "02", "08", "09"],
                       train_sequences=["04"],
                       val_sequence="05",

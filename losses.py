@@ -76,10 +76,10 @@ def fc_losses(outputs, output_covar, labels_u, k):
         Q = output_covar
 
         # determinant of a diagonal matrix is product of it diagonal
-        log_det_Q = tf.log(tf.matrix_determinant(Q) + 1e-6)
+        log_det_Q = tf.log(tf.matrix_determinant(Q) + 1e-5)
 
         # inverse of a diagonal matrix is elemental inverse
-        inv_Q = tf.matrix_inverse(Q + 1e-6)
+        inv_Q = tf.matrix_inverse(Q + 1e-5)
 
         # sum of determinants along the time
         sum_det_Q = tf.reduce_sum(log_det_Q, axis=0)
