@@ -367,7 +367,7 @@ def run_update(imu_meas, dt, prev_state, prev_covar, gfull, g, fkstat, Hk, lift_
     J_noise = tf.concat((dpi, dvi, drotglobal, daccbias, drotrel, dgyrobias), axis=-2)
 
     # Assemble global covariance matrix
-    Qk = tf.matmul(J_noise, tf.matmul(noise_covar, J_noise, transpose_b=True)) + 1.0e-4 * tf.eye(17, batch_shape=[imu_meas.shape[0]], dtype=tf.float32)
+    Qk = tf.matmul(J_noise, tf.matmul(noise_covar, J_noise, transpose_b=True)) + 1.0 * tf.eye(17, batch_shape=[imu_meas.shape[0]], dtype=tf.float32)
 
     tf.assert_positive(tf.matrix_determinant(Qk), [Qk, J_noise, noise_covar])
 
@@ -379,7 +379,7 @@ def run_update(imu_meas, dt, prev_state, prev_covar, gfull, g, fkstat, Hk, lift_
 
     tf.assert_positive(tf.matrix_determinant(nn_covar), [nn_covar])
 
-    Sk = tf.matmul(Hk, tf.matmul(pred_covar, Hk, transpose_b=True)) + nn_covar
+    Sk = tf.matmul(Hk, tf.matmul(pred_covar, Hk, transpose_b=True)) + nn_covar + 1.0 * tf.eye(6, batch_shape=[imu_meas.shape[0]], dtype=tf.float32)
 
     tf.assert_positive(tf.matrix_determinant(Sk), [Sk])
 
