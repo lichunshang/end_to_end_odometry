@@ -392,6 +392,6 @@ def run_update(imu_meas, dt, prev_state, prev_covar, gfull, g, fkstat, Hk, lift_
 
     covar = pred_covar - tf.matmul(Kk, tf.matmul(Hk, pred_covar))
 
-    tf.assert_positive(tf.matrix_determinant(pred_covar), [imu_meas, prev_state, prev_covar, nn_meas, nn_covar])
+    tf.assert_positive(tf.matrix_determinant(covar), [imu_meas, prev_state, prev_covar, nn_meas, nn_covar])
 
     return X, covar
