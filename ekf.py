@@ -390,7 +390,7 @@ def run_update(imu_meas, dt, prev_state, prev_covar, gfull, g, fkstat, Hk, lift_
 
     X = tf.squeeze(tf.expand_dims(pred_state, axis=-1) + tf.matmul(Kk, yk), axis=2)
 
-    covar = pred_covar - tf.matmul(Kk, tf.matmul(Hk, pred_covar))
+    covar = pred_covar - tf.matmul(Kk, tf.matmul(Hk, pred_covar), name="ekf_matmul")
 
     tf.assert_positive(tf.matrix_determinant(pred_covar), [imu_meas, prev_state, prev_covar, nn_meas, nn_covar])
 
