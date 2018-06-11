@@ -382,7 +382,7 @@ def run_update(imu_meas, dt, prev_state, prev_covar, gfull, g, fkstat, Hk, lift_
 
     tf.assert_positive(tf.matrix_determinant(nn_covar), [nn_covar])
 
-    Sk = tf.matmul(Hk, tf.matmul(pred_covar, Hk, transpose_b=True)) + nn_covar
+    Sk = tf.matmul(Hk, tf.matmul(pred_covar, Hk, transpose_b=True)) + nn_covar + 1.0 * tf.eye(6, batch_shape=[imu_meas.shape[0]], dtype=tf.float32)
 
     tf.assert_positive(tf.matrix_determinant(Sk), [Sk])
 
