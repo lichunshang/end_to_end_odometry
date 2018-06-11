@@ -350,24 +350,27 @@ def run_update(imu_meas, dt, prev_state, prev_covar, gfull, g, fkstat, Hk, lift_
 
     drotglobal = tf.tile(tf.expand_dims(
         tfe.Variable([[0, -dt, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                   [0, 0, -dt, 0, 0, 0, 0, 0, 0, 0, 0, 0]], dtype=tf.float32, trainable=False), axis=0), [imu_meas.shape[0], 1, 1])
+                      [0, 0, -dt, 0, 0, 0, 0, 0, 0, 0, 0, 0]], dtype=tf.float32, trainable=False), axis=0), [imu_meas.shape[0], 1, 1])
 
-    daccbias = tf.tile(tf.expand_dims(tfe.Variable([[0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
+    daccbias = tf.tile(tf.expand_dims(tfe.Variable([
+                         [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
                          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
                          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]], dtype=tf.float32, trainable=False), axis=0), [imu_meas.shape[0], 1, 1])
 
-    drotrel = tf.tile(tf.expand_dims(tfe.Variable([[-dt, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    drotrel = tf.tile(tf.expand_dims(tfe.Variable([
+                        [-dt, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                         [0, -dt, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                         [0, 0, -dt, 0, 0, 0, 0, 0, 0, 0, 0, 0]], dtype=tf.float32, trainable=False), axis=0), [imu_meas.shape[0], 1, 1])
 
-    dgyrobias = tf.tile(tf.expand_dims(tfe.Variable([[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+    dgyrobias = tf.tile(tf.expand_dims(tfe.Variable([
+                          [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
                           [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],
                           [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0]], dtype=tf.float32, trainable=False), axis=0), [imu_meas.shape[0], 1, 1])
 
     J_noise = tf.concat((dpi, dvi, drotglobal, daccbias, drotrel, dgyrobias), axis=-2)
 
     # Assemble global covariance matrix
-    Qk = tf.matmul(J_noise, tf.matmul(noise_covar, J_noise, transpose_b=True)) + 1.0e-4 * tf.eye(17, batch_shape=[imu_meas.shape[0]], dtype=tf.float32)
+    Qk = tf.matmul(J_noise, tf.matmul(noise_covar, J_noise, transpose_b=True)) + 1.0e-2 * tf.eye(17, batch_shape=[imu_meas.shape[0]], dtype=tf.float32)
 
     tf.assert_positive(tf.matrix_determinant(Qk), [Qk, J_noise, noise_covar])
 
@@ -385,4 +388,10 @@ def run_update(imu_meas, dt, prev_state, prev_covar, gfull, g, fkstat, Hk, lift_
 
     Kk = tf.matmul(pred_covar, tf.matmul(Hk, tf.matrix_inverse(Sk), transpose_a=True))
 
-    return tf.squeeze(tf.expand_dims(pred_state, axis=-1) + tf.matmul(Kk, yk), axis=2), pred_covar - tf.matmul(Kk, tf.matmul(Hk, pred_covar))
+    X = tf.squeeze(tf.expand_dims(pred_state, axis=-1) + tf.matmul(Kk, yk), axis=2)
+
+    covar = pred_covar - tf.matmul(Kk, tf.matmul(Hk, pred_covar))
+
+    tf.assert_positive(tf.matrix_determinant(pred_covar), [imu_meas, prev_state, prev_covar, nn_meas, nn_covar])
+
+    return X, covar
