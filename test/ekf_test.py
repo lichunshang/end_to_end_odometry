@@ -225,9 +225,6 @@ def pred_jacobians():
 
     dRglobal_dE = np.concatenate((np.zeros([3, 1], dtype=np.float32), getLittleJacobian(pred_global_euler)), axis=-1)
 
-    # pos = dt * np.dot(pred_rot, x[3:6]) + (0.5 * dt * dt) * (
-    #             np.dot(pred_global_rot, gfull) + imu_meas[3:6] + 2 * np.cross(imu_meas[0:3] - x[14:17], x[3:6]) - x[8:11])
-
     dpi = np.concatenate((np.zeros([3, 3], dtype=np.float32),
                                dt * pred_rot + dt * dt * skew(imu_meas[0:3] - x_prev[14:17]),
                                0.5 * dt * dt * g * getLittleJacobian(pred_global_euler),
@@ -269,9 +266,6 @@ def noise_jacobians():
     pred_global_rot = euler2rot2param(pred_global_euler)
 
     reuse = np.concatenate((np.zeros([3, 1], dtype=np.float32), getLittleJacobian(pred_global_euler)), axis=-1)
-
-    # pos = np.dot(pred_rot, dt * x[3:6]) + (0.5 * dt * dt) * (
-    #             np.dot(pred_global_rot, gfull) + imu_meas[3:6] + 2 * np.cross(imu_meas[0:3] - x[14:17] - n[0:3], x[3:6]) - x[8:11] - n[3:6])
 
     dpi = np.concatenate((getJacobian(pred_rot_euler, dt * x_prev[3:6]) * -dt
                           + (0.5 * dt * dt) * (-dt * g * reuse)
