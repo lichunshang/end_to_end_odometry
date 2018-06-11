@@ -89,7 +89,7 @@ def fc_losses(outputs, output_covar, labels_u, k):
         diff_u_scaled = tf.concat([diff_u[..., 0:3], ksq * diff_u[..., 3:6]], axis=-1)
 
         # sum of diff_u' * inv_Q * diff_u
-        s = tf.reduce_sum(tf.squeeze(tf.matmul(tf.expand_dims(diff_u_scaled, axis=-1), tf.matmul(inv_Q, tf.expand_dims(diff_u_scaled, axis=-1)), transpose_a=True)), axis=0)
+        s = tf.reduce_sum(tf.squeeze(tf.matmul(tf.expand_dims(diff_u_scaled, axis=-1), tf.matmul(inv_Q, tf.expand_dims(diff_u_scaled, axis=-1)), transpose_a=True), axis=-1), axis=0)
 
         t = tf.cast(tf.shape(outputs)[0], tf.float32)
 
