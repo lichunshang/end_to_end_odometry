@@ -385,7 +385,7 @@ def run_update(imu_meas, dt, prev_state, prev_covar, gfull, g, fkstat, Hk, lift_
 
     tf.assert_positive(tf.matrix_determinant(pred_covar), [Fkfull])
 
-    yk = tf.expand_dims(nn_meas_debug, axis=-1) - tf.matmul(Hk, tf.expand_dims(pred_state, axis=-1), name="ekf_error")
+    yk = tf.subtract(tf.expand_dims(nn_meas_debug, axis=-1), tf.matmul(Hk, tf.expand_dims(pred_state, axis=-1)), name="ekf_error")
 
     tf.assert_positive(tf.matrix_determinant(nn_covar_debug), [nn_covar])
 
