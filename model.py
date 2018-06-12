@@ -305,7 +305,7 @@ def seq_model_inputs(cfg):
     return inputs, lstm_initial_state, initial_poses, imu_data, ekf_initial_state, ekf_initial_covariance, is_training, use_initializer
 
 def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ekf_initial_state, ekf_initial_covariance,
-                    is_training, get_activations=False, use_initializer=False):
+                    is_training, get_activations=False, use_initializer=False, use_ekf=False):
     print("Building CNN...")
     cnn_outputs = cnn_layer(inputs, cnn_model_lidar, is_training, get_activations)
 
@@ -323,37 +323,48 @@ def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ek
     print("Building FC...")
     fc_outputs = fc_layer(lstm_outputs, fc_model)
 
-    print("Building EKF...")
-    # at this point the outputs from the fully connected layer are  [x, y, z, yaw, pitch, roll, 6 x covars]
     stack1 = []
     for i in range(fc_outputs.shape[0]):
         stack2 = []
         for j in range(fc_outputs.shape[1]):
-            stack2.append(tf.diag(fc_outputs[i, j, 6:]))
+            stack2.append(tf.diag(tf.square(fc_outputs[i, j, 6:])))
         stack1.append(tf.stack(stack2, axis=0))
 
     nn_covar = tf.stack(stack1, axis=0)
 
-    with tf.variable_scope("imu_noise_params", reuse=tf.AUTO_REUSE):
-        gyro_bias_diag = tf.Variable(tf.random_normal([3], stddev=0.1), name="gyro_bias_sqrt", trainable=False)
-        acc_bias_diag = tfe.Variable(tf.random_normal([3], stddev=0.1), name="acc_bias_sqrt", trainable=False)
-        gyro_covar_diag = tfe.Variable(tf.random_normal([3], stddev=1), name="gyro_sqrt", trainable=False)
-        acc_covar_diag = tfe.Variable(tf.random_normal([3], stddev=1), name="acc_sqrt", trainable=False)
+    if use_ekf:
+        print("Building EKF...")
+        # at this point the outputs from the fully connected layer are  [x, y, z, yaw, pitch, roll, 6 x covars]
 
-    gyro_bias_covar = tf.diag(tf.square(gyro_bias_diag))
-    acc_bias_covar = tf.diag(tf.square(acc_bias_diag))
-    gyro_covar = tf.diag(tf.square(gyro_covar_diag))
-    acc_covar = tf.diag(tf.square(acc_covar_diag))
+        with tf.variable_scope("imu_noise_params", reuse=tf.AUTO_REUSE):
+            gyro_bias_diag = tf.Variable(tf.random_normal([3], stddev=0.1), name="gyro_bias_sqrt", trainable=False)
+            acc_bias_diag = tfe.Variable(tf.random_normal([3], stddev=0.1), name="acc_bias_sqrt", trainable=False)
+            gyro_covar_diag = tfe.Variable(tf.random_normal([3], stddev=1), name="gyro_sqrt", trainable=False)
+            acc_covar_diag = tfe.Variable(tf.random_normal([3], stddev=1), name="acc_sqrt", trainable=False)
 
-    ekf_out_states, ekf_out_covar = ekf.full_ekf_layer(imu_data, fc_outputs[..., 0:6], nn_covar, feed_ekf_init_state, feed_ekf_init_covar,
-                                     gyro_bias_covar, acc_bias_covar, gyro_covar, acc_covar)
+        gyro_bias_covar = tf.diag(tf.square(gyro_bias_diag))
+        acc_bias_covar = tf.diag(tf.square(acc_bias_diag))
+        gyro_covar = tf.diag(tf.square(gyro_covar_diag))
+        acc_covar = tf.diag(tf.square(acc_covar_diag))
+
+        ekf_out_states, ekf_out_covar = ekf.full_ekf_layer(imu_data, fc_outputs[..., 0:6], nn_covar,
+                                                           feed_ekf_init_state, feed_ekf_init_covar,
+                                                           gyro_bias_covar, acc_bias_covar, gyro_covar, acc_covar)
+
+        rel_disp = tf.concat([ekf_out_states[1:, :, 0:3], ekf_out_states[1:, :, 11:14]], axis=-1)
+        rel_covar = tf.concat([tf.concat([ekf_out_covar[1:, :, 0:3, 0:3], ekf_out_covar[1:, :, 0:3, 11:14]], axis=-1),
+                          tf.concat([ekf_out_covar[1:, :, 11:14, 0:3], ekf_out_covar[1:, :, 11:14, 11:14]], axis=-1)], axis=-2)
+    else:
+        rel_disp = fc_outputs[..., 6]
+        rel_covar = nn_covar
+
+        ekf_out_states = tf.zeros([fc_outputs.shape[0], fc_outputs.shape[1], 17], dtype=tf.float32)
+        ekf_out_covar = tf.eye(17, batch_shape=[fc_outputs.shape[0], fc_outputs.shape[1]], dtype=tf.float32)
+
 
     print("Building SE3...")
-    # at this point the outputs from the ekf are the full states with covariance, need to only select the part the
+    # at this point the outputs are the relative states with covariance, need to only select the part the
     # loss cares about
-    rel_disp = tf.concat([ekf_out_states[1:, :, 0:3], ekf_out_states[1:, :, 11:14]], axis=-1)
-    rel_covar = tf.concat([tf.concat([ekf_out_covar[1:, :, 0:3, 0:3], ekf_out_covar[1:, :, 0:3, 11:14]], axis=-1),
-                          tf.concat([ekf_out_covar[1:, :, 11:14, 0:3], ekf_out_covar[1:, :, 11:14, 11:14]], axis=-1)], axis=-2)
 
     se3_outputs = se3_layer(rel_disp, initial_poses)
 

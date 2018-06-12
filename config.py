@@ -51,6 +51,7 @@ class SeqTrainLidarConfig(Configs):
     bidir_aug = False
 
     use_init = False
+    use_ekf = False
 
     only_train_init = False  # only used when use init is True
     dont_restore_init = True  # only used when use init is True

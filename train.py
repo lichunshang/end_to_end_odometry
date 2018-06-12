@@ -169,7 +169,8 @@ class Train(object):
                 fc_outputs, fc_covar, se3_outputs, lstm_states, ekf_states, ekf_covar_states = \
                     model.build_seq_model(self.cfg, ts_inputs[i], ts_lstm_initial_state[i], ts_initial_poses[i],
                                           ts_imu_data[i], ts_ekf_initial_state[i], ts_ekf_initial_covar[i],
-                                          self.t_is_training, get_activations=True, use_initializer=self.t_use_initializer)
+                                          self.t_is_training, get_activations=True, use_initializer=self.t_use_initializer,
+                                          use_ekf=self.cfg.use_ekf)
 
                 # this returns lstm states as a tuple, we need to stack them
                 lstm_states = tf.stack(lstm_states, 0)
