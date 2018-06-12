@@ -300,7 +300,7 @@ def run_update(imu_meas, dt, prev_state, prev_covar, gfull, g, fkstat, Hk, lift_
     pred_list.append(prev_state[..., 14:17])
 
     # pack state
-    pred_state = tf.concat(pred_list, axis=1)
+    pred_state = tf.concat(pred_list, axis=1, name="ekf_pred_state")
 
     # build Jacobian
     dRglobal_dE = tf.concat([tf.zeros([imu_meas.shape[0], 3, 1], dtype=tf.float32), getLittleJacobian(pred_global)],
@@ -370,27 +370,34 @@ def run_update(imu_meas, dt, prev_state, prev_covar, gfull, g, fkstat, Hk, lift_
     J_noise = tf.concat((dpi, dvi, drotglobal, daccbias, drotrel, dgyrobias), axis=-2)
 
     # Assemble global covariance matrix
-    Qk = tf.matmul(J_noise, tf.matmul(noise_covar, J_noise, transpose_b=True)) + 1.0e-2 * tf.eye(17, batch_shape=[imu_meas.shape[0]], dtype=tf.float32)
+    prev_covar_debug = tf.identity(prev_covar, name="ekf_prev_covar")
+    prev_state_debug = tf.identity(prev_state, name="ekf_prev_state")
+
+    imu_meas_debug = tf.identity(imu_meas, name="imu_meas")
+    nn_meas_debug = tf.identity(nn_meas, name="nn_meas")
+    nn_covar_debug = tf.identity(nn_covar, name="nn_covar")
+
+    Qk = tf.matmul(J_noise, tf.matmul(noise_covar, J_noise, transpose_b=True), name="ekf_noise_covar")
 
     tf.assert_positive(tf.matrix_determinant(Qk), [Qk, J_noise, noise_covar])
 
-    pred_covar = tf.matmul(Fkfull, tf.matmul(prev_covar, Fkfull, transpose_b=True)) + Qk
+    pred_covar = tf.add(tf.matmul(Fkfull, tf.matmul(prev_covar_debug, Fkfull, transpose_b=True)), Qk, name="ekf_pred_covar")
 
     tf.assert_positive(tf.matrix_determinant(pred_covar), [Fkfull])
 
-    yk = tf.expand_dims(nn_meas, axis=-1) - tf.matmul(Hk, tf.expand_dims(pred_state, axis=-1))
+    yk = tf.expand_dims(nn_meas_debug, axis=-1) - tf.matmul(Hk, tf.expand_dims(pred_state, axis=-1), name="ekf_error")
 
-    tf.assert_positive(tf.matrix_determinant(nn_covar), [nn_covar])
+    tf.assert_positive(tf.matrix_determinant(nn_covar_debug), [nn_covar])
 
-    Sk = tf.matmul(Hk, tf.matmul(pred_covar, Hk, transpose_b=True)) + nn_covar + 1.0 * tf.eye(6, batch_shape=[imu_meas.shape[0]], dtype=tf.float32)
+    Sk = tf.add(tf.matmul(Hk, tf.matmul(pred_covar, Hk, transpose_b=True)), nn_covar, name="ekf_innovation_covar")
 
     tf.assert_positive(tf.matrix_determinant(Sk), [Sk])
 
-    Kk = tf.matmul(pred_covar, tf.matmul(Hk, tf.matrix_inverse(Sk), transpose_a=True))
+    Kk = tf.matmul(pred_covar, tf.matmul(Hk, tf.matrix_inverse(Sk), transpose_a=True), name="ekf_gain")
 
-    X = tf.squeeze(tf.expand_dims(pred_state, axis=-1) + tf.matmul(Kk, yk), axis=2)
+    X = tf.squeeze(tf.expand_dims(pred_state, axis=-1) + tf.matmul(Kk, yk), axis=2, name="ekf_updated_state")
 
-    covar = pred_covar - tf.matmul(Kk, tf.matmul(Hk, pred_covar), name="ekf_matmul")
+    covar = pred_covar - tf.matmul(Kk, tf.matmul(Hk, pred_covar), name="ekf_updated_covar")
 
     tf.assert_positive(tf.matrix_determinant(covar), [imu_meas, prev_state, prev_covar, nn_meas, nn_covar])
 

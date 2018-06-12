@@ -111,14 +111,14 @@ class Train(object):
     def __init_tf_savers(self):
         self.tf_saver_checkpoint = tf.train.Saver(max_to_keep=2)
         self.tf_saver_best = tf.train.Saver(max_to_keep=2)
-        if self.cfg.use_init and self.cfg.only_train_init and self.cfg.dont_restore_init:
+        if self.cfg.dont_restore_init:
             varlist = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="cnn_layer") + \
                       tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="fc_layer") + \
                       tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="rnn_layer")
-            self.tf_saver_restore = tf.train.Saver(var_list=varlist)
         else:
             varlist = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
-            self.tf_saver_restore = tf.train.Saver(var_list=varlist)
+
+        self.tf_saver_restore = tf.train.Saver(var_list=varlist)
 
     def __build_model_inputs_and_labels(self):
         self.t_inputs, self.t_lstm_initial_state, self.t_initial_poses, self.t_imu_data, self.t_ekf_initial_state, \
@@ -302,135 +302,139 @@ class Train(object):
 
     def __run_train(self):
         sess_config = tf.ConfigProto(allow_soft_placement=True)
-        with tf_debug.LocalCLIDebugWrapperSession(tf.Session(config=sess_config)) as self.tf_session:
-            self.tf_session.run(tf.global_variables_initializer())
-            if self.restore_file:
-                tools.printf("Restoring model weights from %s..." % self.restore_file)
-                self.tf_saver_restore.restore(self.tf_session, self.restore_file)
+        if self.cfg.debug:
+            self.tf_session = tf_debug.LocalCLIDebugWrapperSession(tf.Session(config=sess_config))
+        else:
+            self.tf_session = tf.Session(config=sess_config)
+            
+        self.tf_session.run(tf.global_variables_initializer())
+        if self.restore_file:
+            tools.printf("Restoring model weights from %s..." % self.restore_file)
+            self.tf_saver_restore.restore(self.tf_session, self.restore_file)
 
-            else:
-                if self.cfg.use_init and self.cfg.only_train_init:
-                    raise ValueError("Set to only train initializer, but restore file was not provided!?!?!")
-                tools.printf("Initializing variables...")
+        else:
+            if self.cfg.use_init and self.cfg.only_train_init:
+                raise ValueError("Set to only train initializer, but restore file was not provided!?!?!")
+            tools.printf("Initializing variables...")
 
-            # initialize tensorboard writer
-            self.tf_tb_writer = tf.summary.FileWriter(os.path.join(self.results_dir_path, 'graph_viz'))
-            self.tf_tb_writer.add_graph(tf.get_default_graph())
+        # initialize tensorboard writer
+        self.tf_tb_writer = tf.summary.FileWriter(os.path.join(self.results_dir_path, 'graph_viz'))
+        self.tf_tb_writer.add_graph(tf.get_default_graph())
+        self.tf_tb_writer.flush()
+
+        # initialize lstm and ekf states
+        curr_lstm_states = np.zeros([2, self.cfg.lstm_layers, self.cfg.batch_size, self.cfg.lstm_size],
+                                    dtype=np.float32)
+        curr_ekf_state = np.zeros([self.cfg.batch_size, 17], dtype=np.float32)
+        curr_ekf_cov_state = np.repeat(np.expand_dims(np.identity(17, dtype=np.float32), axis=0), repeats=self.cfg.batch_size, axis=0)
+
+        lstm_states_dic = {}
+        ekf_states_dic = {}
+        ekf_cov_states_dic = {}
+        for seq in self.train_sequences:
+            lstm_states_dic[seq] = np.zeros(
+                    [self.train_data_gen.batch_counts[seq], 2, self.cfg.lstm_layers, self.cfg.batch_size,
+                     self.cfg.lstm_size], dtype=np.float32)
+            ekf_states_dic[seq] = np.zeros([self.train_data_gen.batch_counts[seq], self.cfg.batch_size, 17], dtype=np.float32)
+            ekf_cov_states_dic[seq] = np.repeat(np.expand_dims(curr_ekf_cov_state, axis=0), self.train_data_gen.batch_counts[seq], axis=0)
+
+        _train_image_summary = None
+        total_batches = self.train_data_gen.total_batches()
+        best_val_loss = 9999999999
+        i_epoch = 0
+
+        for i_epoch in range(self.start_epoch, self.cfg.num_epochs):
+            tools.printf("Training Epoch: %d ..." % i_epoch)
+            start_time = time.time()
+
+            alpha_set = Train.__set_from_schedule(self.cfg.alpha_schedule, i_epoch)
+            lr_set = Train.__set_from_schedule(self.cfg.lr_schedule, i_epoch)
+            tools.printf("alpha set to %f" % alpha_set)
+            tools.printf("learning rate set to %f" % lr_set)
+
+            while self.train_data_gen.has_next_batch():
+                j_batch = self.train_data_gen.curr_batch()
+
+                # get inputs
+                batch_id, curr_seq, batch_data, fc_ground_truth, se3_ground_truth, imu_measurements = self.train_data_gen.next_batch()
+                data_roller.get_init_lstm_state(lstm_states_dic, curr_lstm_states, curr_seq, batch_id,
+                                                self.cfg.bidir_aug)
+
+                data_roller.get_init_ekf_states(ekf_states_dic, ekf_cov_states_dic, curr_ekf_state, curr_ekf_cov_state, curr_seq, batch_id, self.cfg.bidir_aug)
+
+                # shift se3 ground truth to be relative to the first pose
+                init_poses = se3_ground_truth[0, :, :]
+
+                nrnd = np.random.rand(1)
+                use_init_train = False
+                if j_batch == 0 or nrnd < self.cfg.init_prob:
+                    use_init_train = True
+
+                # Run training session
+                _, _curr_lstm_states, _curr_ekf_states, _curr_ekf_covar, _train_summary, _train_image_summary, _total_losses = \
+                    self.tf_session.run(
+                            [self.op_trainer, self.t_lstm_states, self.t_ekf_states, self.t_ekf_covar_states,
+                             self.op_train_merged_summary, self.op_train_image_summary,
+                             self.t_total_loss],
+                            feed_dict={
+                                self.t_inputs: batch_data,
+                                self.t_se3_labels: se3_ground_truth[1:, :, :],
+                                self.t_fc_labels: fc_ground_truth,
+                                self.t_lstm_initial_state: curr_lstm_states,
+                                self.t_initial_poses: init_poses,
+                                self.t_lr: lr_set,
+                                self.t_alpha: alpha_set,
+                                self.t_is_training: True,
+                                self.t_use_initializer: use_init_train,
+                                self.t_sequence_id: int(curr_seq),
+                                self.t_epoch: i_epoch,
+                                self.t_ekf_initial_state: curr_ekf_state,
+                                self.t_ekf_initial_covariance: curr_ekf_cov_state,
+                                self.t_imu_data: imu_measurements
+                            },
+                            options=self.tf_run_options,
+                            run_metadata=self.tf_run_metadata)
+
+                data_roller.update_lstm_state(lstm_states_dic, _curr_lstm_states, curr_seq, batch_id)
+                data_roller.update_ekf_state(ekf_states_dic, ekf_cov_states_dic, _curr_ekf_states, _curr_ekf_covar, curr_seq, batch_id)
+
+                if self.tensorboard_meta:
+                    self.tf_tb_writer.add_run_metadata(self.tf_run_metadata,
+                                                       'epochid=%d_batchid=%d' % (i_epoch, j_batch))
+                self.tf_tb_writer.add_summary(_train_summary, i_epoch * total_batches + j_batch)
+
+                # print stats
+                tools.printf("batch %d/%d: Loss:%.7f" % (j_batch + 1, total_batches, _total_losses))
+
+            self.tf_tb_writer.add_summary(_train_image_summary, (i_epoch + 1) * total_batches)
+
+            tools.printf("Evaluating validation loss...")
+            curr_val_loss = self.__run_val_loss(i_epoch, alpha_set)
+
+            # check for best results
+            if curr_val_loss < best_val_loss:
+                tools.printf("Saving best result...")
+                best_val_loss = curr_val_loss
+                self.tf_saver_best.save(self.tf_session, os.path.join(self.results_dir_path,
+                                                                      "best_val", "model_best_val_checkpoint"),
+                                        global_step=i_epoch)
+                tools.printf("Best val loss, model saved.")
+            if i_epoch % 5 == 0:
+                tools.printf("Saving checkpoint...")
+                self.tf_saver_checkpoint.save(self.tf_session,
+                                              os.path.join(self.results_dir_path, "model_epoch_checkpoint"),
+                                              global_step=i_epoch)
+                tools.printf("Checkpoint saved")
+
             self.tf_tb_writer.flush()
+            tools.printf("ave_val_loss(se3): %f, time: %f\n" % (curr_val_loss, time.time() - start_time))
 
-            # initialize lstm and ekf states
-            curr_lstm_states = np.zeros([2, self.cfg.lstm_layers, self.cfg.batch_size, self.cfg.lstm_size],
-                                        dtype=np.float32)
-            curr_ekf_state = np.zeros([self.cfg.batch_size, 17], dtype=np.float32)
-            curr_ekf_cov_state = np.repeat(np.expand_dims(np.identity(17, dtype=np.float32), axis=0), repeats=self.cfg.batch_size, axis=0)
+            self.train_data_gen.next_epoch()
 
-            lstm_states_dic = {}
-            ekf_states_dic = {}
-            ekf_cov_states_dic = {}
-            for seq in self.train_sequences:
-                lstm_states_dic[seq] = np.zeros(
-                        [self.train_data_gen.batch_counts[seq], 2, self.cfg.lstm_layers, self.cfg.batch_size,
-                         self.cfg.lstm_size], dtype=np.float32)
-                ekf_states_dic[seq] = np.zeros([self.train_data_gen.batch_counts[seq], self.cfg.batch_size, 17], dtype=np.float32)
-                ekf_cov_states_dic[seq] = np.repeat(np.expand_dims(curr_ekf_cov_state, axis=0), self.train_data_gen.batch_counts[seq], axis=0)
+        tools.printf("Final save...")
+        self.tf_saver_checkpoint.save(self.tf_session,
+                                      os.path.join(self.results_dir_path, "model_epoch_checkpoint"),
+                                      global_step=i_epoch)
+        tools.printf("Saved results to %s" % self.results_dir_path)
 
-            _train_image_summary = None
-            total_batches = self.train_data_gen.total_batches()
-            best_val_loss = 9999999999
-            i_epoch = 0
-
-            for i_epoch in range(self.start_epoch, self.cfg.num_epochs):
-                tools.printf("Training Epoch: %d ..." % i_epoch)
-                start_time = time.time()
-
-                alpha_set = Train.__set_from_schedule(self.cfg.alpha_schedule, i_epoch)
-                lr_set = Train.__set_from_schedule(self.cfg.lr_schedule, i_epoch)
-                tools.printf("alpha set to %f" % alpha_set)
-                tools.printf("learning rate set to %f" % lr_set)
-
-                while self.train_data_gen.has_next_batch():
-                    j_batch = self.train_data_gen.curr_batch()
-
-                    # get inputs
-                    batch_id, curr_seq, batch_data, fc_ground_truth, se3_ground_truth, imu_measurements = self.train_data_gen.next_batch()
-                    data_roller.get_init_lstm_state(lstm_states_dic, curr_lstm_states, curr_seq, batch_id,
-                                                    self.cfg.bidir_aug)
-
-                    data_roller.get_init_ekf_states(ekf_states_dic, ekf_cov_states_dic, curr_ekf_state, curr_ekf_cov_state, curr_seq, batch_id, self.cfg.bidir_aug)
-
-                    # shift se3 ground truth to be relative to the first pose
-                    init_poses = se3_ground_truth[0, :, :]
-
-                    nrnd = np.random.rand(1)
-                    use_init_train = False
-                    if j_batch == 0 or nrnd < self.cfg.init_prob:
-                        use_init_train = True
-
-                    # Run training session
-                    _, _curr_lstm_states, _curr_ekf_states, _curr_ekf_covar, _train_summary, _train_image_summary, _total_losses = \
-                        self.tf_session.run(
-                                [self.op_trainer, self.t_lstm_states, self.t_ekf_states, self.t_ekf_covar_states,
-                                 self.op_train_merged_summary, self.op_train_image_summary,
-                                 self.t_total_loss],
-                                feed_dict={
-                                    self.t_inputs: batch_data,
-                                    self.t_se3_labels: se3_ground_truth[1:, :, :],
-                                    self.t_fc_labels: fc_ground_truth,
-                                    self.t_lstm_initial_state: curr_lstm_states,
-                                    self.t_initial_poses: init_poses,
-                                    self.t_lr: lr_set,
-                                    self.t_alpha: alpha_set,
-                                    self.t_is_training: True,
-                                    self.t_use_initializer: use_init_train,
-                                    self.t_sequence_id: int(curr_seq),
-                                    self.t_epoch: i_epoch,
-                                    self.t_ekf_initial_state: curr_ekf_state,
-                                    self.t_ekf_initial_covariance: curr_ekf_cov_state,
-                                    self.t_imu_data: imu_measurements
-                                },
-                                options=self.tf_run_options,
-                                run_metadata=self.tf_run_metadata)
-
-                    data_roller.update_lstm_state(lstm_states_dic, _curr_lstm_states, curr_seq, batch_id)
-                    data_roller.update_ekf_state(ekf_states_dic, ekf_cov_states_dic, _curr_ekf_states, _curr_ekf_covar, curr_seq, batch_id)
-
-                    if self.tensorboard_meta:
-                        self.tf_tb_writer.add_run_metadata(self.tf_run_metadata,
-                                                           'epochid=%d_batchid=%d' % (i_epoch, j_batch))
-                    self.tf_tb_writer.add_summary(_train_summary, i_epoch * total_batches + j_batch)
-
-                    # print stats
-                    tools.printf("batch %d/%d: Loss:%.7f" % (j_batch + 1, total_batches, _total_losses))
-
-                self.tf_tb_writer.add_summary(_train_image_summary, (i_epoch + 1) * total_batches)
-
-                tools.printf("Evaluating validation loss...")
-                curr_val_loss = self.__run_val_loss(i_epoch, alpha_set)
-
-                # check for best results
-                if curr_val_loss < best_val_loss:
-                    tools.printf("Saving best result...")
-                    best_val_loss = curr_val_loss
-                    self.tf_saver_best.save(self.tf_session, os.path.join(self.results_dir_path,
-                                                                          "best_val", "model_best_val_checkpoint"),
-                                            global_step=i_epoch)
-                    tools.printf("Best val loss, model saved.")
-                if i_epoch % 5 == 0:
-                    tools.printf("Saving checkpoint...")
-                    self.tf_saver_checkpoint.save(self.tf_session,
-                                                  os.path.join(self.results_dir_path, "model_epoch_checkpoint"),
-                                                  global_step=i_epoch)
-                    tools.printf("Checkpoint saved")
-
-                self.tf_tb_writer.flush()
-                tools.printf("ave_val_loss(se3): %f, time: %f\n" % (curr_val_loss, time.time() - start_time))
-
-                self.train_data_gen.next_epoch()
-
-            tools.printf("Final save...")
-            self.tf_saver_checkpoint.save(self.tf_session,
-                                          os.path.join(self.results_dir_path, "model_epoch_checkpoint"),
-                                          global_step=i_epoch)
-            tools.printf("Saved results to %s" % self.results_dir_path)
-
-            self.tf_session.close()
+        self.tf_session.close()
