@@ -37,16 +37,16 @@ class SeqTrainConfigs(Configs):
 
 
 class SeqTrainLidarConfig(Configs):
-    sequence_stride = 1
-    timesteps = 1
+    sequence_stride = 4
+    timesteps = 4
     init_length = 1
-    batch_size = 1
+    batch_size = 30
 
     input_width = 1152
     input_height = 64
     input_channels = 2
 
-    debug = True
+    debug = False
 
     bidir_aug = False
 
@@ -55,6 +55,8 @@ class SeqTrainLidarConfig(Configs):
 
     only_train_init = False  # only used when use init is True
     dont_restore_init = True  # only used when use init is True
+    static_nn = False # don't modify the nn weights
+    train_noise_covariance = False # Train the imu noise covariance
     init_prob = 1
 
     data_type = "lidar"

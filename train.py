@@ -196,8 +196,8 @@ class Train(object):
             for k, v in ts_losses_dict.items():
                 ts_losses_dict[k] = tf.reduce_mean(v)
 
-            self.t_ekf_states = tf.concat(ts_ekf_states, 1)
-            self.t_ekf_covar_states = tf.concat(ts_ekf_covar_states, 1)
+            self.t_ekf_states = tf.concat(ts_ekf_states, 0)
+            self.t_ekf_covar_states = tf.concat(ts_ekf_covar_states, 0)
 
             self.t_total_loss = ts_losses_dict["total_loss"]
             self.t_se3_loss = ts_losses_dict["se3_loss"]
@@ -206,6 +206,8 @@ class Train(object):
         with tf.variable_scope("optimizer", reuse=tf.AUTO_REUSE):
             if self.cfg.use_init and self.cfg.only_train_init:
                 train_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, "initializer_layer")
+            elif self.cfg.train_noise_covariance and self.cfg.static_nn:
+                train_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, "imu_noise_params")
             else:
                 train_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
 
@@ -249,13 +251,13 @@ class Train(object):
     def __run_val_loss(self, i_epoch, alpha_set):
         curr_lstm_states = np.zeros([2, self.cfg.lstm_layers, self.cfg.batch_size, self.cfg.lstm_size])
         curr_ekf_state = np.zeros([self.cfg.batch_size, 17])
-        curr_ekf_cov_state = np.repeat(np.expand_dims(np.identity(17, dtype=np.float32), axis=0), repeats=self.cfg.batch_size, axis=0)
+        curr_ekf_cov_state = 0.01 * np.repeat(np.expand_dims(np.identity(17, dtype=np.float32), axis=0), repeats=self.cfg.batch_size, axis=0)
 
         self.val_data_gen.next_epoch(randomize=False)
 
         val_se3_losses_log = np.zeros([self.val_data_gen.total_batches()])
 
-        use_init_val = True
+        use_init_val = self.cfg.use_init
 
         while self.val_data_gen.has_next_batch():
             j_batch = self.val_data_gen.curr_batch()
@@ -307,7 +309,7 @@ class Train(object):
             self.tf_session = tf_debug.LocalCLIDebugWrapperSession(tf.Session(config=sess_config))
         else:
             self.tf_session = tf.Session(config=sess_config)
-            
+
         self.tf_session.run(tf.global_variables_initializer())
         if self.restore_file:
             tools.printf("Restoring model weights from %s..." % self.restore_file)
@@ -327,7 +329,7 @@ class Train(object):
         curr_lstm_states = np.zeros([2, self.cfg.lstm_layers, self.cfg.batch_size, self.cfg.lstm_size],
                                     dtype=np.float32)
         curr_ekf_state = np.zeros([self.cfg.batch_size, 17], dtype=np.float32)
-        curr_ekf_cov_state = np.repeat(np.expand_dims(np.identity(17, dtype=np.float32), axis=0), repeats=self.cfg.batch_size, axis=0)
+        curr_ekf_cov_state = 0.01 * np.repeat(np.expand_dims(np.identity(17, dtype=np.float32), axis=0), repeats=self.cfg.batch_size, axis=0)
 
         lstm_states_dic = {}
         ekf_states_dic = {}
@@ -368,7 +370,7 @@ class Train(object):
 
                 nrnd = np.random.rand(1)
                 use_init_train = False
-                if j_batch == 0 or nrnd < self.cfg.init_prob:
+                if self.cfg.use_init and (j_batch == 0 or nrnd < self.cfg.init_prob):
                     use_init_train = True
 
                 # Run training session

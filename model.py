@@ -302,6 +302,16 @@ def seq_model_inputs(cfg):
     # switch between previous states and state initializer
     use_initializer = tf.placeholder(tf.bool, name="use_initializer", shape=[])
 
+    if cfg.use_ekf:
+        with tf.variable_scope("imu_noise_params", reuse=tf.AUTO_REUSE):
+            gyro_bias_diag = tf.get_variable(name="gyro_bias_sqrt", initializer=tf.random_normal([3], stddev=0.1), dtype=tf.float32, trainable=cfg.train_noise_covariance)
+
+            acc_bias_diag = tf.get_variable(name="acc_bias_sqrt", initializer=tf.random_normal([3], stddev=0.1), dtype=tf.float32, trainable=cfg.train_noise_covariance)
+
+            gyro_covar_diag = tf.get_variable(name="gyro_sqrt", initializer=tf.random_normal([3], stddev=0.1), dtype=tf.float32, trainable=cfg.train_noise_covariance)
+
+            acc_covar_diag = tf.get_variable(name="acc_sqrt", initializer=tf.random_normal([3], stddev=0.1), dtype=tf.float32, trainable=cfg.train_noise_covariance)
+
     return inputs, lstm_initial_state, initial_poses, imu_data, ekf_initial_state, ekf_initial_covariance, is_training, use_initializer
 
 def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ekf_initial_state, ekf_initial_covariance,
@@ -336,16 +346,16 @@ def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ek
         print("Building EKF...")
         # at this point the outputs from the fully connected layer are  [x, y, z, yaw, pitch, roll, 6 x covars]
 
-        with tf.variable_scope("imu_noise_params", reuse=tf.AUTO_REUSE):
-            gyro_bias_diag = tf.Variable(tf.random_normal([3], stddev=0.1), name="gyro_bias_sqrt", trainable=False)
-            acc_bias_diag = tfe.Variable(tf.random_normal([3], stddev=0.1), name="acc_bias_sqrt", trainable=False)
-            gyro_covar_diag = tfe.Variable(tf.random_normal([3], stddev=1), name="gyro_sqrt", trainable=False)
-            acc_covar_diag = tfe.Variable(tf.random_normal([3], stddev=1), name="acc_sqrt", trainable=False)
+        with tf.variable_scope("imu_noise_params", reuse=True):
+            gyro_bias_diag = tf.get_variable('gyro_bias_sqrt')
+            acc_bias_diag = tf.get_variable('acc_bias_sqrt')
+            gyro_covar_diag = tf.get_variable('gyro_sqrt')
+            acc_covar_diag = tf.get_variable('acc_sqrt')
 
-        gyro_bias_covar = tf.diag(tf.square(gyro_bias_diag))
-        acc_bias_covar = tf.diag(tf.square(acc_bias_diag))
-        gyro_covar = tf.diag(tf.square(gyro_covar_diag))
-        acc_covar = tf.diag(tf.square(acc_covar_diag))
+        gyro_bias_covar = tf.diag(tf.square(gyro_bias_diag) + 1e-4)
+        acc_bias_covar = tf.diag(tf.square(acc_bias_diag) + 1e-4)
+        gyro_covar = tf.diag(tf.square(gyro_covar_diag) + 1e-4)
+        acc_covar = tf.diag(tf.square(acc_covar_diag) + 1e-4)
 
         ekf_out_states, ekf_out_covar = ekf.full_ekf_layer(imu_data, fc_outputs[..., 0:6], nn_covar,
                                                            feed_ekf_init_state, feed_ekf_init_covar,
@@ -355,7 +365,7 @@ def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ek
         rel_covar = tf.concat([tf.concat([ekf_out_covar[1:, :, 0:3, 0:3], ekf_out_covar[1:, :, 0:3, 11:14]], axis=-1),
                           tf.concat([ekf_out_covar[1:, :, 11:14, 0:3], ekf_out_covar[1:, :, 11:14, 11:14]], axis=-1)], axis=-2)
     else:
-        rel_disp = fc_outputs[..., 6]
+        rel_disp = fc_outputs[..., 0:6]
         rel_covar = nn_covar
 
         ekf_out_states = tf.zeros([fc_outputs.shape[0], fc_outputs.shape[1], 17], dtype=tf.float32)

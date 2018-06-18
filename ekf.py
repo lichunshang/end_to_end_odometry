@@ -206,7 +206,7 @@ def getLittleJacobian(eulers):
 # prev biases should have shape batches x 3
 # covar matrices should be 3x3, except for prev_covar which is batch_size x 17x17 and nn_covar which is time x batch x 6 x 6
 
-def full_ekf_layer(imu_meas, nn_meas, nn_covar, prev_state, prev_covar, gyro_bias_covar, acc_bias_covar, gyro_covar,
+def full_ekf_layer(imu_meas_in, nn_meas, nn_covar, prev_state, prev_covar, gyro_bias_covar, acc_bias_covar, gyro_covar,
                    acc_covar, dt=tf.constant(0.1, dtype=tf.float32)):
     with tf.variable_scope("ekf_layer", reuse=tf.AUTO_REUSE):
         prev_states = []
@@ -214,6 +214,8 @@ def full_ekf_layer(imu_meas, nn_meas, nn_covar, prev_state, prev_covar, gyro_bia
 
         prev_states.append(prev_state)
         covar_output.append(prev_covar)
+
+        imu_meas = tf.concat([tf.reverse(imu_meas_in[...,0:3], axis=[-1]), imu_meas_in[..., 3:6]], axis=-1, name='imu_meas')
 
 # state update. Reused variables are calculated
         lift_g_covar = tf.tile(tf.expand_dims(gyro_covar, axis=0), [imu_meas.shape[1], 1, 1])
@@ -244,11 +246,11 @@ def full_ekf_layer(imu_meas, nn_meas, nn_covar, prev_state, prev_covar, gyro_bia
 
 # hk is mercifully constant
         hk = tfe.Variable([[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                         [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                         [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
-                         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],
-                         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0]], trainable=False, dtype=tf.float32)
+                          [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                          [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+                          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],
+                          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0]], trainable=False, dtype=tf.float32)
 
         Hk = tf.tile(tf.expand_dims(hk, axis=0), [imu_meas.shape[1], 1, 1])
 
@@ -265,7 +267,14 @@ def full_ekf_layer(imu_meas, nn_meas, nn_covar, prev_state, prev_covar, gyro_bia
 
 # Abstract out one iteration of the ekf
 
-def run_update(imu_meas, dt, prev_state, prev_covar, gfull, g, fkstat, Hk, lift_g_bias_covar, lift_a_bias_covar, lift_g_covar, lift_a_covar, nn_meas, nn_covar):
+def run_update(imu_meas_in, dt, prev_state_in, prev_covar_in, gfull, g, fkstat, Hk, lift_g_bias_covar, lift_a_bias_covar, lift_g_covar, lift_a_covar, nn_meas_in, nn_covar_in):
+    # multiple by one to get names for debugger
+    prev_state = tf.multiply(1.0, prev_state_in, name='ekf_prev_state')
+    prev_covar = tf.multiply(1.0, prev_covar_in, name='ekf_prev_covar')
+    imu_meas = tf.multiply(1.0, imu_meas_in, name='ekf_imu_meas')
+    nn_meas = tf.multiply(1.0, nn_meas_in, name='ekf_nn_meas')
+    nn_covar = tf.multiply(1.0, nn_covar_in, name='ekf_nn_covar')
+
     pred_rot_euler = dt * imu_meas[..., 0:3] - dt * prev_state[..., 14:17]
     pred_rot = euler2rot(pred_rot_euler)
     pred_global = dt * imu_meas[..., 1:3] - dt * prev_state[..., 15:17] + prev_state[..., 6:8]
@@ -370,24 +379,18 @@ def run_update(imu_meas, dt, prev_state, prev_covar, gfull, g, fkstat, Hk, lift_
     J_noise = tf.concat((dpi, dvi, drotglobal, daccbias, drotrel, dgyrobias), axis=-2)
 
     # Assemble global covariance matrix
-    prev_covar_debug = tf.identity(prev_covar, name="ekf_prev_covar")
-    prev_state_debug = tf.identity(prev_state, name="ekf_prev_state")
-
-    imu_meas_debug = tf.identity(imu_meas, name="imu_meas")
-    nn_meas_debug = tf.identity(nn_meas, name="nn_meas")
-    nn_covar_debug = tf.identity(nn_covar, name="nn_covar")
 
     Qk = tf.matmul(J_noise, tf.matmul(noise_covar, J_noise, transpose_b=True), name="ekf_noise_covar")
 
     tf.assert_positive(tf.matrix_determinant(Qk), [Qk, J_noise, noise_covar])
 
-    pred_covar = tf.add(tf.matmul(Fkfull, tf.matmul(prev_covar_debug, Fkfull, transpose_b=True)), Qk, name="ekf_pred_covar")
+    pred_covar = tf.add(tf.matmul(Fkfull, tf.matmul(prev_covar, Fkfull, transpose_b=True)), Qk, name="ekf_pred_covar")
 
     tf.assert_positive(tf.matrix_determinant(pred_covar), [Fkfull])
 
-    yk = tf.subtract(tf.expand_dims(nn_meas_debug, axis=-1), tf.matmul(Hk, tf.expand_dims(pred_state, axis=-1)), name="ekf_error")
+    yk = tf.subtract(tf.expand_dims(nn_meas, axis=-1), tf.matmul(Hk, tf.expand_dims(pred_state, axis=-1)), name="ekf_error")
 
-    tf.assert_positive(tf.matrix_determinant(nn_covar_debug), [nn_covar])
+    tf.assert_positive(tf.matrix_determinant(nn_covar), [nn_covar])
 
     Sk = tf.add(tf.matmul(Hk, tf.matmul(pred_covar, Hk, transpose_b=True)), nn_covar, name="ekf_innovation_covar")
 
