@@ -122,7 +122,7 @@ class Train(object):
 
     def __build_model_inputs_and_labels(self):
         self.t_inputs, self.t_lstm_initial_state, self.t_initial_poses, self.t_imu_data, self.t_ekf_initial_state, \
-            self.t_ekf_initial_covariance, self.t_is_training, self.t_use_initializer = model.seq_model_inputs(self.cfg)
+        self.t_ekf_initial_covariance, self.t_is_training, self.t_use_initializer = model.seq_model_inputs(self.cfg)
 
         # 7 for translation + quat
         self.t_se3_labels = tf.placeholder(tf.float32, name="se3_labels",
@@ -169,7 +169,8 @@ class Train(object):
                 fc_outputs, fc_covar, se3_outputs, lstm_states, ekf_states, ekf_covar_states = \
                     model.build_seq_model(self.cfg, ts_inputs[i], ts_lstm_initial_state[i], ts_initial_poses[i],
                                           ts_imu_data[i], ts_ekf_initial_state[i], ts_ekf_initial_covar[i],
-                                          self.t_is_training, get_activations=True, use_initializer=self.t_use_initializer,
+                                          self.t_is_training, get_activations=True,
+                                          use_initializer=self.t_use_initializer,
                                           use_ekf=self.cfg.use_ekf)
 
                 # this returns lstm states as a tuple, we need to stack them
@@ -244,14 +245,23 @@ class Train(object):
         val_loss_sum = tf.summary.scalar("val_total_loss", ts_losses_dict["total_loss"])
         val_fc_sum = tf.summary.scalar("val_fc_losses", ts_losses_dict["fc_loss"])
         val_se3_sum = tf.summary.scalar("val_se3_losses", ts_losses_dict["se3_loss"])
+        val_fc_xyz_loss = tf.summary.scalar("val_fc_xyz_loss", ts_losses_dict["fc_xyz_loss"])
+        val_fc_ypr_loss = tf.summary.scalar("val_fc_ypr_loss", ts_losses_dict["fc_ypr_loss"])
+        val_se3_xyz_loss = tf.summary.scalar("val_se3_xyz_loss", ts_losses_dict["se3_xyz_loss"])
+        val_se3_quat_loss = tf.summary.scalar("val_se3_quat_loss", ts_losses_dict["se3_quat_loss"])
+        val_x_sum = tf.summary.scalar("val_x_loss", ts_losses_dict["x_loss"])
+        val_y_sum = tf.summary.scalar("val_y_loss", ts_losses_dict["y_loss"])
         val_z_sum = tf.summary.scalar("val_z_loss", ts_losses_dict["z_loss"])
-        self.op_val_merged_summary = tf.summary.merge([val_loss_sum, val_fc_sum, val_se3_sum, val_z_sum])
+        self.op_val_merged_summary = tf.summary.merge(
+                [val_loss_sum, val_fc_sum, val_se3_sum, val_fc_xyz_loss, val_fc_ypr_loss, val_se3_xyz_loss,
+                 val_se3_quat_loss, val_x_sum, val_y_sum, val_z_sum])
 
     # validation loss
     def __run_val_loss(self, i_epoch, alpha_set):
         curr_lstm_states = np.zeros([2, self.cfg.lstm_layers, self.cfg.batch_size, self.cfg.lstm_size])
         curr_ekf_state = np.zeros([self.cfg.batch_size, 17])
-        curr_ekf_cov_state = 0.01 * np.repeat(np.expand_dims(np.identity(17, dtype=np.float32), axis=0), repeats=self.cfg.batch_size, axis=0)
+        curr_ekf_cov_state = 0.01 * np.repeat(np.expand_dims(np.identity(17, dtype=np.float32), axis=0),
+                                              repeats=self.cfg.batch_size, axis=0)
 
         self.val_data_gen.next_epoch(randomize=False)
 
@@ -269,23 +279,23 @@ class Train(object):
 
             _curr_lstm_states, _curr_ekf_states, _curr_ekf_covar, _summary, _total_losses, _se3_losses = \
                 self.tf_session.run(
-                    [self.t_lstm_states, self.t_ekf_states, self.t_ekf_covar_states,
-                     self.op_val_merged_summary, self.t_total_loss, self.t_se3_loss],
-                    feed_dict={
-                        self.t_inputs: batch_data,
-                        self.t_se3_labels: se3_ground_truth[1:, :, :],
-                        self.t_fc_labels: fc_ground_truth,
-                        self.t_lstm_initial_state: curr_lstm_states,
-                        self.t_initial_poses: init_poses,
-                        self.t_alpha: alpha_set,
-                        self.t_is_training: False,
-                        self.t_use_initializer: use_init_val,
-                        self.t_ekf_initial_state: curr_ekf_state,
-                        self.t_ekf_initial_covariance: curr_ekf_cov_state,
-                        self.t_imu_data: imu_measurements
-                    },
-                    options=self.tf_run_options,
-                    run_metadata=self.tf_run_metadata)
+                        [self.t_lstm_states, self.t_ekf_states, self.t_ekf_covar_states,
+                         self.op_val_merged_summary, self.t_total_loss, self.t_se3_loss],
+                        feed_dict={
+                            self.t_inputs: batch_data,
+                            self.t_se3_labels: se3_ground_truth[1:, :, :],
+                            self.t_fc_labels: fc_ground_truth,
+                            self.t_lstm_initial_state: curr_lstm_states,
+                            self.t_initial_poses: init_poses,
+                            self.t_alpha: alpha_set,
+                            self.t_is_training: False,
+                            self.t_use_initializer: use_init_val,
+                            self.t_ekf_initial_state: curr_ekf_state,
+                            self.t_ekf_initial_covariance: curr_ekf_cov_state,
+                            self.t_imu_data: imu_measurements
+                        },
+                        options=self.tf_run_options,
+                        run_metadata=self.tf_run_metadata)
 
             use_init_val = False
 
@@ -329,7 +339,8 @@ class Train(object):
         curr_lstm_states = np.zeros([2, self.cfg.lstm_layers, self.cfg.batch_size, self.cfg.lstm_size],
                                     dtype=np.float32)
         curr_ekf_state = np.zeros([self.cfg.batch_size, 17], dtype=np.float32)
-        curr_ekf_cov_state = 0.01 * np.repeat(np.expand_dims(np.identity(17, dtype=np.float32), axis=0), repeats=self.cfg.batch_size, axis=0)
+        curr_ekf_cov_state = 0.01 * np.repeat(np.expand_dims(np.identity(17, dtype=np.float32), axis=0),
+                                              repeats=self.cfg.batch_size, axis=0)
 
         lstm_states_dic = {}
         ekf_states_dic = {}
@@ -338,8 +349,10 @@ class Train(object):
             lstm_states_dic[seq] = np.zeros(
                     [self.train_data_gen.batch_counts[seq], 2, self.cfg.lstm_layers, self.cfg.batch_size,
                      self.cfg.lstm_size], dtype=np.float32)
-            ekf_states_dic[seq] = np.zeros([self.train_data_gen.batch_counts[seq], self.cfg.batch_size, 17], dtype=np.float32)
-            ekf_cov_states_dic[seq] = np.repeat(np.expand_dims(curr_ekf_cov_state, axis=0), self.train_data_gen.batch_counts[seq], axis=0)
+            ekf_states_dic[seq] = np.zeros([self.train_data_gen.batch_counts[seq], self.cfg.batch_size, 17],
+                                           dtype=np.float32)
+            ekf_cov_states_dic[seq] = np.repeat(np.expand_dims(curr_ekf_cov_state, axis=0),
+                                                self.train_data_gen.batch_counts[seq], axis=0)
 
         _train_image_summary = None
         total_batches = self.train_data_gen.total_batches()
@@ -363,7 +376,8 @@ class Train(object):
                 data_roller.get_init_lstm_state(lstm_states_dic, curr_lstm_states, curr_seq, batch_id,
                                                 self.cfg.bidir_aug)
 
-                data_roller.get_init_ekf_states(ekf_states_dic, ekf_cov_states_dic, curr_ekf_state, curr_ekf_cov_state, curr_seq, batch_id, self.cfg.bidir_aug)
+                data_roller.get_init_ekf_states(ekf_states_dic, ekf_cov_states_dic, curr_ekf_state, curr_ekf_cov_state,
+                                                curr_seq, batch_id, self.cfg.bidir_aug)
 
                 # shift se3 ground truth to be relative to the first pose
                 init_poses = se3_ground_truth[0, :, :]
@@ -399,7 +413,8 @@ class Train(object):
                             run_metadata=self.tf_run_metadata)
 
                 data_roller.update_lstm_state(lstm_states_dic, _curr_lstm_states, curr_seq, batch_id)
-                data_roller.update_ekf_state(ekf_states_dic, ekf_cov_states_dic, _curr_ekf_states, _curr_ekf_covar, curr_seq, batch_id)
+                data_roller.update_ekf_state(ekf_states_dic, ekf_cov_states_dic, _curr_ekf_states, _curr_ekf_covar,
+                                             curr_seq, batch_id)
 
                 if self.tensorboard_meta:
                     self.tf_tb_writer.add_run_metadata(self.tf_run_metadata,
