@@ -144,8 +144,8 @@ def pair_train_fc_layer(inputs):
     with tf.variable_scope("pair_train_fc_model", reuse=tf.AUTO_REUSE):
         fc_128 = tf.contrib.layers.fully_connected(inputs, 128, scope="fc_128", activation_fn=tf.nn.relu,
                                                    weights_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0005))
-        fc_6 = tf.contrib.layers.fully_connected(fc_128, 6, scope="fc_6", activation_fn=None)
-        return fc_6
+        fc_12 = tf.contrib.layers.fully_connected(fc_128, 12, scope="fc_12", activation_fn=None)
+        return fc_12
 
 
 def pair_train_fc_layer_1024(inputs):
@@ -306,4 +306,4 @@ def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, is_training,
     # at this point the outputs from the fully connected layer are  [x, y, z, yaw, pitch, roll, 6 x covars]
     se3_outputs = se3_layer(fc_outputs, initial_poses)
 
-    return fc_outputs, se3_outputs, lstm_states, feed_init_states
+    return fc_outputs, se3_outputs, lstm_states

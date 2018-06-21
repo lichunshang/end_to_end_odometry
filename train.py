@@ -102,13 +102,14 @@ class Train(object):
     def __init_tf_savers(self):
         self.tf_saver_checkpoint = tf.train.Saver(max_to_keep=2)
         self.tf_saver_best = tf.train.Saver(max_to_keep=2)
-        if self.cfg.use_init and self.cfg.only_train_init and self.cfg.dont_restore_init:
+        if self.cfg.only_train_init and self.cfg.dont_restore_init:
             varlist = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="cnn_layer") + \
                       tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="fc_layer") + \
                       tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="rnn_layer")
             self.tf_saver_restore = tf.train.Saver(var_list=varlist)
         else:
-            self.tf_saver_restore = tf.train.Saver()
+            varlist = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
+            self.tf_saver_restore = tf.train.Saver(var_list=varlist)
 
     def __build_model_inputs_and_labels(self):
         self.t_inputs, self.t_lstm_initial_state, self.t_initial_poses, self.t_is_training, self.t_use_initializer = \
@@ -150,7 +151,7 @@ class Train(object):
 
             with tf.name_scope("tower_%d" % i), tf.device(device_setter):
                 tools.printf("Building model...")
-                fc_outputs, se3_outputs, lstm_states, _ = \
+                fc_outputs, se3_outputs, lstm_states = \
                     model.build_seq_model(self.cfg, ts_inputs[i], ts_lstm_initial_state[i], ts_initial_poses[i],
                                           self.t_is_training, self.t_use_initializer, get_activations=True)
 
@@ -162,7 +163,7 @@ class Train(object):
                     se3_loss, se3_xyz_loss, se3_quat_loss \
                         = losses.se3_losses(se3_outputs, ts_se3_labels[i], self.cfg.k_se3)
                     fc_loss, fc_xyz_loss, fc_ypr_loss, x_loss, y_loss, z_loss \
-                        = losses.pair_train_fc_losses(fc_outputs, ts_fc_labels[i], self.cfg.k_fc)
+                        = losses.fc_losses(fc_outputs, ts_fc_labels[i], self.cfg.k_fc)
                     total_loss = (1 - self.t_alpha) * se3_loss + self.t_alpha * fc_loss
 
                     for k, v in ts_losses_dict.items():
@@ -181,7 +182,7 @@ class Train(object):
 
         tools.printf("Building optimizer...")
         with tf.variable_scope("optimizer", reuse=tf.AUTO_REUSE):
-            if self.cfg.use_init and self.cfg.only_train_init:
+            if self.cfg.only_train_init:
                 train_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, "initializer_layer")
             else:
                 train_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
@@ -278,7 +279,7 @@ class Train(object):
                 self.tf_saver_restore.restore(self.tf_session, self.restore_file)
 
             else:
-                if self.cfg.use_init and self.cfg.only_train_init:
+                if self.cfg.only_train_init:
                     raise ValueError("Set to only train initializer, but restore file was not provided!?!?!")
                 tools.printf("Initializing variables...")
 
