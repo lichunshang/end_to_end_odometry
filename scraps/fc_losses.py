@@ -53,3 +53,23 @@ labels = tf.constant([
 
 ], dtype = tf.float32)
 fc_losses(outputs, labels)
+
+
+# covars = tf.constant(np.array([[np.diag([1, 4, 9, 16, 25, 36, ]), np.diag([1, 4, 9, 16, 25, 36, ])],
+#           [np.diag([49, 64, 81, 100, 121, 144, ]), np.diag([49, 64, 81, 100, 121, 144, ])]]), dtype=tf.float32)
+#
+# outputs = tf.constant([
+#     [[7, 8, 9, 10, 11, 12, ], [7, 8, 9, 10, 11, 12, ]],
+#     [[1, 2, 3, 4, 5, 6, ], [1, 2, 3, 4, 5, 6, ]],
+#
+# ], dtype=tf.float32)
+#
+# labels = tf.constant([
+#     [[2, 3, 4, 5, 6, 7], [2, 3, 4, 5, 6, 7]],
+#     [[7, 2, 3, 4, 5, 6], [7, 2, 3, 4, 5, 6]],
+#
+# ], dtype=tf.float32)
+#
+# floss, xyzloss, yprloss, xloss, yloss, zloss = fc_losses(outputs, covars, labels, 1.25)
+# sess = tf.Session()
+# print(sess.run(floss))
