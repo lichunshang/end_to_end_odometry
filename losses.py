@@ -10,7 +10,7 @@ def se3_losses(outputs, labels, k):
         # diff_p = outputs[:, :, 0:3] - labels[:, :, 0:3]
 
         q_dot_squared = tf.square(tf.reduce_sum(tf.multiply(outputs[-1, :, 3:], labels[-1, :, 3:]), 1))
-        #q_dot_squared = tf.square(tf.reduce_sum(tf.multiply(outputs[:, :, 3:], labels[:, :, 3:]), 2))
+        # q_dot_squared = tf.square(tf.reduce_sum(tf.multiply(outputs[:, :, 3:], labels[:, :, 3:]), 2))
         # diff_q = outputs[:, :, 3:] - labels[:, :, 3:]
 
         diff_q = tf.subtract(tf.constant(1.0, dtype=tf.float32), q_dot_squared)
@@ -67,42 +67,96 @@ def reduce_prod_6(x):
 
 
 # assumes time major
-def fc_losses(outputs, labels_u, k):
+def fc_losses_w_matrix(outputs, output_covar, labels_u, k):
     with tf.variable_scope("fc_losses"):
         diff_u = outputs[:, :, 0:6] - labels_u
-        L = outputs[:, :, 6:12]
+        diff_u2 = tf.square(diff_u)
 
-        # The network outputs Q=LL* through the Cholesky decomposition,
-        # L is diagonal, Q is always positive semi-definite
-        Q = tf.multiply(L, L)
+        # dense covariance
+        Q = output_covar
 
-        # determinant of a diagonal matrix is product of it diagonal
-        log_det_Q = tf.log(tf.reduce_prod(Q, axis=2) + 1e-2)
+        log_det_Q = tf.log(tf.matrix_determinant(Q) + 1e-5)
 
-        # inverse of a diagonal matrix is elemental inverse
-        inv_Q = tf.div(tf.constant(1, dtype=tf.float32), Q + 1e-2)
+        # Need to normalize
+        norm1 = tf.tile(tf.expand_dims(tf.diag(1e-5 * tf.ones([6], dtype=tf.float32)), axis=0), [Q.shape[1], 1, 1])
+        norm2 = tf.tile(tf.expand_dims(norm1, axis=0), [Q.shape[0], 1, 1, 1])
+        inv_Q = tf.matrix_inverse(Q + norm2)
 
         # sum of determinants along the time
         sum_det_Q = tf.reduce_sum(log_det_Q, axis=0)
 
-        # sum of diff_u' * inv_Q * diff_u along time
-        s = tf.reduce_sum(tf.multiply(diff_u, tf.multiply(inv_Q, diff_u)), axis=0)
-        # apply scaling factor
-        s_k = tf.reduce_sum(s[:, 0:3], axis=1) + k * tf.reduce_sum(s[:, 3:6], axis=1)
+        # need to scale angular error by k
+        ksq = tf.sqrt(k)
+        diff_u_scaled = tf.concat([diff_u[..., 0:3], ksq * diff_u[..., 3:6]], axis=-1)
+
+        # sum of diff_u' * inv_Q * diff_u
+        s = tf.reduce_sum(tf.squeeze(
+            tf.matmul(tf.expand_dims(diff_u_scaled, axis=-1), tf.matmul(inv_Q, tf.expand_dims(diff_u_scaled, axis=-1)),
+                      transpose_a=True), axis=-1), axis=0)
 
         t = tf.cast(tf.shape(outputs)[0], tf.float32)
 
         # add and multiplies of sum by 1 / t
-        loss = (s_k + sum_det_Q) / t
+        loss = (s + sum_det_Q) / t
 
-        diff_p_sq = tf.multiply(diff_u[..., 0:3], diff_u[..., 0:3])
-        sum_diff_p_dot_p = tf.reduce_sum(diff_p_sq, axis=(0, 2,))
-        sum_diff_e_dot_e = tf.reduce_sum(tf.multiply(diff_u[..., 3:6], diff_u[..., 3:6]), axis=(0, 2,))
+        xloss = tf.sqrt(tf.reduce_mean(tf.reduce_sum(diff_u2[..., 0], axis=0), axis=0))
+        yloss = tf.sqrt(tf.reduce_mean(tf.reduce_sum(diff_u2[..., 1], axis=0), axis=0))
+        zloss = tf.sqrt(tf.reduce_mean(tf.reduce_sum(diff_u2[..., 2], axis=0), axis=0))
+        xyzloss = tf.reduce_mean(tf.reduce_sum(diff_u2[..., 0:3], axis=[0, 2]), axis=0)
+        yprloss = tf.reduce_mean(tf.reduce_sum(diff_u2[..., 3:6], axis=[0, 2]), axis=0)
 
-        # return xyz losses
-        x_loss = tf.reduce_mean(tf.sqrt(diff_p_sq[:, :, 0]))
-        y_loss = tf.reduce_mean(tf.sqrt(diff_p_sq[:, :, 1]))
-        z_loss = tf.reduce_mean(tf.sqrt(diff_p_sq[:, :, 2]))
+        return tf.reduce_mean(loss), xyzloss, yprloss, xloss, yloss, zloss
 
-        return tf.reduce_mean(loss), tf.reduce_mean(sum_diff_p_dot_p / t), tf.reduce_mean(sum_diff_e_dot_e / t), \
-               x_loss, y_loss, z_loss
+
+def fc_losses(outputs, labels_u, k):
+    stack1 = []
+    for i in range(outputs.shape[0]):
+        stack2 = []
+        for j in range(outputs.shape[1]):
+            stack2.append(tf.diag(tf.square(outputs[i, j, 6:])))
+        stack1.append(tf.stack(stack2, axis=0))
+
+    nn_covar = tf.stack(stack1, axis=0)
+
+    return fc_losses_w_matrix(outputs, nn_covar, labels_u, k)
+
+# # assumes time major
+# def fc_losses(outputs, labels_u, k):
+#     with tf.variable_scope("fc_losses"):
+#         diff_u = outputs[:, :, 0:6] - labels_u
+#         L = outputs[:, :, 6:12]
+#
+#         # The network outputs Q=LL* through the Cholesky decomposition,
+#         # L is diagonal, Q is always positive semi-definite
+#         Q = tf.multiply(L, L)
+#
+#         # determinant of a diagonal matrix is product of it diagonal
+#         log_det_Q = tf.log(tf.reduce_prod(Q, axis=2) + 1e-2)
+#
+#         # inverse of a diagonal matrix is elemental inverse
+#         inv_Q = tf.div(tf.constant(1, dtype=tf.float32), Q + 1e-2)
+#
+#         # sum of determinants along the time
+#         sum_det_Q = tf.reduce_sum(log_det_Q, axis=0)
+#
+#         # sum of diff_u' * inv_Q * diff_u along time
+#         s = tf.reduce_sum(tf.multiply(diff_u, tf.multiply(inv_Q, diff_u)), axis=0)
+#         # apply scaling factor
+#         s_k = tf.reduce_sum(s[:, 0:3], axis=1) + k * tf.reduce_sum(s[:, 3:6], axis=1)
+#
+#         t = tf.cast(tf.shape(outputs)[0], tf.float32)
+#
+#         # add and multiplies of sum by 1 / t
+#         loss = (s_k + sum_det_Q) / t
+#
+#         diff_p_sq = tf.multiply(diff_u[..., 0:3], diff_u[..., 0:3])
+#         sum_diff_p_dot_p = tf.reduce_sum(diff_p_sq, axis=(0, 2,))
+#         sum_diff_e_dot_e = tf.reduce_sum(tf.multiply(diff_u[..., 3:6], diff_u[..., 3:6]), axis=(0, 2,))
+#
+#         # return xyz losses
+#         x_loss = tf.reduce_mean(tf.sqrt(diff_p_sq[:, :, 0]))
+#         y_loss = tf.reduce_mean(tf.sqrt(diff_p_sq[:, :, 1]))
+#         z_loss = tf.reduce_mean(tf.sqrt(diff_p_sq[:, :, 2]))
+#
+#         return tf.reduce_mean(loss), tf.reduce_mean(sum_diff_p_dot_p / t), tf.reduce_mean(sum_diff_e_dot_e / t), \
+#                x_loss, y_loss, z_loss
