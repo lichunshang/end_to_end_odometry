@@ -10,6 +10,6 @@ trainer = train.Train(num_gpu=2,
                       #train_sequences=["04"],
                       val_sequence="05",
                       start_epoch=0,
-                      restore_file=None)
+                      restore_file="/home/cs4li/Dev/end_to_end_odometry/results/train_seq_20180622-14-57-25/model_epoch_checkpoint-199")
 
 trainer.train()
