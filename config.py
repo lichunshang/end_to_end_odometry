@@ -54,8 +54,8 @@ class SeqTrainLidarConfig(Configs):
     lstm_size = 256
     lstm_layers = 1
 
-    k_fc = 50
-    k_se3 = 500
+    k_fc = 50.0
+    k_se3 = 500.0
 
     num_epochs = 200
     alpha_schedule = {0: 0.8}
