@@ -112,7 +112,8 @@ class Train(object):
             self.tf_saver_restore = tf.train.Saver(var_list=varlist)
 
     def __build_model_inputs_and_labels(self):
-        self.t_inputs, self.t_lstm_initial_state, self.t_initial_poses, self.t_is_training, self.t_use_initializer = \
+        # return inputs, lstm_initial_state, initial_poses, imu_data, ekf_initial_state, ekf_initial_covariance, is_training, use_initializer
+        self.t_inputs, self.t_lstm_initial_state, self.t_initial_poses, _, _, _, self.t_is_training, self.t_use_initializer = \
             model.seq_model_inputs(self.cfg)
 
         # 7 for translation + quat
@@ -157,10 +158,10 @@ class Train(object):
                                           lstm_initial_state=ts_lstm_initial_state[i],
                                           initial_poses=ts_initial_poses[i],
                                           imu_data=None,
-                                          ekf_initial_state=0.01 * np.repeat(
+                                          ekf_initial_state=np.zeros([self.cfg.batch_size // 2, 17], dtype=np.float32),
+                                          ekf_initial_covariance=0.01 * np.repeat(
                                                   np.expand_dims(np.identity(17, dtype=np.float32), axis=0),
                                                   repeats=self.cfg.batch_size // 2, axis=0),
-                                          ekf_initial_covariance=None,
                                           is_training=self.t_is_training,
                                           get_activations=True,
                                           use_initializer=self.t_use_initializer,
