@@ -102,7 +102,7 @@ class Train(object):
     def __init_tf_savers(self):
         self.tf_saver_checkpoint = tf.train.Saver(max_to_keep=2)
         self.tf_saver_best = tf.train.Saver(max_to_keep=2)
-        if self.cfg.only_train_init and self.cfg.dont_restore_init:
+        if self.cfg.dont_restore_init:
             varlist = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="cnn_layer") + \
                       tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="fc_layer") + \
                       tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="rnn_layer")
@@ -165,7 +165,7 @@ class Train(object):
                                           is_training=self.t_is_training,
                                           get_activations=True,
                                           use_initializer=self.t_use_initializer,
-                                          use_ekf=False)
+                                          use_ekf=self.cfg.use_ekf)
 
                 # this returns lstm states as a tuple, we need to stack them
                 lstm_states = tf.stack(lstm_states, 0)
@@ -194,7 +194,7 @@ class Train(object):
 
         tools.printf("Building optimizer...")
         with tf.variable_scope("optimizer", reuse=tf.AUTO_REUSE):
-            if self.cfg.only_train_init:
+            if self.cfg.use_init and self.cfg.only_train_init:
                 train_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, "initializer_layer")
             else:
                 train_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
@@ -243,7 +243,7 @@ class Train(object):
 
         val_se3_losses_log = np.zeros([self.val_data_gen.total_batches()])
 
-        use_init_val = True
+        use_init_val = self.cfg.use_init
 
         while self.val_data_gen.has_next_batch():
             j_batch = self.val_data_gen.curr_batch()
@@ -291,7 +291,7 @@ class Train(object):
                 self.tf_saver_restore.restore(self.tf_session, self.restore_file)
 
             else:
-                if self.cfg.only_train_init:
+                if self.cfg.use_init and self.cfg.only_train_init:
                     raise ValueError("Set to only train initializer, but restore file was not provided!?!?!")
                 tools.printf("Initializing variables...")
 
@@ -339,7 +339,7 @@ class Train(object):
 
                     nrnd = np.random.rand(1)
                     use_init_train = False
-                    if j_batch == 0 or nrnd < self.cfg.init_prob:
+                    if self.cfg.use_init and (j_batch == 0 or nrnd < self.cfg.init_prob):
                         use_init_train = True
 
                     # Run training session

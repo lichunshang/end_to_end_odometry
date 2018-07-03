@@ -42,11 +42,11 @@ class SeqTrainLidarConfig(Configs):
     input_height = 64
     input_channels = 2
 
-    use_ekf = False
-    bidir_aug = True
     use_init = False
+    use_ekf = False
     only_train_init = False
-    dont_restore_init = False
+    dont_restore_init = True
+    bidir_aug = True
 
     data_type = "lidar"
 
