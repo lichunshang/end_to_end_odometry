@@ -152,8 +152,19 @@ class Train(object):
             with tf.name_scope("tower_%d" % i), tf.device(device_setter):
                 tools.printf("Building model...")
                 fc_outputs, se3_outputs, lstm_states = \
-                    model.build_seq_model(self.cfg, ts_inputs[i], ts_lstm_initial_state[i], ts_initial_poses[i],
-                                          self.t_is_training, self.t_use_initializer, get_activations=True)
+                    model.build_seq_model(cfg=self.cfg,
+                                          inputs=ts_inputs[i],
+                                          lstm_initial_state=ts_lstm_initial_state[i],
+                                          initial_poses=ts_initial_poses[i],
+                                          imu_data=None,
+                                          ekf_initial_state=0.01 * np.repeat(
+                                                  np.expand_dims(np.identity(17, dtype=np.float32), axis=0),
+                                                  repeats=self.cfg.batch_size // 2, axis=0),
+                                          ekf_initial_covariance=None,
+                                          is_training=self.t_is_training,
+                                          get_activations=True,
+                                          use_initializer=self.t_use_initializer,
+                                          use_ekf=False)
 
                 # this returns lstm states as a tuple, we need to stack them
                 lstm_states = tf.stack(lstm_states, 0)

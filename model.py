@@ -1,9 +1,13 @@
 import tensorflow as tf
+from tensorflow.python.ops.distributions.util import fill_triangular
 import se3
 import tools
 import config
+import numpy as np
 import native_lstm
+import ekf
 
+tfe = tf.contrib.eager
 
 # CNN Block
 # is_training to control whether to apply dropout
@@ -134,8 +138,9 @@ def cnn_model_lidar(inputs, is_training, get_activations=False):
 
 
 def fc_model(inputs):
-    with tf.variable_scope("fc_model"):
-        fc_128 = tf.contrib.layers.fully_connected(inputs, 128, scope="fc_128", activation_fn=tf.nn.relu)
+    with tf.variable_scope("pair_train_fc_model", reuse=tf.AUTO_REUSE):
+        fc_128 = tf.contrib.layers.fully_connected(inputs, 128, scope="fc_128", activation_fn=tf.nn.relu,
+                                                   weights_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0005))
         fc_12 = tf.contrib.layers.fully_connected(fc_128, 12, scope="fc_12", activation_fn=None)
         return fc_12
 
@@ -244,7 +249,7 @@ def initializer_layer(inputs, cfg):
             raise ValueError("Invalid initializer size")
         init_list = tf.unstack(inputs[:cfg.init_length, ...], axis=0)
         init_feed = tf.concat(init_list, axis=1)
-        initializer = tf.contrib.layers.fully_connected(init_feed, cfg.lstm_layers * 2 * cfg.lstm_size, scope="fc",
+        initializer = tf.contrib.layers.fully_connected(init_feed,  cfg.lstm_layers * 2 * cfg.lstm_size, scope="fc",
                                                         activation_fn=tf.nn.tanh)
 
         # Doing this manually to make sure data from different batches isn't mixed
@@ -255,7 +260,19 @@ def initializer_layer(inputs, cfg):
 
         lstm_network_state = tf.stack(states, axis=2)
 
-        return lstm_network_state
+        # Another initializer for initial ekf state and covariance
+
+        ekf_initializer = tf.contrib.layers.fully_connected(init_feed, 17 + 153, scope="fc_ekf", activation_fn=None)
+
+        ekf_init_state = ekf_initializer[:, 0:17]
+
+        sqrt_flat_L = ekf_initializer[:, 17:]
+
+        L = fill_triangular(tf.square(sqrt_flat_L))
+
+        ekf_init_covar = tf.matmul(L, L)
+
+        return lstm_network_state, ekf_init_state, ekf_init_covar
 
 
 def seq_model_inputs(cfg):
@@ -264,10 +281,17 @@ def seq_model_inputs(cfg):
                             shape=[cfg.timesteps + 1, cfg.batch_size, cfg.input_channels,
                                    cfg.input_height, cfg.input_width])
 
+    imu_data = tf.placeholder(tf.float32, name="imu_inputs", shape=[cfg.timesteps, cfg.batch_size, 6])
+
     # init LSTM states, 2 (cell + hidden states), 2 layers, batch size, and 1024 state size
     lstm_initial_state = tf.placeholder(tf.float32, name="lstm_init_state",
                                         shape=[2, cfg.lstm_layers, cfg.batch_size,
                                                cfg.lstm_size])
+
+    # init EKF state. batch size * 17
+    ekf_initial_state = tf.placeholder(tf.float32, name="ekf_init_state", shape=[cfg.batch_size, 17])
+    # init EKF covariance. batch size * 17 * 17
+    ekf_initial_covariance = tf.placeholder(tf.float32, name="ekf_init_covar", shape=[cfg.batch_size, 17, 17])
 
     # init poses, initial position for each example in the batch
     initial_poses = tf.placeholder(tf.float32, name="initial_poses", shape=[cfg.batch_size, 7])
@@ -278,10 +302,21 @@ def seq_model_inputs(cfg):
     # switch between previous states and state initializer
     use_initializer = tf.placeholder(tf.bool, name="use_initializer", shape=[])
 
-    return inputs, lstm_initial_state, initial_poses, is_training, use_initializer
+    if cfg.use_ekf:
+        with tf.variable_scope("imu_noise_params", reuse=tf.AUTO_REUSE):
+            gyro_bias_diag = tf.get_variable(name="gyro_bias_sqrt", initializer=tf.random_normal([3], stddev=0.1), dtype=tf.float32, trainable=cfg.train_noise_covariance)
 
+            acc_bias_diag = tf.get_variable(name="acc_bias_sqrt", initializer=tf.random_normal([3], stddev=0.1), dtype=tf.float32, trainable=cfg.train_noise_covariance)
 
-def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, is_training, use_initializer, get_activations=False):
+            gyro_covar_diag = tf.get_variable(name="gyro_sqrt", initializer=tf.random_normal([3], stddev=0.1), dtype=tf.float32, trainable=cfg.train_noise_covariance)
+
+            acc_covar_diag = tf.get_variable(name="acc_sqrt", initializer=tf.random_normal([3], stddev=0.1), dtype=tf.float32, trainable=cfg.train_noise_covariance)
+
+    return inputs, lstm_initial_state, initial_poses, imu_data, ekf_initial_state, ekf_initial_covariance, is_training, use_initializer
+
+#                   cfg, inputs, lstm_initial_state, initial_poses, is_training, use_initializer, get_activations=False
+def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ekf_initial_state, ekf_initial_covariance,
+                    is_training, get_activations=False, use_initializer=False, use_ekf=False):
     print("Building CNN...")
     cnn_outputs = cnn_layer(inputs, cnn_model_lidar, is_training, get_activations)
 
@@ -289,21 +324,60 @@ def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, is_training,
         return initializer_layer(cnn_outputs, cfg)
 
     def f2():
-        return lstm_initial_state
+        return lstm_initial_state, ekf_initial_state, ekf_initial_covariance
 
-    if cfg.use_init:
-        feed_init_states = tf.cond(use_initializer, true_fn=f1, false_fn=f2)
-    else:
-        feed_init_states = lstm_initial_state
+    feed_init_states, feed_ekf_init_state, feed_ekf_init_covar = tf.cond(use_initializer, true_fn=f1, false_fn=f2)
 
     print("Building RNN...")
     lstm_outputs, lstm_states = rnn_layer(cfg, cnn_outputs, feed_init_states)
 
     print("Building FC...")
-    fc_outputs = fc_layer(lstm_outputs, pair_train_fc_layer)
+    fc_outputs = fc_layer(lstm_outputs, fc_model)
+
+    stack1 = []
+    for i in range(fc_outputs.shape[0]):
+        stack2 = []
+        for j in range(fc_outputs.shape[1]):
+            stack2.append(tf.diag(tf.square(fc_outputs[i, j, 6:])))
+        stack1.append(tf.stack(stack2, axis=0))
+
+    nn_covar = tf.stack(stack1, axis=0)
+
+    if use_ekf:
+        print("Building EKF...")
+        # at this point the outputs from the fully connected layer are  [x, y, z, yaw, pitch, roll, 6 x covars]
+
+        with tf.variable_scope("imu_noise_params", reuse=True):
+            gyro_bias_diag = tf.get_variable('gyro_bias_sqrt')
+            acc_bias_diag = tf.get_variable('acc_bias_sqrt')
+            gyro_covar_diag = tf.get_variable('gyro_sqrt')
+            acc_covar_diag = tf.get_variable('acc_sqrt')
+
+        gyro_bias_covar = tf.diag(tf.square(gyro_bias_diag) + 1e-4)
+        acc_bias_covar = tf.diag(tf.square(acc_bias_diag) + 1e-4)
+        gyro_covar = tf.diag(tf.square(gyro_covar_diag) + 1e-4)
+        acc_covar = tf.diag(tf.square(acc_covar_diag) + 1e-4)
+
+        ekf_out_states, ekf_out_covar = ekf.full_ekf_layer(imu_data, fc_outputs[..., 0:6], nn_covar,
+                                                           feed_ekf_init_state, feed_ekf_init_covar,
+                                                           gyro_bias_covar, acc_bias_covar, gyro_covar, acc_covar)
+
+        rel_disp = tf.concat([ekf_out_states[1:, :, 0:3], ekf_out_states[1:, :, 11:14]], axis=-1)
+        rel_covar = tf.concat([tf.concat([ekf_out_covar[1:, :, 0:3, 0:3], ekf_out_covar[1:, :, 0:3, 11:14]], axis=-1),
+                          tf.concat([ekf_out_covar[1:, :, 11:14, 0:3], ekf_out_covar[1:, :, 11:14, 11:14]], axis=-1)], axis=-2)
+    else:
+        rel_disp = fc_outputs[..., 0:6]
+        rel_covar = nn_covar
+
+        ekf_out_states = tf.zeros([fc_outputs.shape[0], fc_outputs.shape[1], 17], dtype=tf.float32)
+        ekf_out_covar = tf.eye(17, batch_shape=[fc_outputs.shape[0], fc_outputs.shape[1]], dtype=tf.float32)
+
 
     print("Building SE3...")
-    # at this point the outputs from the fully connected layer are  [x, y, z, yaw, pitch, roll, 6 x covars]
-    se3_outputs = se3_layer(fc_outputs, initial_poses)
+    # at this point the outputs are the relative states with covariance, need to only select the part the
+    # loss cares about
 
+    se3_outputs = se3_layer(rel_disp, initial_poses)
+
+    # return rel_disp, rel_covar, se3_outputs, lstm_states, ekf_out_states[-1, ...], ekf_out_covar[-1, ...]
     return fc_outputs, se3_outputs, lstm_states
