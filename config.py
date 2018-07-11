@@ -37,8 +37,8 @@ class SeqTrainConfigs(Configs):
 
 
 class SeqTrainLidarConfig(Configs):
-    sequence_stride = 16
     timesteps = 8
+    sequence_stride = timesteps
     init_length = 1
     batch_size = 16
 
