@@ -166,7 +166,7 @@ class Train(object):
             with tf.name_scope("tower_%d" % i), tf.device(device_setter):
                 tools.printf("Building model...")
 
-                fc_outputs, fc_covar, se3_outputs, lstm_states, ekf_states, ekf_covar_states = \
+                fc_outputs, fc_covar, se3_outputs, lstm_states, ekf_states, ekf_covar_states, _, _, _ = \
                     model.build_seq_model(self.cfg, ts_inputs[i], ts_lstm_initial_state[i], ts_initial_poses[i],
                                           ts_imu_data[i], ts_ekf_initial_state[i], ts_ekf_initial_covar[i],
                                           self.t_is_training, get_activations=True,

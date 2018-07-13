@@ -14,26 +14,34 @@ for i, sequence in enumerate(sequences):
     ]
 
     plt.figure(i)
+    file_not_found = False
     for trj in trajectories_to_overlay:
-        trajectory = np.load(trj[0])
+        try:
+            trajectory = np.load(trj[0])
+        except FileNotFoundError:
+            file_not_found = True
+            print("Cannot find %s" % trj[0])
+            break
 
         z = trajectory[:, 2]
         x = trajectory[:, 0]
 
         plt.plot(x, z, **trj[1], label=trj[2])
 
-    plt.axis("equal")
-    plt.xlabel("x [m]")
-    plt.ylabel("z [m]")
+    if not file_not_found:
+        plt.axis("equal")
+        plt.xlabel("x [m]")
+        plt.ylabel("z [m]")
 
-    if sequence in ["00", "01", "02", "08", "09"]:
-        set_type = "Training Set"
-    elif sequence in ["07"]:
-        set_type = "Validation Set"
-    else:
-        set_type = "Test Set"
+        if sequence in ["00", "01", "02", "08", "09"]:
+            set_type = "Training Set"
+        elif sequence in ["07"]:
+            set_type = "Validation Set"
+        else:
+            set_type = "Test Set"
 
-    plt.title("KITTI Sequence %s Trajectory (%s)" % (sequence, set_type))
-    plt.legend()
-    plt.savefig(data_dir + "fig_%s.png" % sequence)
-    # plt.show()
+        plt.title("KITTI Sequence %s Trajectory (%s)" % (sequence, set_type))
+        plt.legend()
+        plt.savefig(data_dir + "fig_%s.png" % sequence)
+        # plt.show()
+        print("Plot saved for sequence %s" % sequence)

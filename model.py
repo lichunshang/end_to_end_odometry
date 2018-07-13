@@ -378,4 +378,6 @@ def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ek
 
     se3_outputs = se3_layer(rel_disp, initial_poses)
 
-    return rel_disp, rel_covar, se3_outputs, lstm_states, ekf_out_states[-1, ...], ekf_out_covar[-1, ...]
+    return rel_disp, rel_covar, se3_outputs, lstm_states, \
+           ekf_out_states[-1, ...], ekf_out_covar[-1, ...], \
+           feed_init_states, feed_ekf_init_state, feed_ekf_init_covar
