@@ -4,7 +4,7 @@ import config
 
 sequences = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]
 
-data_dir = config.save_path + "/trajectory_results/"
+data_dir = config.save_path + "/ekf_debug/"
 
 for i, sequence in enumerate(sequences):
 
@@ -23,15 +23,15 @@ for i, sequence in enumerate(sequences):
             print("Cannot find %s" % trj[0])
             break
 
-        z = trajectory[:, 2]
+        y = trajectory[:, 1]
         x = trajectory[:, 0]
 
-        plt.plot(x, z, **trj[1], label=trj[2])
+        plt.plot(x, y, **trj[1], label=trj[2])
 
     if not file_not_found:
         plt.axis("equal")
         plt.xlabel("x [m]")
-        plt.ylabel("z [m]")
+        plt.ylabel("y [m]")
 
         if sequence in ["00", "01", "02", "08", "09"]:
             set_type = "Training Set"
