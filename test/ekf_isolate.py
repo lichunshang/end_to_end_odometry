@@ -7,7 +7,7 @@ import tools
 import os
 import model
 
-kitti_seq = "00"
+kitti_seq = "06"
 # frames = [range(0, 100)]
 frames = [None]
 
