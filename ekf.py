@@ -232,7 +232,7 @@ def full_ekf_layer(imu_meas_in, nn_meas, nn_covar, prev_state, prev_covar, gyro_
         lift_a_bias_covar = tf.tile(tf.expand_dims(acc_bias_covar, axis=0), [imu_meas.shape[1], 1, 1])
 
         g = tf.constant(-9.80665, dtype=tf.float32)
-        gfull = tf.tile(tf.expand_dims(tfe.Variable([[0], [0], [g]], trainable=False), axis=0),
+        gfull = tf.tile(tf.expand_dims(tfe.Variable([[0], [0], [g]], trainable=False, name="g"), axis=0),
                         [imu_meas.shape[1], 1, 1])
 
         diRo = tfe.Variable([[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, -dt, 0],
