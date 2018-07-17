@@ -8,7 +8,8 @@ import os
 import model
 
 kitti_seq = "00"
-frames = [range(0, 100)]
+# frames = [range(0, 100)]
+frames = [None]
 
 
 class SeqTrainLidarConfig:
@@ -71,6 +72,8 @@ if not os.path.exists(results_dir_path):
     os.makedirs(results_dir_path)
 
 with tf.Session() as sess:
+    sess.run(tf.global_variables_initializer())
+
     total_batches = data_gen.total_batches()
     tools.printf("Start evaluation loop...")
 
@@ -91,8 +94,8 @@ with tf.Session() as sess:
         fc_covar = np.reshape(np.array([0.1] * 6, dtype=np.float32), [1, 1, 6])
         fc_outputs_input = np.concatenate([fc_ground_truth, fc_covar, ], axis=2)
 
-        _se3_outputs = sess.run(
-                [se3_outputs],
+        _se3_outputs, _curr_ekf_states, _curr_ekf_covar = sess.run(
+                [se3_outputs, ekf_out_states, ekf_out_covar],
                 feed_dict={
                     fc_outputs: fc_outputs_input,
                     initial_poses: init_pose,
@@ -102,6 +105,8 @@ with tf.Session() as sess:
                 },
         )
         init_pose = _se3_outputs[-1]
+        curr_ekf_state = _curr_ekf_states[-1]
+        curr_ekf_covar = _curr_ekf_covar[-1]
 
         prediction[j_batch + 1, :] = _se3_outputs[-1, -1]
         ground_truth[j_batch + 1, :] = se3_ground_truth[-1, -1]

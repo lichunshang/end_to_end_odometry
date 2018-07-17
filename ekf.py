@@ -35,7 +35,7 @@ def skew(x):
 # prev biases should have shape batches x 3
 # covar matrices should be 3x3, except for prev_covar which is batch_size x 6x6 and nn_covar which is time x batch x 6 x 6
 def rotation_only_ekf(imu_meas, nn_meas, nn_covar, prev_bias, prev_covar, bias_covar, imu_covar,
-                      timestep=tf.constant(0.1, dtype=tf.float32)):
+                      timestep=tf.constant(0.1, dtype=tf.float32, name="ekf_dt")):
     with tf.variable_scope("ekf_layer"):
         x_output = []
         covar_output = []
