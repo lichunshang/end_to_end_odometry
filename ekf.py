@@ -266,8 +266,9 @@ def full_ekf_layer(imu_meas_in, nn_meas, nn_covar, prev_state, prev_covar, gyro_
 
         Hk = tf.tile(tf.expand_dims(hk, axis=0), [imu_meas.shape[1], 1, 1])
 
+        pred_states = []
         for i in range(imu_meas.shape[0]):
-            next_state, next_covariance = run_update(imu_meas[i, ...], dt, prev_states[i], covar_output[i], gfull, g,
+            next_state, next_covariance, pred_state = run_update(imu_meas[i, ...], dt, prev_states[i], covar_output[i], gfull, g,
                                                      fkstat,
                                                      Hk, lift_g_bias_covar, lift_a_bias_covar, lift_g_covar,
                                                      lift_a_covar, nn_meas[i, ...],
@@ -275,8 +276,9 @@ def full_ekf_layer(imu_meas_in, nn_meas, nn_covar, prev_state, prev_covar, gyro_
 
             prev_states.append(next_state)
             covar_output.append(next_covariance)
+            pred_states.append(pred_state)
 
-    return tf.stack(prev_states), tf.stack(covar_output)
+    return tf.stack(prev_states), tf.stack(covar_output), tf.stack(pred_states)
 
 
 # Abstract out one iteration of the ekf
@@ -299,7 +301,7 @@ def run_update(imu_meas_in, dt, prev_state_in, prev_covar_in, gfull, g, fkstat, 
     pred_list = []
 
     # pos = dt * np.dot(pred_rot, x[3:6]) + (0.5 * dt * dt) * (
-    #             np.dot(pred_global_rot, gfull) + imu_meas[3:6] + 2 * np.cross(imu_meas[0:3] - x[14:17], x[3:6]) - x[8:11])
+    #             np.dot(pred_global_rot, gfull) + imu_meas[3:6] - x[8:11])
 
     # position prediction
     pred_list.append(
@@ -419,4 +421,4 @@ def run_update(imu_meas_in, dt, prev_state_in, prev_covar_in, gfull, g, fkstat, 
 
     tf.assert_positive(tf.matrix_determinant(covar), [imu_meas, prev_state, prev_covar, nn_meas, nn_covar])
 
-    return X, covar
+    return X, covar, pred_state

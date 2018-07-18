@@ -357,7 +357,7 @@ def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ek
         gyro_covar = tf.diag(tf.square(gyro_covar_diag) + 1e-4)
         acc_covar = tf.diag(tf.square(acc_covar_diag) + 1e-4)
 
-        ekf_out_states, ekf_out_covar = ekf.full_ekf_layer(imu_data, fc_outputs[..., 0:6], nn_covar,
+        ekf_out_states, ekf_out_covar, ekf_pred_states = ekf.full_ekf_layer(imu_data, fc_outputs[..., 0:6], nn_covar,
                                                            feed_ekf_init_state, feed_ekf_init_covar,
                                                            gyro_bias_covar, acc_bias_covar, gyro_covar, acc_covar)
 
@@ -380,4 +380,4 @@ def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ek
 
     return rel_disp, rel_covar, se3_outputs, lstm_states, \
            ekf_out_states[-1, ...], ekf_out_covar[-1, ...], \
-           feed_init_states, feed_ekf_init_state, feed_ekf_init_covar
+           feed_init_states, feed_ekf_init_state, feed_ekf_init_covar, ekf_pred_states
