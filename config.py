@@ -1,5 +1,6 @@
 import tools
 import getpass
+import numpy as np
 
 machine = getpass.getuser()
 
@@ -11,6 +12,7 @@ elif machine == "bapskiko":
     save_path = "/home/bapskiko/git/end_to_end_visual_odometry/results"
     dataset_path = "/media/bapskiko/SpinDrive/kitti/dataset"
     lidar_pickles_path = "/home/bapskiko/git/end_to_end_visual_odometry/pickles"
+
 
 class Configs(object):
     timesteps = 0
@@ -46,17 +48,23 @@ class SeqTrainLidarConfig(Configs):
     input_height = 64
     input_channels = 2
 
-    debug = False
+    bidir_aug = True  # train going in reverse as well
 
-    bidir_aug = True
+    # EKF stuff
+    use_ekf = True
+    train_noise_covariance = True  # Train the imu noise covariance for ekf
+    static_nn = False  # don't modify the nn weights if set to true
+    fix_fc_covar = True
+    fc_covar_fix_val = np.array([0.1] * 6, dtype=np.float32)
+    ekf_initial_covariance = 100  # initial covariance for all the states
 
+    # initializer stuff
     use_init = False
-    use_ekf = False
-
     only_train_init = False  # only used when use init is True
     dont_restore_init = True  # only used when use init is True
-    static_nn = False # don't modify the nn weights
-    train_noise_covariance = False # Train the imu noise covariance
+
+    debug = False
+
     init_prob = 1
 
     data_type = "lidar"

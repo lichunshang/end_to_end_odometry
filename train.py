@@ -339,8 +339,9 @@ class Train(object):
         curr_lstm_states = np.zeros([2, self.cfg.lstm_layers, self.cfg.batch_size, self.cfg.lstm_size],
                                     dtype=np.float32)
         curr_ekf_state = np.zeros([self.cfg.batch_size, 17], dtype=np.float32)
-        curr_ekf_cov_state = 0.01 * np.repeat(np.expand_dims(np.identity(17, dtype=np.float32), axis=0),
-                                              repeats=self.cfg.batch_size, axis=0)
+        curr_ekf_cov_state = self.cfg.ekf_initial_covariance * \
+                             np.repeat(np.expand_dims(np.identity(17, dtype=np.float32), axis=0),
+                                       repeats=self.cfg.batch_size, axis=0)
 
         lstm_states_dic = {}
         ekf_states_dic = {}

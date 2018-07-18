@@ -9,6 +9,7 @@ import ekf
 
 tfe = tf.contrib.eager
 
+
 # CNN Block
 # is_training to control whether to apply dropout
 def cnn_model(inputs, is_training, get_activations=False):
@@ -249,7 +250,7 @@ def initializer_layer(inputs, cfg):
             raise ValueError("Invalid initializer size")
         init_list = tf.unstack(inputs[:cfg.init_length, ...], axis=0)
         init_feed = tf.concat(init_list, axis=1)
-        initializer = tf.contrib.layers.fully_connected(init_feed,  cfg.lstm_layers * 2 * cfg.lstm_size, scope="fc",
+        initializer = tf.contrib.layers.fully_connected(init_feed, cfg.lstm_layers * 2 * cfg.lstm_size, scope="fc",
                                                         activation_fn=tf.nn.tanh)
 
         # Doing this manually to make sure data from different batches isn't mixed
@@ -304,15 +305,20 @@ def seq_model_inputs(cfg):
 
     if cfg.use_ekf:
         with tf.variable_scope("imu_noise_params", reuse=tf.AUTO_REUSE):
-            gyro_bias_diag = tf.get_variable(name="gyro_bias_sqrt", initializer=tf.random_normal([3], stddev=0.1), dtype=tf.float32, trainable=cfg.train_noise_covariance)
+            gyro_bias_diag = tf.get_variable(name="gyro_bias_sqrt", initializer=tf.random_normal([3], stddev=0.1),
+                                             dtype=tf.float32, trainable=cfg.train_noise_covariance)
 
-            acc_bias_diag = tf.get_variable(name="acc_bias_sqrt", initializer=tf.random_normal([3], stddev=0.1), dtype=tf.float32, trainable=cfg.train_noise_covariance)
+            acc_bias_diag = tf.get_variable(name="acc_bias_sqrt", initializer=tf.random_normal([3], stddev=0.1),
+                                            dtype=tf.float32, trainable=cfg.train_noise_covariance)
 
-            gyro_covar_diag = tf.get_variable(name="gyro_sqrt", initializer=tf.random_normal([3], stddev=0.1), dtype=tf.float32, trainable=cfg.train_noise_covariance)
+            gyro_covar_diag = tf.get_variable(name="gyro_sqrt", initializer=tf.random_normal([3], stddev=0.1),
+                                              dtype=tf.float32, trainable=cfg.train_noise_covariance)
 
-            acc_covar_diag = tf.get_variable(name="acc_sqrt", initializer=tf.random_normal([3], stddev=0.1), dtype=tf.float32, trainable=cfg.train_noise_covariance)
+            acc_covar_diag = tf.get_variable(name="acc_sqrt", initializer=tf.random_normal([3], stddev=0.1),
+                                             dtype=tf.float32, trainable=cfg.train_noise_covariance)
 
     return inputs, lstm_initial_state, initial_poses, imu_data, ekf_initial_state, ekf_initial_covariance, is_training, use_initializer
+
 
 def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ekf_initial_state, ekf_initial_covariance,
                     is_training, get_activations=False, use_initializer=False, use_ekf=False):
@@ -332,6 +338,13 @@ def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ek
 
     print("Building FC...")
     fc_outputs = fc_layer(lstm_outputs, fc_model)
+
+    # if we want to fix covariances in fc_outputs
+    if cfg.fix_fc_covar:
+        fc_outputs_shape = fc_outputs.get_shape().as_list()
+        fixed_covar = np.stack([cfg.fc_covar_fix_val] * fc_outputs_shape[1])
+        fixed_covar = np.stack([fixed_covar] * fc_outputs_shape[0])
+        fc_outputs = tf.concat([fc_outputs[:, :, 0:6], tf.constant(fixed_covar, tf.float32)], axis=2)
 
     stack1 = []
     for i in range(fc_outputs.shape[0]):
@@ -363,14 +376,14 @@ def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ek
 
         rel_disp = tf.concat([ekf_out_states[1:, :, 0:3], ekf_out_states[1:, :, 11:14]], axis=-1)
         rel_covar = tf.concat([tf.concat([ekf_out_covar[1:, :, 0:3, 0:3], ekf_out_covar[1:, :, 0:3, 11:14]], axis=-1),
-                          tf.concat([ekf_out_covar[1:, :, 11:14, 0:3], ekf_out_covar[1:, :, 11:14, 11:14]], axis=-1)], axis=-2)
+                               tf.concat([ekf_out_covar[1:, :, 11:14, 0:3], ekf_out_covar[1:, :, 11:14, 11:14]],
+                                         axis=-1)], axis=-2)
     else:
         rel_disp = fc_outputs[..., 0:6]
         rel_covar = nn_covar
 
         ekf_out_states = tf.zeros([fc_outputs.shape[0], fc_outputs.shape[1], 17], dtype=tf.float32)
         ekf_out_covar = tf.eye(17, batch_shape=[fc_outputs.shape[0], fc_outputs.shape[1]], dtype=tf.float32)
-
 
     print("Building SE3...")
     # at this point the outputs are the relative states with covariance, need to only select the part the

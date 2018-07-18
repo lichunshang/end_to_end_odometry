@@ -89,7 +89,7 @@ with tf.Session() as sess:
     imu_measurements[0, :] = np.zeros([6])
 
     curr_ekf_state = np.zeros([cfg.batch_size, 17], dtype=np.float32)
-    curr_ekf_state[:, [3]] = 12  # !!! initial state
+    # curr_ekf_state[:, [3]] = 12  # !!! initial state
     ekf_states[0, :] = curr_ekf_state
     curr_ekf_cov_state = 100 * np.repeat(np.expand_dims(np.identity(17, dtype=np.float32), axis=0),
                                          repeats=cfg.batch_size, axis=0)
