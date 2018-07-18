@@ -266,14 +266,13 @@ def noise_jacobians():
     reuse = np.concatenate((np.zeros([3, 1], dtype=np.float32), getLittleJacobian(pred_global_euler)), axis=-1)
 
     dpi = np.concatenate((getJacobian(pred_rot_euler, dt * x_prev[3:6]) * -dt
-                          + (0.5 * dt * dt) * (-dt * g * reuse)
-                          + dt * dt * skew(x_prev[3:6]),
+                          + (0.5 * dt * dt) * (-dt * g * reuse),
                           (-0.5 * dt * dt * np.eye(3, dtype=np.float32)),
                           np.zeros([3, 3], dtype=np.float32),
                           np.zeros([3, 3], dtype=np.float32)), axis=-1)
 
     dvi = np.concatenate((getJacobian(pred_rot_euler, x_prev[3:6]) * -dt
-                          + dt * (-dt * g * reuse) + 2 * dt * skew(x_prev[3:6]),
+                          + dt * (-dt * g * reuse),
                           (-dt * np.eye(3, dtype=np.float32)),
                           np.zeros([3, 3], dtype=np.float32),
                           np.zeros([3, 3], dtype=np.float32)), axis=-1)
