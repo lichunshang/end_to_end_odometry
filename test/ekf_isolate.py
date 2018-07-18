@@ -7,7 +7,7 @@ import tools
 import os
 import model
 
-kitti_seq = "06"
+kitti_seq = "00"
 # frames = [range(0, 100)]
 frames = [None]
 
@@ -29,8 +29,8 @@ class SeqTrainLidarConfig:
 
 cfg = SeqTrainLidarConfig
 
-gyro_bias_diag = np.array([0.1] * 3, dtype=np.float32)
-acc_bias_diag = np.array([0.1] * 3, dtype=np.float32)
+gyro_bias_diag = np.array([0.0] * 3, dtype=np.float32)
+acc_bias_diag = np.array([0.0] * 3, dtype=np.float32)
 gyro_covar_diag = np.array([0.1] * 3, dtype=np.float32)
 acc_covar_diag = np.array([0.1] * 3, dtype=np.float32)
 
@@ -78,12 +78,16 @@ with tf.Session() as sess:
     tools.printf("Start evaluation loop...")
 
     prediction = np.zeros([total_batches + 1, 7])
-    ground_truth = np.zeros([total_batches + 1, 7])
+    ground_truths = np.zeros([total_batches + 1, 7])
+    ekf_states = np.zeros([total_batches + 1, 17])
+    fc_ground_truths = np.zeros([total_batches + 1, 6])
     init_pose = np.expand_dims(data_gen.get_sequence_initial_pose(kitti_seq), axis=0)
     prediction[0, :] = init_pose
-    ground_truth[0, :] = init_pose
+    ground_truths[0, :] = init_pose
+    fc_ground_truths[0, :] = np.zeros([6])
 
     curr_ekf_state = np.zeros([cfg.batch_size, 17], dtype=np.float32)
+    ekf_states[0, :] = curr_ekf_state
     curr_ekf_cov_state = 0.01 * np.repeat(np.expand_dims(np.identity(17, dtype=np.float32), axis=0),
                                           repeats=cfg.batch_size, axis=0)
 
@@ -109,11 +113,15 @@ with tf.Session() as sess:
         curr_ekf_covar = _curr_ekf_covar[-1]
 
         prediction[j_batch + 1, :] = _se3_outputs[-1, -1]
-        ground_truth[j_batch + 1, :] = se3_ground_truth[-1, -1]
+        ground_truths[j_batch + 1, :] = se3_ground_truth[-1, -1]
+        ekf_states[j_batch + 1, :] = curr_ekf_state
+        fc_ground_truths[j_batch + 1, :] = fc_ground_truth
 
         if j_batch % 100 == 0:
             tools.printf("Processed %.2f%%" % (data_gen.curr_batch() / data_gen.total_batches() * 100))
 
     # save the trajectories
-    np.save(os.path.join(results_dir_path, "trajectory_" + kitti_seq), prediction)
-    np.save(os.path.join(results_dir_path, "ground_truth_" + kitti_seq), ground_truth)
+    np.save(os.path.join(results_dir_path, "%s_trajectory" % kitti_seq), prediction)
+    np.save(os.path.join(results_dir_path, "%s_ground_truth" % kitti_seq), ground_truths)
+    np.save(os.path.join(results_dir_path, "%s_fc_ground_truth" % kitti_seq), fc_ground_truths)
+    np.save(os.path.join(results_dir_path, "%s_ekf_states" % kitti_seq), ekf_states)
