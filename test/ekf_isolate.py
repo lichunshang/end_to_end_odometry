@@ -7,7 +7,7 @@ import tools
 import os
 import model
 
-kitti_seq = "00"
+kitti_seq = "06"
 # frames = [range(0, 100)]
 frames = [None]
 
@@ -29,8 +29,8 @@ class SeqTrainLidarConfig:
 
 cfg = SeqTrainLidarConfig
 
-gyro_bias_diag = np.array([0.0] * 3, dtype=np.float32)
-acc_bias_diag = np.array([0.0] * 3, dtype=np.float32)
+gyro_bias_diag = np.array([0.1] * 3, dtype=np.float32)
+acc_bias_diag = np.array([0.1] * 3, dtype=np.float32)
 gyro_covar_diag = np.array([0.1] * 3, dtype=np.float32)
 acc_covar_diag = np.array([0.1] * 3, dtype=np.float32)
 
@@ -95,7 +95,7 @@ with tf.Session() as sess:
         j_batch = data_gen.curr_batch()
 
         _, _, batch_data, fc_ground_truth, se3_ground_truth, imu_meas = data_gen.next_batch()
-        fc_covar = np.reshape(np.array([0.1] * 6, dtype=np.float32), [1, 1, 6])
+        fc_covar = np.reshape(np.array([100000] * 6, dtype=np.float32), [1, 1, 6])
         fc_outputs_input = np.concatenate([fc_ground_truth, fc_covar, ], axis=2)
 
         _se3_outputs, _curr_ekf_states, _curr_ekf_covar = sess.run(
@@ -111,6 +111,8 @@ with tf.Session() as sess:
         init_pose = _se3_outputs[-1]
         curr_ekf_state = _curr_ekf_states[-1]
         curr_ekf_covar = _curr_ekf_covar[-1]
+
+        curr_ekf_state[:, [6, 7, 8, 9, 10, 14, 15, 16]] = 0
 
         prediction[j_batch + 1, :] = _se3_outputs[-1, -1]
         ground_truths[j_batch + 1, :] = se3_ground_truth[-1, -1]
