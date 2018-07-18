@@ -81,21 +81,24 @@ with tf.Session() as sess:
     ground_truths = np.zeros([total_batches + 1, 7])
     ekf_states = np.zeros([total_batches + 1, 17])
     fc_ground_truths = np.zeros([total_batches + 1, 6])
+    imu_measurements = np.zeros([total_batches + 1, 6])
     init_pose = np.expand_dims(data_gen.get_sequence_initial_pose(kitti_seq), axis=0)
     prediction[0, :] = init_pose
     ground_truths[0, :] = init_pose
     fc_ground_truths[0, :] = np.zeros([6])
+    imu_measurements[0, :] = np.zeros([6])
 
     curr_ekf_state = np.zeros([cfg.batch_size, 17], dtype=np.float32)
+    curr_ekf_state[:, [3]] = 12  # !!! initial state
     ekf_states[0, :] = curr_ekf_state
-    curr_ekf_cov_state = 0.01 * np.repeat(np.expand_dims(np.identity(17, dtype=np.float32), axis=0),
-                                          repeats=cfg.batch_size, axis=0)
+    curr_ekf_cov_state = 100 * np.repeat(np.expand_dims(np.identity(17, dtype=np.float32), axis=0),
+                                         repeats=cfg.batch_size, axis=0)
 
     while data_gen.has_next_batch():
         j_batch = data_gen.curr_batch()
 
         _, _, batch_data, fc_ground_truth, se3_ground_truth, imu_meas = data_gen.next_batch()
-        fc_covar = np.reshape(np.array([100000] * 6, dtype=np.float32), [1, 1, 6])
+        fc_covar = np.reshape(np.array([1] * 6, dtype=np.float32), [1, 1, 6])
         fc_outputs_input = np.concatenate([fc_ground_truth, fc_covar, ], axis=2)
 
         _se3_outputs, _curr_ekf_states, _curr_ekf_covar = sess.run(
@@ -112,12 +115,13 @@ with tf.Session() as sess:
         curr_ekf_state = _curr_ekf_states[-1]
         curr_ekf_covar = _curr_ekf_covar[-1]
 
-        curr_ekf_state[:, [6, 7, 8, 9, 10, 14, 15, 16]] = 0
+        # curr_ekf_state[:, [6, 7]] = 0
 
         prediction[j_batch + 1, :] = _se3_outputs[-1, -1]
         ground_truths[j_batch + 1, :] = se3_ground_truth[-1, -1]
         ekf_states[j_batch + 1, :] = curr_ekf_state
         fc_ground_truths[j_batch + 1, :] = fc_ground_truth
+        imu_measurements[j_batch + 1, :] = imu_meas
 
         if j_batch % 100 == 0:
             tools.printf("Processed %.2f%%" % (data_gen.curr_batch() / data_gen.total_batches() * 100))
@@ -127,3 +131,4 @@ with tf.Session() as sess:
     np.save(os.path.join(results_dir_path, "%s_ground_truth" % kitti_seq), ground_truths)
     np.save(os.path.join(results_dir_path, "%s_fc_ground_truth" % kitti_seq), fc_ground_truths)
     np.save(os.path.join(results_dir_path, "%s_ekf_states" % kitti_seq), ekf_states)
+    np.save(os.path.join(results_dir_path, "%s_imu_measurements" % kitti_seq), imu_measurements)

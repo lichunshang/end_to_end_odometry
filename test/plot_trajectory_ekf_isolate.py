@@ -50,6 +50,7 @@ for i, sequence in enumerate(sequences):
     file_not_found = False
     ekf_state_fp = data_dir + "%s_ekf_states.npy" % sequence
     fc_ground_truth_fp = data_dir + "%s_fc_ground_truth.npy" % sequence
+    imu_measurements_fp = data_dir + "%s_imu_measurements.npy" % sequence
 
     ekf_state_labels = ["Delta X", "Delta Y", "Delta Z",
 
@@ -67,8 +68,11 @@ for i, sequence in enumerate(sequences):
                         "Delta Z Ground Truth",
 
                         "Delta Yaw Ground Truth", "Delta Pitch Ground Truth",
-                        "Delta Roll Ground Truth"
-                        ]
+                        "Delta Roll Ground Truth",
+
+                        "IMU Rate Roll", "IMU Rate Pitch", "IMU Rate Yaw",
+
+                        "IMU Accel X", "IMU Accel Y", "IMU Accel Z"]
     ekf_state_units = ["m", "m", "m",
                        "m/s", "m/s", "m/s",
                        "rad", "rad",
@@ -76,12 +80,18 @@ for i, sequence in enumerate(sequences):
                        "rad", "rad", "rad",
                        "rad/s", "rad/s", "rad/s",
                        "m", "m", "m",
-                       "rad", "rad", "rad"]
-    assert(len(ekf_state_labels) == len(ekf_state_units))
+                       "rad", "rad", "rad",
+                       "rad/s", "rad/s", "rad/s",
+                       "m/s^2", "m/s^2", "m/s^2"]
+
+    # print("%d = %d" % (len(ekf_state_labels), len(ekf_state_units)))
+    assert (len(ekf_state_labels) == len(ekf_state_units))
+
     try:
         ekf_states = np.load(ekf_state_fp)
         fc_ground_truth = np.load(fc_ground_truth_fp)
-        ekf_states = np.concatenate([ekf_states, fc_ground_truth], axis=1)
+        imu_measurements = np.load(imu_measurements_fp)
+        ekf_states = np.concatenate([ekf_states, fc_ground_truth, imu_measurements], axis=1)
     except FileNotFoundError:
         file_not_found = True
         print("Cannot find %s" % ekf_state_fp)
