@@ -304,13 +304,10 @@ def run_update(imu_meas_in, dt, prev_state_in, prev_covar_in, gfull, g, fkstat, 
     # position prediction
     pred_list.append(
             tf.squeeze(tf.matmul(pred_rot, dt * tf.expand_dims(prev_state[..., 3:6], axis=-1))) + (0.5 * dt * dt) * \
-            (tf.squeeze(tf.matmul(pred_global_rot, gfull)) + imu_meas[:, 3:6] +
-             2 * tf.cross(imu_meas[:, 0:3] - prev_state[..., 14:17], prev_state[..., 3:6]) - prev_state[..., 8:11]))
+            (tf.squeeze(tf.matmul(pred_global_rot, gfull)) + imu_meas[:, 3:6] - prev_state[..., 8:11]))
     # velocity prediction
     pred_list.append(tf.squeeze(tf.matmul(pred_rot, tf.expand_dims(prev_state[..., 3:6], axis=-1))) + dt * \
-                     (tf.squeeze(tf.matmul(pred_global_rot, gfull)) + imu_meas[:, 3:6] +
-                      2 * tf.cross(imu_meas[:, 0:3] - prev_state[..., 14:17], prev_state[..., 3:6]) - prev_state[...,
-                                                                                                      8:11]))
+                     (tf.squeeze(tf.matmul(pred_global_rot, gfull)) + imu_meas[:, 3:6] - prev_state[..., 8:11]))
 
     # global pitch and roll prediction
     pred_list.append(pred_global)
@@ -332,21 +329,19 @@ def run_update(imu_meas_in, dt, prev_state_in, prev_covar_in, gfull, g, fkstat, 
                             axis=-1)
 
     Fk = tf.concat([tf.concat([tf.zeros([imu_meas.shape[0], 3, 3]),
-                               dt * pred_rot + dt * dt * skew(imu_meas[:, 0:3] - prev_state[..., 14:17]),
+                               dt * pred_rot,
                                0.5 * dt * dt * g * getLittleJacobian(pred_global),
                                -0.5 * dt * dt * tf.eye(3, batch_shape=[imu_meas.shape[0]], dtype=tf.float32),
                                tf.zeros([imu_meas.shape[0], 3, 3]),
                                -dt * getJacobian(pred_rot_euler, dt * prev_state[..., 3:6]) -
-                               g * 0.5 * dt * dt * dt * dRglobal_dE +
-                               dt * dt * skew(prev_state[..., 3:6])], axis=-1),
+                               g * 0.5 * dt * dt * dt * dRglobal_dE], axis=-1),
                     tf.concat([tf.zeros([imu_meas.shape[0], 3, 3]),
-                               pred_rot + 2 * dt * skew(imu_meas[:, 0:3] - prev_state[..., 14:17]),
+                               pred_rot,
                                dt * g * getLittleJacobian(pred_global),
                                -dt * tf.eye(3, batch_shape=[imu_meas.shape[0]], dtype=tf.float32),
                                tf.zeros([imu_meas.shape[0], 3, 3]),
                                -dt * getJacobian(pred_rot_euler, prev_state[..., 3:6]) + \
-                               -g * dt * dt * dRglobal_dE +
-                               2 * dt * skew(prev_state[..., 3:6])], axis=-1)
+                               -g * dt * dt * dRglobal_dE], axis=-1)
                     ], axis=1)
 
     Fkfull = tf.concat([Fk, fkstat], axis=1)
@@ -364,14 +359,13 @@ def run_update(imu_meas_in, dt, prev_state_in, prev_covar_in, gfull, g, fkstat, 
     reuse = tf.concat((tf.zeros([imu_meas.shape[0], 3, 1], dtype=tf.float32), getLittleJacobian(pred_global)), axis=-1)
 
     dpi = tf.concat((getJacobian(pred_rot_euler, dt * prev_state[..., 3:6]) * -dt
-                     + (0.5 * dt * dt) * (-dt * g * reuse)
-                     + dt * dt * skew(prev_state[..., 3:6]),
+                     + (0.5 * dt * dt) * (-dt * g * reuse),
                      (-0.5 * dt * dt) * tf.eye(3, batch_shape=[imu_meas.shape[0]], dtype=tf.float32),
                      tf.zeros([imu_meas.shape[0], 3, 3], dtype=tf.float32),
                      tf.zeros([imu_meas.shape[0], 3, 3], dtype=tf.float32)), axis=-1)
 
     dvi = tf.concat((getJacobian(pred_rot_euler, prev_state[..., 3:6]) * -dt
-                     + dt * (-dt * g * reuse) + 2 * dt * skew(prev_state[..., 3:6]),
+                     + dt * (-dt * g * reuse),
                      (-dt * tf.eye(3, batch_shape=[imu_meas.shape[0]], dtype=tf.float32)),
                      tf.zeros([imu_meas.shape[0], 3, 3], dtype=tf.float32),
                      tf.zeros([imu_meas.shape[0], 3, 3], dtype=tf.float32)), axis=-1)
