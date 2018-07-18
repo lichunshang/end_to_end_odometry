@@ -364,14 +364,13 @@ def run_update(imu_meas_in, dt, prev_state_in, prev_covar_in, gfull, g, fkstat, 
     reuse = tf.concat((tf.zeros([imu_meas.shape[0], 3, 1], dtype=tf.float32), getLittleJacobian(pred_global)), axis=-1)
 
     dpi = tf.concat((getJacobian(pred_rot_euler, dt * prev_state[..., 3:6]) * -dt
-                     + (0.5 * dt * dt) * (-dt * g * reuse)
-                     + dt * dt * skew(prev_state[..., 3:6]),
+                     + (0.5 * dt * dt) * (-dt * g * reuse),
                      (-0.5 * dt * dt) * tf.eye(3, batch_shape=[imu_meas.shape[0]], dtype=tf.float32),
                      tf.zeros([imu_meas.shape[0], 3, 3], dtype=tf.float32),
                      tf.zeros([imu_meas.shape[0], 3, 3], dtype=tf.float32)), axis=-1)
 
     dvi = tf.concat((getJacobian(pred_rot_euler, prev_state[..., 3:6]) * -dt
-                     + dt * (-dt * g * reuse) + 2 * dt * skew(prev_state[..., 3:6]),
+                     + dt * (-dt * g * reuse),
                      (-dt * tf.eye(3, batch_shape=[imu_meas.shape[0]], dtype=tf.float32)),
                      tf.zeros([imu_meas.shape[0], 3, 3], dtype=tf.float32),
                      tf.zeros([imu_meas.shape[0], 3, 3], dtype=tf.float32)), axis=-1)
