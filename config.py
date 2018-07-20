@@ -56,7 +56,12 @@ class SeqTrainLidarConfig(Configs):
     static_nn = False  # don't modify the nn weights if set to true
     fix_fc_covar = True
     fc_covar_fix_val = np.array([0.1] * 6, dtype=np.float32)
-    ekf_initial_covariance = 100  # initial covariance for all the states
+    ekf_initial_state_covariance = 100  # initial covariance for all the states
+    init_gyro_bias_covar = 1
+    init_acc_bias_covar = 1
+    init_gyro_covar = 1
+    init_acc_covar = 1
+
 
     # initializer stuff
     use_init = False

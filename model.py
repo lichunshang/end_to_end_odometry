@@ -305,16 +305,24 @@ def seq_model_inputs(cfg):
 
     if cfg.use_ekf:
         with tf.variable_scope("imu_noise_params", reuse=tf.AUTO_REUSE):
-            gyro_bias_diag = tf.get_variable(name="gyro_bias_sqrt", initializer=tf.random_normal([3], stddev=0.1),
+            gyro_bias_diag = tf.get_variable(name="gyro_bias_sqrt",
+                                             initializer=tf.constant_initializer([cfg.init_gyro_bias_covar] * 3,
+                                                                                 dtype=tf.float32),
                                              dtype=tf.float32, trainable=cfg.train_noise_covariance)
 
-            acc_bias_diag = tf.get_variable(name="acc_bias_sqrt", initializer=tf.random_normal([3], stddev=0.1),
+            acc_bias_diag = tf.get_variable(name="acc_bias_sqrt",
+                                            initializer=tf.constant_initializer([cfg.init_acc_bias_covar] * 3,
+                                                                                dtype=tf.float32),
                                             dtype=tf.float32, trainable=cfg.train_noise_covariance)
 
-            gyro_covar_diag = tf.get_variable(name="gyro_sqrt", initializer=tf.random_normal([3], stddev=0.1),
+            gyro_covar_diag = tf.get_variable(name="gyro_sqrt",
+                                              initializer=tf.constant_initializer([cfg.init_gyro_covar] * 3,
+                                                                                  dtype=tf.float32),
                                               dtype=tf.float32, trainable=cfg.train_noise_covariance)
 
-            acc_covar_diag = tf.get_variable(name="acc_sqrt", initializer=tf.random_normal([3], stddev=0.1),
+            acc_covar_diag = tf.get_variable(name="acc_sqrt",
+                                             initializer=tf.constant_initializer([cfg.init_acc_covar] * 3,
+                                                                                 dtype=tf.float32),
                                              dtype=tf.float32, trainable=cfg.train_noise_covariance)
 
     return inputs, lstm_initial_state, initial_poses, imu_data, ekf_initial_state, ekf_initial_covariance, is_training, use_initializer
