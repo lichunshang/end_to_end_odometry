@@ -35,7 +35,7 @@ def skew(x):
 # prev biases should have shape batches x 3
 # covar matrices should be 3x3, except for prev_covar which is batch_size x 6x6 and nn_covar which is time x batch x 6 x 6
 def rotation_only_ekf(imu_meas, nn_meas, nn_covar, prev_bias, prev_covar, bias_covar, imu_covar,
-                      timestep=tf.constant(0.1, dtype=tf.float32, name="ekf_dt")):
+                      timestep=0.1):
     with tf.variable_scope("ekf_layer"):
         x_output = []
         covar_output = []
@@ -50,7 +50,7 @@ def rotation_only_ekf(imu_meas, nn_meas, nn_covar, prev_bias, prev_covar, bias_c
         Fk[0:3, 0:3] = 0
         Fk[0:3, 3:6] = -timestep * tf.eye(3)
 
-        Hk = tf.Variable([[1, 0, 0, 0, 0, 0], [0, 1, 0, 0, 0, 0], [0, 0, 1, 0, 0, 0]])
+        Hk = tf.constant([[1, 0, 0, 0, 0, 0], [0, 1, 0, 0, 0, 0], [0, 0, 1, 0, 0, 0]], name="Hk", dtype=tf.float32)
         Hk = tf.tile(tf.expand_dims(Hk, axis=0), [imu_meas.shape[1]])
 
         # matmul doesn't support broadcasting so need to repeat Fk and Hk a bunch of times
@@ -214,7 +214,7 @@ def getLittleJacobian(eulers):
 # covar matrices should be 3x3, except for prev_covar which is batch_size x 17x17 and nn_covar which is time x batch x 6 x 6
 
 def full_ekf_layer(imu_meas_in, nn_meas, nn_covar, prev_state, prev_covar, gyro_bias_covar, acc_bias_covar, gyro_covar,
-                   acc_covar, dt=tf.constant(0.1, dtype=tf.float32)):
+                   acc_covar, dt=0.1):
     with tf.variable_scope("ekf_layer", reuse=tf.AUTO_REUSE):
         prev_states = []
         covar_output = []
@@ -231,38 +231,36 @@ def full_ekf_layer(imu_meas_in, nn_meas, nn_covar, prev_state, prev_covar, gyro_
         lift_g_bias_covar = tf.tile(tf.expand_dims(gyro_bias_covar, axis=0), [imu_meas.shape[1], 1, 1])
         lift_a_bias_covar = tf.tile(tf.expand_dims(acc_bias_covar, axis=0), [imu_meas.shape[1], 1, 1])
 
-        g = tf.constant(-9.80665, dtype=tf.float32)
-        gfull = tf.tile(tf.expand_dims(tfe.Variable([[0], [0], [g]], trainable=False, name="g"), axis=0),
+        g = -9.80665
+        gfull = tf.tile(tf.expand_dims(tf.constant([[0], [0], [g]], dtype=tf.float32, name="g"), axis=0),
                         [imu_meas.shape[1], 1, 1])
 
-        diRo = tfe.Variable([[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, -dt, 0],
-                             [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, -dt]], trainable=False, name="diRo")
+        diRo = tf.constant([[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, -dt, 0],
+                            [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, -dt]], dtype=tf.float32, name="diRo")
 
-        dbacc = tfe.Variable([[0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
-                              [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
-                              [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0]], trainable=False, name="dbacc",
-                             dtype=tf.float32)
+        dbacc = tf.constant([[0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+                             [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+                             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0]], dtype=tf.float32, name="dbacc")
 
-        diRim1 = tfe.Variable([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -dt, 0, 0],
-                               [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -dt, 0],
-                               [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -dt]], trainable=False, name="diRim1")
+        diRim1 = tf.constant([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -dt, 0, 0],
+                              [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -dt, 0],
+                              [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -dt]], dtype=tf.float32, name="diRim1")
 
-        dbgy = tfe.Variable([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
-                             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
-                             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]], trainable=False, name="dbgy",
-                            dtype=tf.float32)
+        dbgy = tf.constant([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
+                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
+                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]], dtype=tf.float32, name="dbgy")
 
         # Prepare the constant part of Fk and tile across all batches
         fkstat = tf.tile(tf.expand_dims(tf.concat([diRo, dbacc, diRim1, dbgy], axis=0), axis=0),
                          [imu_meas.shape[1], 1, 1])
 
         # hk is mercifully constant
-        hk = tfe.Variable([[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                           [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                           [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                           [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
-                           [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],
-                           [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0]], trainable=False, name="hk", dtype=tf.float32)
+        hk = tf.constant([[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                          [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                          [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+                          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],
+                          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0]], dtype=tf.float32, name="hk")
 
         Hk = tf.tile(tf.expand_dims(hk, axis=0), [imu_meas.shape[1], 1, 1])
 
@@ -371,24 +369,24 @@ def run_update(imu_meas_in, dt, prev_state_in, prev_covar_in, gfull, g, fkstat, 
                      tf.zeros([imu_meas.shape[0], 3, 3], dtype=tf.float32)), axis=-1)
 
     drotglobal = tf.tile(tf.expand_dims(
-            tfe.Variable([[0, -dt, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                          [0, 0, -dt, 0, 0, 0, 0, 0, 0, 0, 0, 0]], dtype=tf.float32, name="dro", trainable=False), axis=0),
+            tf.constant([[0, -dt, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                         [0, 0, -dt, 0, 0, 0, 0, 0, 0, 0, 0, 0]], dtype=tf.float32, name="dro"), axis=0),
             [imu_meas.shape[0], 1, 1])
 
-    daccbias = tf.tile(tf.expand_dims(tfe.Variable([
+    daccbias = tf.tile(tf.expand_dims(tf.constant([
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]], dtype=tf.float32, trainable=False), name="daccbias", axis=0), [imu_meas.shape[0], 1, 1])
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]], dtype=tf.float32, name="daccbias"), axis=0), [imu_meas.shape[0], 1, 1])
 
-    drotrel = tf.tile(tf.expand_dims(tfe.Variable([
+    drotrel = tf.tile(tf.expand_dims(tf.constant([
         [-dt, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         [0, -dt, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, -dt, 0, 0, 0, 0, 0, 0, 0, 0, 0]], dtype=tf.float32, trainable=False), name="drotrel", axis=0), [imu_meas.shape[0], 1, 1])
+        [0, 0, -dt, 0, 0, 0, 0, 0, 0, 0, 0, 0]], dtype=tf.float32, name="drotrel"), axis=0), [imu_meas.shape[0], 1, 1])
 
-    dgyrobias = tf.tile(tf.expand_dims(tfe.Variable([
+    dgyrobias = tf.tile(tf.expand_dims(tf.constant([
         [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0]], dtype=tf.float32, trainable=False), name="dgyrobias", axis=0), [imu_meas.shape[0], 1, 1])
+        [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0]], dtype=tf.float32, name="dgyrobias"), axis=0), [imu_meas.shape[0], 1, 1])
 
     J_noise = tf.concat((dpi, dvi, drotglobal, daccbias, drotrel, dgyrobias), axis=-2)
 
