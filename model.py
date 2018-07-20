@@ -305,22 +305,22 @@ def seq_model_inputs(cfg):
 
     if cfg.use_ekf:
         with tf.variable_scope("imu_noise_params", reuse=tf.AUTO_REUSE):
-            gyro_bias_diag = tf.get_variable(name="gyro_bias_sqrt",
+            gyro_bias_diag = tf.get_variable(name="gyro_bias_sqrt", shape=[3],
                                              initializer=tf.constant_initializer([cfg.init_gyro_bias_covar] * 3,
                                                                                  dtype=tf.float32),
                                              dtype=tf.float32, trainable=cfg.train_noise_covariance)
 
-            acc_bias_diag = tf.get_variable(name="acc_bias_sqrt",
+            acc_bias_diag = tf.get_variable(name="acc_bias_sqrt", shape=[3],
                                             initializer=tf.constant_initializer([cfg.init_acc_bias_covar] * 3,
                                                                                 dtype=tf.float32),
                                             dtype=tf.float32, trainable=cfg.train_noise_covariance)
 
-            gyro_covar_diag = tf.get_variable(name="gyro_sqrt",
+            gyro_covar_diag = tf.get_variable(name="gyro_sqrt", shape=[3],
                                               initializer=tf.constant_initializer([cfg.init_gyro_covar] * 3,
                                                                                   dtype=tf.float32),
                                               dtype=tf.float32, trainable=cfg.train_noise_covariance)
 
-            acc_covar_diag = tf.get_variable(name="acc_sqrt",
+            acc_covar_diag = tf.get_variable(name="acc_sqrt", shape=[3],
                                              initializer=tf.constant_initializer([cfg.init_acc_covar] * 3,
                                                                                  dtype=tf.float32),
                                              dtype=tf.float32, trainable=cfg.train_noise_covariance)
