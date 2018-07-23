@@ -329,7 +329,7 @@ def seq_model_inputs(cfg):
 
 
 def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ekf_initial_state, ekf_initial_covariance,
-                    is_training, get_activations=False, use_initializer=False, use_ekf=False):
+                    is_training, get_activations=False, use_initializer=False, use_ekf=False, fc_labels=None):
     print("Building CNN...")
     cnn_outputs = cnn_layer(inputs, cnn_model_lidar, is_training, get_activations)
 
@@ -345,7 +345,11 @@ def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ek
     lstm_outputs, lstm_states = rnn_layer(cfg, cnn_outputs, feed_init_states)
 
     print("Building FC...")
-    fc_outputs = fc_layer(lstm_outputs, fc_model)
+    # if we want to train ekf with ground truth, by passing all previous layers
+    if cfg.train_ekf_with_fcgt:
+        fc_outputs = fc_labels
+    else:
+        fc_outputs = fc_layer(lstm_outputs, fc_model)
 
     # if we want to fix covariances in fc_outputs
     if cfg.fix_fc_covar:

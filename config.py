@@ -62,6 +62,8 @@ class SeqTrainLidarConfig(Configs):
     init_gyro_covar = 1
     init_acc_covar = 1
 
+    train_ekf_with_fcgt = True
+
 
     # initializer stuff
     use_init = False

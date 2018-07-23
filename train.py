@@ -2,6 +2,7 @@ import tools
 import data_roller
 import tensorflow as tf
 import tensorflow.contrib.eager as tfe
+import pickle
 from tensorflow.python import debug as tf_debug
 import model
 import losses
@@ -62,6 +63,8 @@ class Train(object):
         self.tf_saver_checkpoint = None
         self.tf_saver_best = None
         self.tf_saver_restore = None
+        self.best_val_path = None
+        self.model_epoch_path = None
 
         self.tf_session = None
         self.tf_tb_writer = None
@@ -119,6 +122,8 @@ class Train(object):
             varlist = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
 
         self.tf_saver_restore = tf.train.Saver(var_list=varlist)
+        self.best_val_path = os.path.join(self.results_dir_path, "best_val", "model_best_val_checkpoint")
+        self.model_epoch_path = os.path.join(self.results_dir_path, "model_epoch_checkpoint")
 
     def __build_model_inputs_and_labels(self):
         self.t_inputs, self.t_lstm_initial_state, self.t_initial_poses, self.t_imu_data, self.t_ekf_initial_state, \
@@ -171,7 +176,7 @@ class Train(object):
                                           ts_imu_data[i], ts_ekf_initial_state[i], ts_ekf_initial_covar[i],
                                           self.t_is_training, get_activations=True,
                                           use_initializer=self.t_use_initializer,
-                                          use_ekf=self.cfg.use_ekf)
+                                          use_ekf=self.cfg.use_ekf, fc_labels=ts_fc_labels[i])
 
                 # this returns lstm states as a tuple, we need to stack them
                 lstm_states = tf.stack(lstm_states, 0)
@@ -434,16 +439,14 @@ class Train(object):
             if curr_val_loss < best_val_loss:
                 tools.printf("Saving best result...")
                 best_val_loss = curr_val_loss
-                self.tf_saver_best.save(self.tf_session, os.path.join(self.results_dir_path,
-                                                                      "best_val", "model_best_val_checkpoint"),
-                                        global_step=i_epoch)
+                self.tf_saver_best.save(self.tf_session, self.best_val_path, global_step=i_epoch)
                 tools.printf("Best val loss, model saved.")
+                pickle.dump(ekf_states_dic, os.path.join(self.best_val_path, "best_val_ekf_states-%d" % i_epoch))
             if i_epoch % 5 == 0:
                 tools.printf("Saving checkpoint...")
-                self.tf_saver_checkpoint.save(self.tf_session,
-                                              os.path.join(self.results_dir_path, "model_epoch_checkpoint"),
-                                              global_step=i_epoch)
+                self.tf_saver_checkpoint.save(self.tf_session, self.model_epoch_path, global_step=i_epoch)
                 tools.printf("Checkpoint saved")
+                pickle.dump(ekf_states_dic, os.path.join(self.model_epoch_path, "model_epoch_ekf_states-%d" % i_epoch))
 
             self.tf_tb_writer.flush()
             tools.printf("ave_val_loss(se3): %f, time: %f\n" % (curr_val_loss, time.time() - start_time))
@@ -455,5 +458,6 @@ class Train(object):
                                       os.path.join(self.results_dir_path, "model_epoch_checkpoint"),
                                       global_step=i_epoch)
         tools.printf("Saved results to %s" % self.results_dir_path)
+        pickle.dump(ekf_states_dic, os.path.join(self.model_epoch_path, "model_epoch_ekf_states-%d" % i_epoch))
 
         self.tf_session.close()
