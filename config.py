@@ -62,8 +62,8 @@ class SeqTrainLidarConfig(Configs):
     init_gyro_covar = 1
     init_acc_covar = 1
 
-    train_ekf_with_fcgt = True
-
+    train_ekf_with_fcgt = True  # train ekf using fc ground truth instead of nn outputs
+    gt_init_vel_state = True  # use ground truth for initial velocity state for all batches at every epoch
 
     # initializer stuff
     use_init = False
