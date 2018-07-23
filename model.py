@@ -339,7 +339,8 @@ def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ek
     def f2():
         return lstm_initial_state, ekf_initial_state, ekf_initial_covariance
 
-    feed_init_states, feed_ekf_init_state, feed_ekf_init_covar = tf.cond(use_initializer, true_fn=f1, false_fn=f2)
+    with tf.name_scope("use_initializer_cond"):
+        feed_init_states, feed_ekf_init_state, feed_ekf_init_covar = tf.cond(use_initializer, true_fn=f1, false_fn=f2)
 
     print("Building RNN...")
     lstm_outputs, lstm_states = rnn_layer(cfg, cnn_outputs, feed_init_states)
@@ -353,19 +354,21 @@ def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ek
 
     # if we want to fix covariances in fc_outputs
     if cfg.fix_fc_covar:
-        fc_outputs_shape = fc_outputs.get_shape().as_list()
-        fixed_covar = np.stack([cfg.fc_covar_fix_val] * fc_outputs_shape[1])
-        fixed_covar = np.stack([fixed_covar] * fc_outputs_shape[0])
-        fc_outputs = tf.concat([fc_outputs[:, :, 0:6], tf.constant(fixed_covar, tf.float32)], axis=2)
+        with tf.name_scope("fix_ekf_covar"):
+            fc_outputs_shape = fc_outputs.get_shape().as_list()
+            fixed_covar = np.stack([cfg.fc_covar_fix_val] * fc_outputs_shape[1])
+            fixed_covar = np.stack([fixed_covar] * fc_outputs_shape[0])
+            fc_outputs = tf.concat([fc_outputs[:, :, 0:6], tf.constant(fixed_covar, tf.float32)], axis=2)
 
-    stack1 = []
-    for i in range(fc_outputs.shape[0]):
-        stack2 = []
-        for j in range(fc_outputs.shape[1]):
-            stack2.append(tf.diag(tf.square(fc_outputs[i, j, 6:])))
-        stack1.append(tf.stack(stack2, axis=0))
+    with tf.name_scope("stack_for_ekf"):
+        stack1 = []
+        for i in range(fc_outputs.shape[0]):
+            stack2 = []
+            for j in range(fc_outputs.shape[1]):
+                stack2.append(tf.diag(tf.square(fc_outputs[i, j, 6:])))
+            stack1.append(tf.stack(stack2, axis=0))
 
-    nn_covar = tf.stack(stack1, axis=0)
+        nn_covar = tf.stack(stack1, axis=0)
 
     if use_ekf:
         print("Building EKF...")
@@ -377,25 +380,28 @@ def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ek
             gyro_covar_diag = tf.get_variable('gyro_sqrt')
             acc_covar_diag = tf.get_variable('acc_sqrt')
 
-        gyro_bias_covar = tf.diag(tf.square(gyro_bias_diag) + 1e-4)
-        acc_bias_covar = tf.diag(tf.square(acc_bias_diag) + 1e-4)
-        gyro_covar = tf.diag(tf.square(gyro_covar_diag) + 1e-4)
-        acc_covar = tf.diag(tf.square(acc_covar_diag) + 1e-4)
+        with tf.name_scope("ekf_ops"):
+            gyro_bias_covar = tf.diag(tf.square(gyro_bias_diag) + 1e-4)
+            acc_bias_covar = tf.diag(tf.square(acc_bias_diag) + 1e-4)
+            gyro_covar = tf.diag(tf.square(gyro_covar_diag) + 1e-4)
+            acc_covar = tf.diag(tf.square(acc_covar_diag) + 1e-4)
 
-        ekf_out_states, ekf_out_covar = ekf.full_ekf_layer(imu_data, fc_outputs[..., 0:6], nn_covar,
-                                                           feed_ekf_init_state, feed_ekf_init_covar,
-                                                           gyro_bias_covar, acc_bias_covar, gyro_covar, acc_covar)
+            ekf_out_states, ekf_out_covar = ekf.full_ekf_layer(imu_data, fc_outputs[..., 0:6], nn_covar,
+                                                               feed_ekf_init_state, feed_ekf_init_covar,
+                                                               gyro_bias_covar, acc_bias_covar, gyro_covar, acc_covar)
 
-        rel_disp = tf.concat([ekf_out_states[1:, :, 0:3], ekf_out_states[1:, :, 11:14]], axis=-1)
-        rel_covar = tf.concat([tf.concat([ekf_out_covar[1:, :, 0:3, 0:3], ekf_out_covar[1:, :, 0:3, 11:14]], axis=-1),
-                               tf.concat([ekf_out_covar[1:, :, 11:14, 0:3], ekf_out_covar[1:, :, 11:14, 11:14]],
-                                         axis=-1)], axis=-2)
+            rel_disp = tf.concat([ekf_out_states[1:, :, 0:3], ekf_out_states[1:, :, 11:14]], axis=-1)
+            rel_covar = tf.concat(
+                    [tf.concat([ekf_out_covar[1:, :, 0:3, 0:3], ekf_out_covar[1:, :, 0:3, 11:14]], axis=-1),
+                     tf.concat([ekf_out_covar[1:, :, 11:14, 0:3], ekf_out_covar[1:, :, 11:14, 11:14]],
+                               axis=-1)], axis=-2)
     else:
-        rel_disp = fc_outputs[..., 0:6]
-        rel_covar = nn_covar
+        with tf.name_scope("ekf_ops"):
+            rel_disp = fc_outputs[..., 0:6]
+            rel_covar = nn_covar
 
-        ekf_out_states = tf.zeros([fc_outputs.shape[0], fc_outputs.shape[1], 17], dtype=tf.float32)
-        ekf_out_covar = tf.eye(17, batch_shape=[fc_outputs.shape[0], fc_outputs.shape[1]], dtype=tf.float32)
+            ekf_out_states = tf.zeros([fc_outputs.shape[0], fc_outputs.shape[1], 17], dtype=tf.float32)
+            ekf_out_covar = tf.eye(17, batch_shape=[fc_outputs.shape[0], fc_outputs.shape[1]], dtype=tf.float32)
 
     print("Building SE3...")
     # at this point the outputs are the relative states with covariance, need to only select the part the
