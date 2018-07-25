@@ -355,8 +355,8 @@ class Train(object):
         ekf_cov_states_dic = {}
 
         if self.restore_ekf_state_file:
-            # ekf_states_dic = pickle.load()
-            pass
+            ekf_states_dic = pickle.load(self.restore_ekf_state_file + ".pickle")
+            ekf_cov_states_dic = pickle.load(self.restore_ekf_state_file + ".cov.pickle")
         else:
             for seq in self.train_sequences:
                 lstm_states_dic[seq] = np.zeros(
