@@ -446,6 +446,8 @@ class Train(object):
                 tools.printf("Best val loss, model saved.")
                 pickle.dump(ekf_states_dic, open(os.path.join(self.best_val_path,
                                                               "best_val_ekf_states-%d.pickle" % i_epoch), "wb"))
+                pickle.dump(ekf_cov_states_dic, open(os.path.join(self.best_val_path,
+                                                                  "best_val_ekf_cov_states-%d.pickle" % i_epoch), "wb"))
             if i_epoch % 5 == 0:
                 tools.printf("Saving checkpoint...")
                 self.tf_saver_checkpoint.save(self.tf_session,
@@ -454,6 +456,8 @@ class Train(object):
                 tools.printf("Checkpoint saved")
                 pickle.dump(ekf_states_dic, open(os.path.join(self.model_epoch_path,
                                                               "model_epoch_ekf_states-%d.pickle" % i_epoch), "wb"))
+                pickle.dump(ekf_cov_states_dic, open(os.path.join(self.best_val_path,
+                                                                  "best_val_ekf_cov_states-%d.pickle" % i_epoch), "wb"))
 
             self.tf_tb_writer.flush()
             tools.printf("ave_val_loss(se3): %f, time: %f\n" % (curr_val_loss, time.time() - start_time))
@@ -466,5 +470,7 @@ class Train(object):
         tools.printf("Saved results to %s" % self.results_dir_path)
         pickle.dump(ekf_states_dic,
                     open(os.path.join(self.model_epoch_path, "model_epoch_ekf_states-%d.pickle" % i_epoch), "wb"))
+        pickle.dump(ekf_cov_states_dic,
+                    open(os.path.join(self.model_epoch_path, "model_epoch_ekf_cov_states-%d.pickle" % i_epoch), "wb"))
 
         self.tf_session.close()
