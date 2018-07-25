@@ -14,7 +14,7 @@ import config
 
 class Train(object):
     def __init__(self, num_gpu, cfg, train_sequences, val_sequence, tensorboard_meta=False, start_epoch=0,
-                 restore_file=None, train_frames_range=None, val_frames_range=None):
+                 restore_file=None, restore_ekf_state_file=None, train_frames_range=None, val_frames_range=None):
         # configurations
         self.cfg = cfg
         self.num_gpu = num_gpu
@@ -25,6 +25,7 @@ class Train(object):
         self.curr_dir_path = ""
         self.start_epoch = start_epoch
         self.restore_file = restore_file
+        self.restore_ekf_state_file = restore_ekf_state_file
         self.train_frames_range = train_frames_range
         self.val_frames_range = val_frames_range
 
@@ -343,6 +344,7 @@ class Train(object):
         # initialize lstm and ekf states
         curr_lstm_states = np.zeros([2, self.cfg.lstm_layers, self.cfg.batch_size, self.cfg.lstm_size],
                                     dtype=np.float32)
+
         curr_ekf_state = np.zeros([self.cfg.batch_size, 17], dtype=np.float32)
         curr_ekf_cov_state = self.cfg.ekf_initial_state_covariance * \
                              np.repeat(np.expand_dims(np.identity(17, dtype=np.float32), axis=0),
@@ -351,14 +353,19 @@ class Train(object):
         lstm_states_dic = {}
         ekf_states_dic = {}
         ekf_cov_states_dic = {}
-        for seq in self.train_sequences:
-            lstm_states_dic[seq] = np.zeros(
-                    [self.train_data_gen.batch_counts[seq], 2, self.cfg.lstm_layers, self.cfg.batch_size,
-                     self.cfg.lstm_size], dtype=np.float32)
-            ekf_states_dic[seq] = np.zeros([self.train_data_gen.batch_counts[seq], self.cfg.batch_size, 17],
-                                           dtype=np.float32)
-            ekf_cov_states_dic[seq] = np.repeat(np.expand_dims(curr_ekf_cov_state, axis=0),
-                                                self.train_data_gen.batch_counts[seq], axis=0)
+
+        if self.restore_ekf_state_file:
+            # ekf_states_dic = pickle.load()
+            pass
+        else:
+            for seq in self.train_sequences:
+                lstm_states_dic[seq] = np.zeros(
+                        [self.train_data_gen.batch_counts[seq], 2, self.cfg.lstm_layers, self.cfg.batch_size,
+                         self.cfg.lstm_size], dtype=np.float32)
+                ekf_states_dic[seq] = np.zeros([self.train_data_gen.batch_counts[seq], self.cfg.batch_size, 17],
+                                               dtype=np.float32)
+                ekf_cov_states_dic[seq] = np.repeat(np.expand_dims(curr_ekf_cov_state, axis=0),
+                                                    self.train_data_gen.batch_counts[seq], axis=0)
 
         _train_image_summary = None
         total_batches = self.train_data_gen.total_batches()
@@ -447,7 +454,7 @@ class Train(object):
                 pickle.dump(ekf_states_dic, open(os.path.join(self.best_val_path,
                                                               "best_val_ekf_states-%d.pickle" % i_epoch), "wb"))
                 pickle.dump(ekf_cov_states_dic, open(os.path.join(self.best_val_path,
-                                                                  "best_val_ekf_cov_states-%d.pickle" % i_epoch), "wb"))
+                                                                  "best_val_ekf_states-%d.cov.pickle" % i_epoch), "wb"))
             if i_epoch % 5 == 0:
                 tools.printf("Saving checkpoint...")
                 self.tf_saver_checkpoint.save(self.tf_session,
@@ -457,7 +464,7 @@ class Train(object):
                 pickle.dump(ekf_states_dic, open(os.path.join(self.model_epoch_path,
                                                               "model_epoch_ekf_states-%d.pickle" % i_epoch), "wb"))
                 pickle.dump(ekf_cov_states_dic, open(os.path.join(self.best_val_path,
-                                                                  "best_val_ekf_cov_states-%d.pickle" % i_epoch), "wb"))
+                                                                  "best_val_ekf_states-%d.cov.pickle" % i_epoch), "wb"))
 
             self.tf_tb_writer.flush()
             tools.printf("ave_val_loss(se3): %f, time: %f\n" % (curr_val_loss, time.time() - start_time))
@@ -471,6 +478,6 @@ class Train(object):
         pickle.dump(ekf_states_dic,
                     open(os.path.join(self.model_epoch_path, "model_epoch_ekf_states-%d.pickle" % i_epoch), "wb"))
         pickle.dump(ekf_cov_states_dic,
-                    open(os.path.join(self.model_epoch_path, "model_epoch_ekf_cov_states-%d.pickle" % i_epoch), "wb"))
+                    open(os.path.join(self.model_epoch_path, "model_epoch_ekf_states-%d.cov.pickle" % i_epoch), "wb"))
 
         self.tf_session.close()
