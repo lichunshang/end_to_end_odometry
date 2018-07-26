@@ -39,10 +39,10 @@ class SeqTrainConfigs(Configs):
 
 
 class SeqTrainLidarConfig(Configs):
-    timesteps = 4
+    timesteps = 32
     sequence_stride = timesteps
     init_length = 1
-    batch_size = 32
+    batch_size = 4
 
     input_width = 1152
     input_height = 64
@@ -57,10 +57,10 @@ class SeqTrainLidarConfig(Configs):
     fix_fc_covar = True
     fc_covar_fix_val = np.array([0.1] * 6, dtype=np.float32)
     ekf_initial_state_covariance = 100  # initial covariance for all the states
-    init_gyro_bias_covar = 1
-    init_acc_bias_covar = 1
-    init_gyro_covar = 1
-    init_acc_covar = 1
+    init_gyro_bias_covar = 10
+    init_acc_bias_covar = 10
+    init_gyro_covar = 10
+    init_acc_covar = 10
 
     train_ekf_with_fcgt = True  # train ekf using fc ground truth instead of nn outputs
     gt_init_vel_state = True  # use ground truth for initial velocity state for all batches at every epoch
@@ -89,11 +89,11 @@ class SeqTrainLidarConfig(Configs):
     #                50: 0.000001,
     #                100: 0.0000001}
 
-    lr_schedule = {0: 0.0001,
-                   20: 0.00005,
-                   40: 0.000002,
-                   80: 0.000001,
-                   130: 0.0000001}
+    lr_schedule = {0: 0.01,
+                   20: 0.005,
+                   40: 0.0002,
+                   80: 0.0001,
+                   130: 0.00001}
 
 
 def print_configs(cfg):
