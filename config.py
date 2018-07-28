@@ -39,10 +39,10 @@ class SeqTrainConfigs(Configs):
 
 
 class SeqTrainLidarConfig(Configs):
-    timesteps = 32
+    timesteps = 16
     sequence_stride = timesteps
     init_length = 1
-    batch_size = 4
+    batch_size = 8
 
     input_width = 1152
     input_height = 64
@@ -89,11 +89,11 @@ class SeqTrainLidarConfig(Configs):
     #                50: 0.000001,
     #                100: 0.0000001}
 
-    lr_schedule = {0: 0.01,
-                   20: 0.005,
-                   40: 0.0002,
-                   80: 0.0001,
-                   130: 0.00001}
+    lr_schedule = {  0: 0.1,
+                   100: 0.02,
+                   125: 0.004,
+                   150: 0.0008,
+                   175: 0.00001}
 
 
 def print_configs(cfg):
