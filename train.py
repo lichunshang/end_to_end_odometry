@@ -354,18 +354,22 @@ class Train(object):
         ekf_states_dic = {}
         ekf_cov_states_dic = {}
 
+        for seq in self.train_sequences:
+            lstm_states_dic[seq] = np.zeros(
+                    [self.train_data_gen.batch_counts[seq], 2, self.cfg.lstm_layers, self.cfg.batch_size,
+                     self.cfg.lstm_size], dtype=np.float32)
+
         if self.restore_ekf_state_file:
-            ekf_states_dic = pickle.load(self.restore_ekf_state_file + ".pickle")
-            ekf_cov_states_dic = pickle.load(self.restore_ekf_state_file + ".cov.pickle")
+            ekf_states_dic = pickle.load(open(self.restore_ekf_state_file + ".pickle", "rb"))
+            ekf_cov_states_dic = pickle.load(open(self.restore_ekf_state_file + ".cov.pickle", "rb"))
+            tools.printf("Restore ekf states from %s" % self.restore_ekf_state_file)
         else:
             for seq in self.train_sequences:
-                lstm_states_dic[seq] = np.zeros(
-                        [self.train_data_gen.batch_counts[seq], 2, self.cfg.lstm_layers, self.cfg.batch_size,
-                         self.cfg.lstm_size], dtype=np.float32)
                 ekf_states_dic[seq] = np.zeros([self.train_data_gen.batch_counts[seq], self.cfg.batch_size, 17],
                                                dtype=np.float32)
                 ekf_cov_states_dic[seq] = np.repeat(np.expand_dims(curr_ekf_cov_state, axis=0),
                                                     self.train_data_gen.batch_counts[seq], axis=0)
+            tools.printf("Using default ekf states")
 
         _train_image_summary = None
         total_batches = self.train_data_gen.total_batches()
