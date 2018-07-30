@@ -64,7 +64,7 @@ class SeqTrainLidarConfig(Configs):
 
     train_ekf_with_fcgt = False  # train ekf using fc ground truth instead of nn outputs
     gt_init_vel_state = True  # use ground truth for initial velocity state for all batches at every epoch
-    gt_init_vel_state_only_first = True  # if gt_init_vel_state=True, but only force the very first batch
+    gt_init_vel_state_only_first = True  # if gt_init_vel_state=True, but only force the first epoch first batch
 
     # initializer stuff
     use_init = False
