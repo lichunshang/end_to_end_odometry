@@ -395,7 +395,8 @@ class Train(object):
 
                 data_roller.get_init_ekf_states(ekf_states_dic, ekf_cov_states_dic, curr_ekf_state, curr_ekf_cov_state,
                                                 curr_seq, batch_id, self.cfg.bidir_aug)
-                if self.cfg.gt_init_vel_state:
+                if (self.cfg.gt_init_vel_state and self.cfg.gt_init_vel_state_only_first and j_batch == 0) or \
+                        (self.cfg.gt_init_vel_state and not self.cfg.gt_init_vel_state_only_first):
                     curr_ekf_state[:, 3] = fc_ground_truth[0, :, 0] * 10
 
                 # shift se3 ground truth to be relative to the first pose
