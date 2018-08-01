@@ -9,11 +9,11 @@ import pykitti
 import transformations
 
 dir_name = "trajectory_results"
-kitti_seqs =["00", "01", "02", "08", "09"]
+# kitti_seqs = ["00", "01", "02", "08", "09"]
 # kitti_seqs = ["04", "05", "06", "07", "10"]
 # kitti_seqs = ["00", "01", "02", "04", "05", "06", "07", "08", "09", "10"]
-# kitti_seqs = ["04"]
-restore_model_file = "/home/cs4li/Dev/end_to_end_odometry/results/train_seq_20180712-10-52-15_16ts_golden/model_epoch_checkpoint-199"
+kitti_seqs = ["06"]
+restore_model_file = "/home/cs4li/Dev/end_to_end_odometry/results/train_seq_20180730-18-22-53_lowsyscovar/model_epoch_checkpoint-199"
 
 save_ground_truth = True
 config_class = config.SeqTrainLidarConfig
@@ -79,6 +79,8 @@ for kitti_seq in kitti_seqs:
     tf_restore_saver = tf.train.Saver(variable_to_load)
 
     with tf.Session() as sess:
+        # sess.run(tf.global_variables_initializer())
+
         tools.printf("Restoring model weights from %s..." % restore_model_file)
         tf_restore_saver.restore(sess, restore_model_file)
 
@@ -87,9 +89,13 @@ for kitti_seq in kitti_seqs:
 
         prediction = np.zeros([total_batches + 1, 7])
         ground_truth = np.zeros([total_batches + 1, 7])
+        fc_errors = np.zeros([total_batches + 1, 6])
+        fc_covars = np.zeros([total_batches + 1, 6])
         init_pose = np.expand_dims(data_gen.get_sequence_initial_pose(kitti_seq), axis=0)
         prediction[0, :] = init_pose
         ground_truth[0, :] = init_pose
+        fc_covars[0, :] = np.zeros([6])
+        fc_errors[0, :] = np.zeros([6])
 
         # if an initializer is used, get the current starting LSTM state from running network
         if cfg_si.use_init:
@@ -116,8 +122,8 @@ for kitti_seq in kitti_seqs:
             _, _, batch_data, fc_ground_truth, se3_ground_truth, imu_meas = data_gen.next_batch()
 
             # Run training session
-            _curr_lstm_states, _se3_outputs, _fc_outputs = sess.run(
-                    [lstm_states, se3_outputs, fc_outputs],
+            _curr_lstm_states, _se3_outputs, _fc_outputs, _fc_covar = sess.run(
+                    [lstm_states, se3_outputs, fc_outputs, fc_covar],
                     feed_dict={
                         inputs: batch_data,
                         lstm_initial_state: curr_lstm_states,
@@ -130,6 +136,8 @@ for kitti_seq in kitti_seqs:
 
             prediction[j_batch + 1, :] = _se3_outputs[-1, -1]
             ground_truth[j_batch + 1, :] = se3_ground_truth[-1, -1]
+            fc_covars[j_batch + 1, :] = _fc_covar[-1, -1].diagonal()
+            fc_errors[j_batch + 1, :] = _fc_outputs - fc_ground_truth
 
             if j_batch % 100 == 0:
                 tools.printf("Processed %.2f%%" % (data_gen.curr_batch() / data_gen.total_batches() * 100))
@@ -165,5 +173,7 @@ for kitti_seq in kitti_seqs:
 
         # save the trajectories
         np.save(os.path.join(results_dir_path, "trajectory_" + kitti_seq), prediction)
+        np.save(os.path.join(results_dir_path, "fc_covars_" + kitti_seq), fc_covars)
+        np.save(os.path.join(results_dir_path, "fc_errors_" + kitti_seq), fc_errors)
         if save_ground_truth:
             np.save(os.path.join(results_dir_path, "ground_truth_" + kitti_seq), ground_truth)
