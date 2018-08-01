@@ -66,6 +66,8 @@ class SeqTrainLidarConfig(Configs):
     gt_init_vel_state = False  # use ground truth for initial velocity state for all batches at every epoch
     gt_init_vel_state_only_first = False  # if gt_init_vel_state=True, but only force the first epoch first batch
 
+    nes = 6  # num ekf states
+
     # initializer stuff
     use_init = False
     only_train_init = False  # only used when use init is True

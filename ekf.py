@@ -90,7 +90,7 @@ def rotation_only_ekf(imu_meas, nn_meas, nn_covar, prev_state, prev_covar, bias_
             x_output.append(x_final)
             covar_output.append(sys_covar)
 
-    return tf.stack(x_output), tf.stack(covar_output), Pminus
+    return tf.stack(x_output), tf.stack(covar_output)
 
 
 # Function to take euler angles (yaw pitch roll convention) R = R_roll R_pitch R_yaw or XYZ and convert to

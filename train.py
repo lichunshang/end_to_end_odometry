@@ -170,7 +170,7 @@ class Train(object):
                                                            worker_device='/job:localhost/replica:0/task:0/device:GPU:%d' % i)
 
             with tf.name_scope("tower_%d" % i), tf.device(device_setter):
-                tools.printf("Building model...")
+                tools.printf("Building model for tower %d..." % i)
 
                 fc_outputs, fc_covar, se3_outputs, lstm_states, ekf_states, ekf_covar_states, _, _, _ = \
                     model.build_seq_model(self.cfg, ts_inputs[i], ts_lstm_initial_state[i], ts_initial_poses[i],
@@ -265,8 +265,8 @@ class Train(object):
     # validation loss
     def __run_val_loss(self, i_epoch, alpha_set):
         curr_lstm_states = np.zeros([2, self.cfg.lstm_layers, self.cfg.batch_size, self.cfg.lstm_size])
-        curr_ekf_state = np.zeros([self.cfg.batch_size, 17])
-        curr_ekf_cov_state = 0.01 * np.repeat(np.expand_dims(np.identity(17, dtype=np.float32), axis=0),
+        curr_ekf_state = np.zeros([self.cfg.batch_size, self.cfg.nes])
+        curr_ekf_cov_state = 0.01 * np.repeat(np.expand_dims(np.identity(self.cfg.nes, dtype=np.float32), axis=0),
                                               repeats=self.cfg.batch_size, axis=0)
 
         self.val_data_gen.next_epoch(randomize=False)
@@ -345,9 +345,9 @@ class Train(object):
         curr_lstm_states = np.zeros([2, self.cfg.lstm_layers, self.cfg.batch_size, self.cfg.lstm_size],
                                     dtype=np.float32)
 
-        curr_ekf_state = np.zeros([self.cfg.batch_size, 17], dtype=np.float32)
+        curr_ekf_state = np.zeros([self.cfg.batch_size, self.cfg.nes], dtype=np.float32)
         curr_ekf_cov_state = self.cfg.ekf_initial_state_covariance * \
-                             np.repeat(np.expand_dims(np.identity(17, dtype=np.float32), axis=0),
+                             np.repeat(np.expand_dims(np.identity(self.cfg.nes, dtype=np.float32), axis=0),
                                        repeats=self.cfg.batch_size, axis=0)
 
         lstm_states_dic = {}
@@ -365,7 +365,7 @@ class Train(object):
             tools.printf("Restore ekf states from %s" % self.restore_ekf_state_file)
         else:
             for seq in self.train_sequences:
-                ekf_states_dic[seq] = np.zeros([self.train_data_gen.batch_counts[seq], self.cfg.batch_size, 17],
+                ekf_states_dic[seq] = np.zeros([self.train_data_gen.batch_counts[seq], self.cfg.batch_size, self.cfg.nes],
                                                dtype=np.float32)
                 ekf_cov_states_dic[seq] = np.repeat(np.expand_dims(curr_ekf_cov_state, axis=0),
                                                     self.train_data_gen.batch_counts[seq], axis=0)

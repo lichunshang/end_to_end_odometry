@@ -263,15 +263,18 @@ def initializer_layer(inputs, cfg):
 
         # Another initializer for initial ekf state and covariance
 
-        ekf_initializer = tf.contrib.layers.fully_connected(init_feed, 17 + 153, scope="fc_ekf", activation_fn=None)
+        # this is the number of states plus the upper triangular portion
+        ekf_initializer = tf.contrib.layers.fully_connected(init_feed,
+                                                            cfg.nes + cfg.nes + (cfg.nes ** 2 - cfg.nes) // 2,
+                                                            scope="fc_ekf", activation_fn=None)
 
-        ekf_init_state = ekf_initializer[:, 0:17]
+        ekf_init_state = ekf_initializer[:, 0:cfg.nes]
 
-        sqrt_flat_L = ekf_initializer[:, 17:]
+        sqrt_flat_L = ekf_initializer[:, cfg.nes:]
 
         L = fill_triangular(tf.square(sqrt_flat_L))
 
-        ekf_init_covar = tf.matmul(L, L)
+        ekf_init_covar = tf.matmul(L, tf.transpose(L, perm=[0, 2, 1]))  # TODO verify transpose
 
         return lstm_network_state, ekf_init_state, ekf_init_covar
 
@@ -289,10 +292,10 @@ def seq_model_inputs(cfg):
                                         shape=[2, cfg.lstm_layers, cfg.batch_size,
                                                cfg.lstm_size])
 
-    # init EKF state. batch size * 17
-    ekf_initial_state = tf.placeholder(tf.float32, name="ekf_init_state", shape=[cfg.batch_size, 17])
-    # init EKF covariance. batch size * 17 * 17
-    ekf_initial_covariance = tf.placeholder(tf.float32, name="ekf_init_covar", shape=[cfg.batch_size, 17, 17])
+    # init EKF state. batch size * num ekf states
+    ekf_initial_state = tf.placeholder(tf.float32, name="ekf_init_state", shape=[cfg.batch_size, cfg.nes])
+    # init EKF covariance. batch size * num ekf states * num ekf states
+    ekf_initial_covariance = tf.placeholder(tf.float32, name="ekf_init_covar", shape=[cfg.batch_size, cfg.nes, cfg.nes])
 
     # init poses, initial position for each example in the batch
     initial_poses = tf.placeholder(tf.float32, name="initial_poses", shape=[cfg.batch_size, 7])
@@ -310,20 +313,20 @@ def seq_model_inputs(cfg):
                                                                                  dtype=tf.float32),
                                              dtype=tf.float32, trainable=cfg.train_noise_covariance)
 
-            acc_bias_diag = tf.get_variable(name="acc_bias_sqrt", shape=[3],
-                                            initializer=tf.constant_initializer([cfg.init_acc_bias_covar] * 3,
-                                                                                dtype=tf.float32),
-                                            dtype=tf.float32, trainable=cfg.train_noise_covariance)
+            # acc_bias_diag = tf.get_variable(name="acc_bias_sqrt", shape=[3],
+            #                                 initializer=tf.constant_initializer([cfg.init_acc_bias_covar] * 3,
+            #                                                                     dtype=tf.float32),
+            #                                 dtype=tf.float32, trainable=cfg.train_noise_covariance)
 
             gyro_covar_diag = tf.get_variable(name="gyro_sqrt", shape=[3],
                                               initializer=tf.constant_initializer([cfg.init_gyro_covar] * 3,
                                                                                   dtype=tf.float32),
                                               dtype=tf.float32, trainable=cfg.train_noise_covariance)
 
-            acc_covar_diag = tf.get_variable(name="acc_sqrt", shape=[3],
-                                             initializer=tf.constant_initializer([cfg.init_acc_covar] * 3,
-                                                                                 dtype=tf.float32),
-                                             dtype=tf.float32, trainable=cfg.train_noise_covariance)
+            # acc_covar_diag = tf.get_variable(name="acc_sqrt", shape=[3],
+            #                                  initializer=tf.constant_initializer([cfg.init_acc_covar] * 3,
+            #                                                                      dtype=tf.float32),
+            #                                  dtype=tf.float32, trainable=cfg.train_noise_covariance)
 
     return inputs, lstm_initial_state, initial_poses, imu_data, ekf_initial_state, ekf_initial_covariance, is_training, use_initializer
 
@@ -376,32 +379,38 @@ def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ek
 
         with tf.variable_scope("imu_noise_params", reuse=True):
             gyro_bias_diag = tf.get_variable('gyro_bias_sqrt')
-            acc_bias_diag = tf.get_variable('acc_bias_sqrt')
+            # acc_bias_diag = tf.get_variable('acc_bias_sqrt')
             gyro_covar_diag = tf.get_variable('gyro_sqrt')
-            acc_covar_diag = tf.get_variable('acc_sqrt')
+            # acc_covar_diag = tf.get_variable('acc_sqrt')
 
         with tf.name_scope("ekf_ops"):
             gyro_bias_covar = tf.diag(tf.square(gyro_bias_diag) + 1e-4)
-            acc_bias_covar = tf.diag(tf.square(acc_bias_diag) + 1e-4)
+            # acc_bias_covar = tf.diag(tf.square(acc_bias_diag) + 1e-4)
             gyro_covar = tf.diag(tf.square(gyro_covar_diag) + 1e-4)
-            acc_covar = tf.diag(tf.square(acc_covar_diag) + 1e-4)
+            # acc_covar = tf.diag(tf.square(acc_covar_diag) + 1e-4)
 
-            ekf_out_states, ekf_out_covar = ekf.full_ekf_layer(imu_data, fc_outputs[..., 0:6], nn_covar,
-                                                               feed_ekf_init_state, feed_ekf_init_covar,
-                                                               gyro_bias_covar, acc_bias_covar, gyro_covar, acc_covar)
+            ekf_out_states, ekf_out_covar = ekf.rotation_only_ekf(imu_data, fc_outputs[..., 0:6], nn_covar,
+                                                                  feed_ekf_init_state, feed_ekf_init_covar,
+                                                                  gyro_bias_covar, gyro_covar)
 
-            rel_disp = tf.concat([ekf_out_states[1:, :, 0:3], ekf_out_states[1:, :, 11:14]], axis=-1)
+            # rel_disp = tf.concat([ekf_out_states[1:, :, 0:3], ekf_out_states[1:, :, 11:14]], axis=-1)
+            # rel_covar = tf.concat(
+            #         [tf.concat([ekf_out_covar[1:, :, 0:3, 0:3], ekf_out_covar[1:, :, 0:3, 11:14]], axis=-1),
+            #          tf.concat([ekf_out_covar[1:, :, 11:14, 0:3], ekf_out_covar[1:, :, 11:14, 11:14]],
+            #                    axis=-1)], axis=-2)
+
+            rel_disp = tf.concat([fc_outputs[..., 0:3], ekf_out_states[1:, :, 0:3]], axis=-1)
             rel_covar = tf.concat(
-                    [tf.concat([ekf_out_covar[1:, :, 0:3, 0:3], ekf_out_covar[1:, :, 0:3, 11:14]], axis=-1),
-                     tf.concat([ekf_out_covar[1:, :, 11:14, 0:3], ekf_out_covar[1:, :, 11:14, 11:14]],
-                               axis=-1)], axis=-2)
+                    [tf.concat([nn_covar[:, :, 0:3, 0:3], tf.zeros(nn_covar[:, :, 0:3, 0:3].shape)], axis=-1),
+                     tf.concat([tf.zeros(nn_covar[:, :, 0:3, 0:3].shape), ekf_out_covar[1:, :, 0:3, 0:3]], axis=-1)],
+                    axis=-2)
     else:
         with tf.name_scope("ekf_ops"):
             rel_disp = fc_outputs[..., 0:6]
             rel_covar = nn_covar
 
-            ekf_out_states = tf.zeros([fc_outputs.shape[0], fc_outputs.shape[1], 17], dtype=tf.float32)
-            ekf_out_covar = tf.eye(17, batch_shape=[fc_outputs.shape[0], fc_outputs.shape[1]], dtype=tf.float32)
+            ekf_out_states = tf.zeros([fc_outputs.shape[0], fc_outputs.shape[1], cfg.nes], dtype=tf.float32)
+            ekf_out_covar = tf.eye(cfg.nes, batch_shape=[fc_outputs.shape[0], fc_outputs.shape[1]], dtype=tf.float32)
 
     print("Building SE3...")
     # at this point the outputs are the relative states with covariance, need to only select the part the
