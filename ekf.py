@@ -1,6 +1,8 @@
 import tensorflow as tf
 import math as m
 
+# tf.enable_eager_execution()
+
 tfe = tf.contrib.eager
 
 
@@ -34,47 +36,61 @@ def skew(x):
 # the measurements should have shape timesteps x batches x 3
 # prev biases should have shape batches x 3
 # covar matrices should be 3x3, except for prev_covar which is batch_size x 6x6 and nn_covar which is time x batch x 6 x 6
-def rotation_only_ekf(imu_meas, nn_meas, nn_covar, prev_bias, prev_covar, bias_covar, imu_covar,
-                      timestep=0.1):
+def rotation_only_ekf(imu_meas, nn_meas, nn_covar, prev_state, prev_covar, bias_covar, imu_covar,
+                      dt=0.1):
     with tf.variable_scope("ekf_layer"):
         x_output = []
         covar_output = []
 
-        bias = prev_bias
+        x_output.append(prev_state)
+        covar_output.append(prev_covar)
+
+        bias = prev_state[:, 3:6]
         sys_covar = prev_covar
 
-        Qkimu = timestep * imu_covar
-        Qkbias = timestep * bias_covar
+        # imu comes in as roll pitch yaw, states are in yaw pitch roll
+        imu_meas = tf.reverse(imu_meas[..., 0:3], axis=[-1])
+        imu_covar = imu_covar[..., 0:3, 0:3]
 
-        Fk = tf.eye(6)
-        Fk[0:3, 0:3] = 0
-        Fk[0:3, 3:6] = -timestep * tf.eye(3)
+        Qkimu = dt * dt * imu_covar
+        Qkbias = bias_covar
 
-        Hk = tf.constant([[1, 0, 0, 0, 0, 0], [0, 1, 0, 0, 0, 0], [0, 0, 1, 0, 0, 0]], name="Hk", dtype=tf.float32)
-        Hk = tf.tile(tf.expand_dims(Hk, axis=0), [imu_meas.shape[1]])
+        Fk = tf.constant([[0, 0, 0, -dt, 0, 0],
+                          [0, 0, 0, 0, -dt, 0],
+                          [0, 0, 0, 0, 0, -dt],
+                          [0, 0, 0, 1, 0, 0],
+                          [0, 0, 0, 0, 1, 0],
+                          [0, 0, 0, 0, 0, 1]], name="Fk", dtype=tf.float32)
+
+        Hk = tf.constant([[1, 0, 0, 0, 0, 0],
+                          [0, 1, 0, 0, 0, 0],
+                          [0, 0, 1, 0, 0, 0]], name="Hk", dtype=tf.float32)
+        Hk = tf.tile(tf.expand_dims(Hk, axis=0), [imu_meas.shape[1], 1, 1])
 
         # matmul doesn't support broadcasting so need to repeat Fk and Hk a bunch of times
-        Fk = tf.tile(tf.expand_dims(Fk, axis=0), [imu_meas.shape[1]])
+        Fk = tf.tile(tf.expand_dims(Fk, axis=0), [imu_meas.shape[1], 1, 1])
 
         for i in range(imu_meas.shape[0]):
-            xpred = tf.concat(imu_meas[i, ...] - timestep * bias, bias, axis=1)
+            xpred = tf.concat([dt * imu_meas[i, ...] - dt * bias, bias], axis=1)
             Pminus = tf.matmul(Fk, tf.matmul(sys_covar, Fk, transpose_b=True))
-            Pminus[:, 0:3, 0:3] = Pminus[:, 0:3, 0:3] + Qkimu
-            Pminus[:, 3:6, 3:6] = Pminus[:, 3:6, 3:6] + Qkbias
+            Pminus_topleft = Pminus[:, 0:3, 0:3] + Qkimu
+            Pminus_botright = Pminus[:, 3:6, 3:6] + Qkbias
+            Pminus = tf.concat([tf.concat([Pminus_topleft, Pminus[:, 0:3, 3:6]], axis=-1),
+                                tf.concat([Pminus[:, 3:6, 0:3], Pminus_botright], axis=-1)], axis=-2)
 
-            yt = nn_meas[i, ...] - xpred[:, 0:3]
-            Sk = tf.matmul(Hk, tf.matmul(Pminus, Hk, transpose_b=True)) + nn_covar[i, ...]
+            yt = nn_meas[i, :, 3:6] - xpred[:, 0:3]
+            Sk = tf.matmul(Hk, tf.matmul(Pminus, Hk, transpose_b=True)) + nn_covar[i, :, 3:6, 3:6]
             Kk = tf.matmul(Pminus, tf.matmul(Hk, tf.matrix_inverse(Sk), transpose_a=True))
 
             sys_covar = tf.matmul(tf.eye(6, dtype=tf.float32) - tf.matmul(Kk, Hk), Pminus)
-            x_final = xpred + tf.matmul(Kk, yt)
+            x_final = xpred + tf.squeeze(tf.matmul(Kk, tf.expand_dims(yt, -1)), axis=-1)
 
             bias = x_final[:, 3:6]
 
             x_output.append(x_final)
             covar_output.append(sys_covar)
 
-    return tf.stack(x_output), tf.stack(covar_output)
+    return tf.stack(x_output), tf.stack(covar_output), Pminus
 
 
 # Function to take euler angles (yaw pitch roll convention) R = R_roll R_pitch R_yaw or XYZ and convert to

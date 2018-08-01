@@ -52,37 +52,32 @@ for i, sequence in enumerate(sequences):
     fc_ground_truth_fp = data_dir + "%s_fc_ground_truth.npy" % sequence
     imu_measurements_fp = data_dir + "%s_imu_measurements.npy" % sequence
 
-    ekf_state_labels = ["Delta X", "Delta Y", "Delta Z",
+    ekf_state_labels = [
+        # "Delta X", "Delta Y", "Delta Z",
+        # "Velocity X", "Velocity Y", "Velocity Z",
+        # "Pitch wrt Gravity", "Roll wrt Gravity",
+        # "Accel Bias X", "Accel Bias Y", "Accel Bias Z",
+        "Delta Yaw", "Delta Pitch", "Delta Roll",
+        "Gyro Bias Yaw", "Gyro Bias Pitch", "Gyro Bias Roll",
 
-                        "Velocity X", "Velocity Y", "Velocity Z",
+        "Delta X Ground Truth", "Delta Y Ground Truth", "Delta Z Ground Truth",
+        "Delta Yaw Ground Truth", "Delta Pitch Ground Truth", "Delta Roll Ground Truth",
+        "IMU Rate Roll", "IMU Rate Pitch", "IMU Rate Yaw",
+        "IMU Accel X", "IMU Accel Y", "IMU Accel Z"
+    ]
+    ekf_state_units = [
+        # "m", "m", "m",
+        # "m/s", "m/s", "m/s",
+        # "rad", "rad",
+        # "m/s^2", "m/s^2", "m/s^2",
 
-                        "Pitch wrt Gravity", "Roll wrt Gravity",
-
-                        "Accel Bias X", "Accel Bias Y", "Accel Bias Z",
-
-                        "Delta Yaw", "Delta Pitch", "Delta Roll",
-
-                        "Gyro Bias Yaw", "Gyro Bias Pitch", "Gyro Bias Roll",
-
-                        "Delta X Ground Truth", "Delta Y Ground Truth",
-                        "Delta Z Ground Truth",
-
-                        "Delta Yaw Ground Truth", "Delta Pitch Ground Truth",
-                        "Delta Roll Ground Truth",
-
-                        "IMU Rate Roll", "IMU Rate Pitch", "IMU Rate Yaw",
-
-                        "IMU Accel X", "IMU Accel Y", "IMU Accel Z"]
-    ekf_state_units = ["m", "m", "m",
-                       "m/s", "m/s", "m/s",
-                       "rad", "rad",
-                       "m/s^2", "m/s^2", "m/s^2",
-                       "rad", "rad", "rad",
-                       "rad/s", "rad/s", "rad/s",
-                       "m", "m", "m",
-                       "rad", "rad", "rad",
-                       "rad/s", "rad/s", "rad/s",
-                       "m/s^2", "m/s^2", "m/s^2"]
+        "rad", "rad", "rad",
+        "rad/s", "rad/s", "rad/s",
+        "m", "m", "m",
+        "rad", "rad", "rad",
+        "rad/s", "rad/s", "rad/s",
+        "m/s^2", "m/s^2", "m/s^2"
+    ]
 
     # print("%d = %d" % (len(ekf_state_labels), len(ekf_state_units)))
     assert (len(ekf_state_labels) == len(ekf_state_units))
