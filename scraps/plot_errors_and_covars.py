@@ -12,7 +12,7 @@ fc_covars = trajectory = np.load(fc_covars_path)
 fc_errors_abs = np.abs(fc_errors)
 fc_covars_3sig = np.sqrt(fc_covars) * 3
 
-plot_names = ["X", "Y", "Z", "Roll", "Pitch", "Yaw"]
+plot_names = ["X", "Y", "Z", "Yaw", "Pitch", "Roll"]
 
 for i in range(0, 6):
     plt.figure(i)
@@ -23,8 +23,9 @@ for i in range(0, 6):
 
     plt.xlabel("Frame #")
 
-    plt.legend()
+    # plt.legend()
     plt.title("Sequence %s %s Error & Covars" % (sequence, plot_names[i]))
+    # plt.show()
 
     plt.savefig(data_dir + "fig_%s_%s_error_and_covars.png" % (sequence, plot_names[i]))
 
