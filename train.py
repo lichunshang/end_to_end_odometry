@@ -10,7 +10,7 @@ import os
 import numpy as np
 import time
 import config
-
+import debug_filters
 
 class Train(object):
     def __init__(self, num_gpu, cfg, train_sequences, val_sequence, tensorboard_meta=False, start_epoch=0,
@@ -323,6 +323,8 @@ class Train(object):
         sess_config = tf.ConfigProto(allow_soft_placement=True)
         if self.cfg.debug:
             self.tf_session = tf_debug.LocalCLIDebugWrapperSession(tf.Session(config=sess_config))
+            self.tf_session.add_tensor_filter('blowup_filter', debug_filters.blowup_filter)
+
         else:
             self.tf_session = tf.Session(config=sess_config)
 

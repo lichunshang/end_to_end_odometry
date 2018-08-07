@@ -69,18 +69,18 @@ def reduce_prod_6(x):
 # assumes time major
 def fc_losses(outputs, output_covar, labels_u, k):
     with tf.variable_scope("fc_losses"):
-        diff_u = outputs[:, :, 0:6] - labels_u
+        diff_u = tf.subtract(outputs[:, :, 0:6], labels_u, name="diff_u")
         diff_u2 = tf.square(diff_u)
 
         # dense covariance
-        Q = output_covar
+        Q = tf.identity(output_covar, name="Q_check")
 
-        log_det_Q = tf.log(tf.matrix_determinant(Q) + 1e-5)
+        log_det_Q = tf.log(tf.matrix_determinant(Q))
 
         # Need to normalize
-        norm1 = tf.tile(tf.expand_dims(tf.diag(1e-5*tf.ones([6], dtype=tf.float32)), axis=0), [Q.shape[1], 1, 1])
-        norm2 = tf.tile(tf.expand_dims(norm1, axis=0), [Q.shape[0], 1, 1, 1])
-        inv_Q = tf.matrix_inverse(Q + norm2)
+        # norm1 = tf.tile(tf.expand_dims(tf.diag(1e-5*tf.ones([6], dtype=tf.float32)), axis=0), [Q.shape[1], 1, 1])
+        # norm2 = tf.tile(tf.expand_dims(norm1, axis=0), [Q.shape[0], 1, 1, 1])
+        inv_Q = tf.matrix_inverse(Q)
 
         # sum of determinants along the time
         sum_det_Q = tf.reduce_sum(log_det_Q, axis=0)
@@ -97,10 +97,12 @@ def fc_losses(outputs, output_covar, labels_u, k):
         # add and multiplies of sum by 1 / t
         loss = (s + sum_det_Q) / t
 
-        xloss = tf.sqrt(tf.reduce_mean(tf.reduce_sum(diff_u2[..., 0], axis=0), axis=0))
+        xloss = tf.sqrt(tf.reduce_mean(tf.reduce_sum(diff_u2[..., 0], axis=0), axis=0), name="x_loss_sqrt")
         yloss = tf.sqrt(tf.reduce_mean(tf.reduce_sum(diff_u2[..., 1], axis=0), axis=0))
         zloss = tf.sqrt(tf.reduce_mean(tf.reduce_sum(diff_u2[..., 2], axis=0), axis=0))
         xyzloss = tf.reduce_mean(tf.reduce_sum(diff_u2[..., 0:3], axis=[0, 2]), axis=0)
         yprloss = tf.reduce_mean(tf.reduce_sum(diff_u2[..., 3:6], axis=[0, 2]), axis=0)
+        
+        mean = tf.reduce_mean(loss, name="reduce_mean_loss")
 
-        return tf.reduce_mean(loss), xyzloss, yprloss, xloss, yloss, zloss
+        return mean, xyzloss, yprloss, xloss, yloss, zloss
