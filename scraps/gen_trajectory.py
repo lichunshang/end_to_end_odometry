@@ -13,7 +13,7 @@ dir_name = "trajectory_results"
 # kitti_seqs = ["04", "05", "06", "07", "10"]
 # kitti_seqs = ["00", "01", "02", "04", "05", "06", "07", "08", "09", "10"]
 kitti_seqs = ["06"]
-restore_model_file = "/home/cs4li/Dev/end_to_end_odometry/results/train_seq_20180730-18-22-53_lowsyscovar/model_epoch_checkpoint-199"
+restore_model_file = "/home/cs4li/Dev/end_to_end_odometry/results/train_seq_20180807-10-22-23/model_epoch_checkpoint-35"
 
 save_ground_truth = True
 config_class = config.SeqTrainLidarConfig
@@ -131,13 +131,28 @@ for kitti_seq in kitti_seqs:
                         imu_data: imu_meas
                     },
             )
-            curr_lstm_states = _curr_lstm_states
-            init_pose = _se3_outputs[-1]
 
-            prediction[j_batch + 1, :] = _se3_outputs[-1, -1]
+            imu_rot = imu_meas * 0.1039039090909091
+            prev_pose = transformations.quaternion_matrix(init_pose[-1, 3:])
+            prev_pose[0:3, 3] = init_pose[-1, 0:3]
+            tf_t = transformations.euler_matrix(imu_rot[-1, -1, 2], imu_rot[-1, -1, 1],
+                                                imu_rot[-1, -1, 0],
+                                                axes="rzyx")
+            tf_t[0:3, 3] = _fc_outputs[-1, -1, 0:3]
+            pose = np.dot(prev_pose, tf_t)
+            corr_output = np.zeros(7)
+            corr_output[3:] = transformations.quaternion_from_matrix(pose)
+            corr_output[0:3] = pose[0:3, 3]
+
+            curr_lstm_states = _curr_lstm_states
+            # init_pose = _se3_outputs[-1]
+            init_pose[-1] = corr_output
+
+            prediction[j_batch + 1, :] = corr_output
             ground_truth[j_batch + 1, :] = se3_ground_truth[-1, -1]
             fc_covars[j_batch + 1, :] = _fc_covar[-1, -1].diagonal()
-            fc_errors[j_batch + 1, :] = _fc_outputs - fc_ground_truth
+            fc_errors[j_batch + 1, :] = np.array([0, 0, 0, imu_rot[-1, -1, 2], imu_rot[-1, -1, 1],
+                                                  imu_rot[-1, -1, 0]]) - fc_ground_truth[-1, -1]
 
             if j_batch % 100 == 0:
                 tools.printf("Processed %.2f%%" % (data_gen.curr_batch() / data_gen.total_batches() * 100))

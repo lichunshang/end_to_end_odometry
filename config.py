@@ -39,10 +39,10 @@ class SeqTrainConfigs(Configs):
 
 
 class SeqTrainLidarConfig(Configs):
-    timesteps = 16
+    timesteps = 4
     sequence_stride = timesteps
     init_length = 1
-    batch_size = 8
+    batch_size = 32
 
     input_width = 1152
     input_height = 64
@@ -51,9 +51,9 @@ class SeqTrainLidarConfig(Configs):
     bidir_aug = True  # train going in reverse as well
 
     # EKF stuff
-    use_ekf = True
-    train_noise_covariance = True  # Train the imu noise covariance for ekf
-    static_nn = True  # don't modify the nn weights if set to true
+    use_ekf = False
+    train_noise_covariance = False  # Train the imu noise covariance for ekf
+    static_nn = False  # don't modify the nn weights if set to true
     fix_fc_covar = False
     fc_covar_fix_val = np.array([0.1] * 6, dtype=np.float32)
     ekf_initial_state_covariance = 100  # initial covariance for all the states
@@ -80,21 +80,22 @@ class SeqTrainLidarConfig(Configs):
     lstm_size = 256
     lstm_layers = 1
 
-    k_fc = 50.0
+    k_fc = 1.0
     k_se3 = 500.0
 
-    num_epochs = 200
+    num_epochs = 100
     alpha_schedule = {0: 0.8}
 
     # lr_schedule = {0: 0.000002,
     #                50: 0.000001,
     #                100: 0.0000001}
 
-    lr_schedule = {0: 0.1,
-                   100: 0.02,
-                   125: 0.004,
-                   150: 0.0008,
-                   175: 0.00001}
+    lr_schedule = {0:   0.000002,
+                   40:  0.0000010,
+                   60:  0.0000004,
+                   100: 0.00000002,
+                   150: 0.000000001}
+
 
 
 def print_configs(cfg):

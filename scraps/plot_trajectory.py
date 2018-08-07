@@ -24,9 +24,10 @@ for i, sequence in enumerate(sequences):
             break
 
         z = trajectory[:, 2]
+        y = trajectory[:, 1]
         x = trajectory[:, 0]
 
-        plt.plot(x, z, **trj[1], label=trj[2])
+        plt.plot(x, y, **trj[1], label=trj[2])
 
     if not file_not_found:
         plt.axis("equal")
@@ -42,6 +43,6 @@ for i, sequence in enumerate(sequences):
 
         plt.title("KITTI Sequence %s Trajectory (%s)" % (sequence, set_type))
         plt.legend()
-        plt.savefig(data_dir + "fig_%s.png" % sequence)
+        plt.savefig(data_dir + "fig_%s_2.png" % sequence)
         # plt.show()
         print("Plot saved for sequence %s" % sequence)
