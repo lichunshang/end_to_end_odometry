@@ -78,8 +78,8 @@ def fc_losses(outputs, output_covar, labels_u, k):
         log_det_Q = tf.log(tf.matrix_determinant(Q))
 
         # Need to normalize
-        # norm1 = tf.tile(tf.expand_dims(tf.diag(1e-5*tf.ones([6], dtype=tf.float32)), axis=0), [Q.shape[1], 1, 1])
-        # norm2 = tf.tile(tf.expand_dims(norm1, axis=0), [Q.shape[0], 1, 1, 1])
+        norm1 = tf.tile(tf.expand_dims(tf.diag(1e-5*tf.ones([6], dtype=tf.float32)), axis=0), [Q.shape[1], 1, 1])
+        norm2 = tf.tile(tf.expand_dims(norm1, axis=0), [Q.shape[0], 1, 1, 1])
         inv_Q = tf.matrix_inverse(Q)
 
         # sum of determinants along the time
@@ -88,6 +88,7 @@ def fc_losses(outputs, output_covar, labels_u, k):
         # need to scale angular error by k
         ksq = tf.sqrt(k)
         diff_u_scaled = tf.concat([diff_u[..., 0:3], ksq * diff_u[..., 3:6]], axis=-1)
+        diff_u_normalized = tf.div(diff_u_scaled, labels_u)
 
         # sum of diff_u' * inv_Q * diff_u
         s = tf.reduce_sum(tf.squeeze(tf.matmul(tf.expand_dims(diff_u_scaled, axis=-1), tf.matmul(inv_Q, tf.expand_dims(diff_u_scaled, axis=-1)), transpose_a=True), axis=-1), axis=0)
