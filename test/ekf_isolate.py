@@ -44,6 +44,7 @@ fc_outputs = tf.placeholder(tf.float32, shape=[cfg.timesteps, cfg.batch_size, 12
 ekf_initial_state = tf.placeholder(tf.float32, name="ekf_init_state", shape=[cfg.batch_size, 17])
 ekf_initial_covariance = tf.placeholder(tf.float32, name="ekf_init_covar", shape=[cfg.batch_size, 17, 17])
 initial_poses = tf.placeholder(tf.float32, name="initial_poses", shape=[cfg.batch_size, 7])
+dt = tf.placeholder(tf.float32, shape=[], name="dt")
 
 stack1 = []
 for i in range(fc_outputs.shape[0]):
@@ -56,7 +57,7 @@ nn_covar = tf.stack(stack1, axis=0)
 
 ekf_out_states, ekf_out_covar = ekf.full_ekf_layer(imu_data, fc_outputs[..., 0:6], nn_covar,
                                                    ekf_initial_state, ekf_initial_covariance,
-                                                   gyro_bias_covar, acc_bias_covar, gyro_covar, acc_covar)
+                                                   gyro_bias_covar, acc_bias_covar, gyro_covar, acc_covar, dt)
 
 rel_disp = tf.concat([ekf_out_states[1:, :, 0:3], ekf_out_states[1:, :, 11:14]], axis=-1)
 rel_covar = tf.concat([tf.concat([ekf_out_covar[1:, :, 0:3, 0:3], ekf_out_covar[1:, :, 0:3, 11:14]], axis=-1),
@@ -91,12 +92,12 @@ with tf.Session() as sess:
     curr_ekf_state = np.zeros([cfg.batch_size, 17], dtype=np.float32)
     ekf_states[0, :] = curr_ekf_state
     curr_ekf_cov_state = 0 * np.repeat(np.expand_dims(np.identity(17, dtype=np.float32), axis=0),
-                                         repeats=cfg.batch_size, axis=0)
+                                       repeats=cfg.batch_size, axis=0)
 
     while data_gen.has_next_batch():
         j_batch = data_gen.curr_batch()
 
-        _, _, batch_data, fc_ground_truth, se3_ground_truth, imu_meas = data_gen.next_batch()
+        _, _, batch_data, fc_ground_truth, se3_ground_truth, imu_meas, elapsed_time = data_gen.next_batch()
         fc_covar = np.reshape(np.array([1] * 6, dtype=np.float32), [1, 1, 6])
         fc_outputs_input = np.concatenate([fc_ground_truth, fc_covar, ], axis=2)
 
@@ -112,6 +113,7 @@ with tf.Session() as sess:
                     imu_data: imu_meas,
                     ekf_initial_state: curr_ekf_state,
                     ekf_initial_covariance: curr_ekf_cov_state,
+                    dt: elapsed_time
                 },
         )
         init_pose = _se3_outputs[-1]

@@ -214,7 +214,7 @@ def getLittleJacobian(eulers):
 # covar matrices should be 3x3, except for prev_covar which is batch_size x 17x17 and nn_covar which is time x batch x 6 x 6
 
 def full_ekf_layer(imu_meas_in, nn_meas, nn_covar, prev_state, prev_covar, gyro_bias_covar, acc_bias_covar, gyro_covar,
-                   acc_covar, dt=0.1):
+                   acc_covar, dt=tf.constant(0.1, dtype=tf.float32)):
     with tf.variable_scope("ekf_layer", reuse=tf.AUTO_REUSE):
         prev_states = []
         covar_output = []
@@ -235,14 +235,14 @@ def full_ekf_layer(imu_meas_in, nn_meas, nn_covar, prev_state, prev_covar, gyro_
         gfull = tf.tile(tf.expand_dims(tf.constant([[0], [0], [g]], dtype=tf.float32, name="g"), axis=0),
                         [imu_meas.shape[1], 1, 1])
 
-        diRo = tf.constant([[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, -dt, 0],
+        diRo = tf.Variable([[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, -dt, 0],
                             [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, -dt]], dtype=tf.float32, name="diRo")
 
         dbacc = tf.constant([[0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
                              [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
                              [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0]], dtype=tf.float32, name="dbacc")
 
-        diRim1 = tf.constant([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -dt, 0, 0],
+        diRim1 = tf.Variable([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -dt, 0, 0],
                               [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -dt, 0],
                               [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -dt]], dtype=tf.float32, name="diRim1")
 
@@ -369,7 +369,7 @@ def run_update(imu_meas_in, dt, prev_state_in, prev_covar_in, gfull, g, fkstat, 
                      tf.zeros([imu_meas.shape[0], 3, 3], dtype=tf.float32)), axis=-1)
 
     drotglobal = tf.tile(tf.expand_dims(
-            tf.constant([[0, -dt, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            tf.Variable([[0, -dt, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                          [0, 0, -dt, 0, 0, 0, 0, 0, 0, 0, 0, 0]], dtype=tf.float32, name="dro"), axis=0),
             [imu_meas.shape[0], 1, 1])
 
@@ -378,7 +378,7 @@ def run_update(imu_meas_in, dt, prev_state_in, prev_covar_in, gfull, g, fkstat, 
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]], dtype=tf.float32, name="daccbias"), axis=0), [imu_meas.shape[0], 1, 1])
 
-    drotrel = tf.tile(tf.expand_dims(tf.constant([
+    drotrel = tf.tile(tf.expand_dims(tf.Variable([
         [-dt, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         [0, -dt, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, -dt, 0, 0, 0, 0, 0, 0, 0, 0, 0]], dtype=tf.float32, name="drotrel"), axis=0), [imu_meas.shape[0], 1, 1])
