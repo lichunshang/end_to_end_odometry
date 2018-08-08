@@ -471,7 +471,7 @@ class Train(object):
                 tools.printf("Checkpoint saved")
                 pickle.dump(ekf_states_dic, open(os.path.join(self.model_epoch_path,
                                                               "model_epoch_ekf_states-%d.pickle" % i_epoch), "wb"))
-                pickle.dump(ekf_cov_states_dic, open(os.path.join(self.best_val_path,
+                pickle.dump(ekf_cov_states_dic, open(os.path.join(self.model_epoch_path,
                                                                   "best_val_ekf_states-%d.cov.pickle" % i_epoch), "wb"))
 
             self.tf_tb_writer.flush()
