@@ -29,15 +29,15 @@ class SeqTrainLidarConfig:
 
 cfg = SeqTrainLidarConfig
 
-gyro_bias_diag = np.array([0.1] * 3, dtype=np.float32)
-acc_bias_diag = np.array([0.1] * 3, dtype=np.float32)
-gyro_covar_diag = np.array([0.1] * 3, dtype=np.float32)
-acc_covar_diag = np.array([0.1] * 3, dtype=np.float32)
+gyro_bias_diag = np.array([0.0] * 3, dtype=np.float32)
+acc_bias_diag = np.array([0.0] * 3, dtype=np.float32)
+gyro_covar_diag = np.array([0.0] * 3, dtype=np.float32)
+acc_covar_diag = np.array([0.0] * 3, dtype=np.float32)
 
-gyro_bias_covar = tf.diag(tf.square(gyro_bias_diag) + 1e-4)
-acc_bias_covar = tf.diag(tf.square(acc_bias_diag) + 1e-4)
-gyro_covar = tf.diag(tf.square(gyro_covar_diag) + 1e-4)
-acc_covar = tf.diag(tf.square(acc_covar_diag) + 1e-4)
+gyro_bias_covar = tf.diag(tf.square(gyro_bias_diag) + 1e-8)
+acc_bias_covar = tf.diag(tf.square(acc_bias_diag) + 1e-8)
+gyro_covar = tf.diag(tf.square(gyro_covar_diag) + 1e-8)
+acc_covar = tf.diag(tf.square(acc_covar_diag) + 1e-8)
 
 imu_data = tf.placeholder(tf.float32, shape=[cfg.timesteps, cfg.batch_size, 6])
 fc_outputs = tf.placeholder(tf.float32, shape=[cfg.timesteps, cfg.batch_size, 12])
@@ -89,17 +89,19 @@ with tf.Session() as sess:
     imu_measurements[0, :] = np.zeros([6])
 
     curr_ekf_state = np.zeros([cfg.batch_size, 17], dtype=np.float32)
-    # curr_ekf_state[:, [3]] = 12  # !!! initial state
     ekf_states[0, :] = curr_ekf_state
-    curr_ekf_cov_state = 100 * np.repeat(np.expand_dims(np.identity(17, dtype=np.float32), axis=0),
+    curr_ekf_cov_state = 0 * np.repeat(np.expand_dims(np.identity(17, dtype=np.float32), axis=0),
                                          repeats=cfg.batch_size, axis=0)
 
     while data_gen.has_next_batch():
         j_batch = data_gen.curr_batch()
 
         _, _, batch_data, fc_ground_truth, se3_ground_truth, imu_meas = data_gen.next_batch()
-        fc_covar = np.reshape(np.array([1] * 6, dtype=np.float32), [1, 1, 6])
+        fc_covar = np.reshape(np.array([1000] * 6, dtype=np.float32), [1, 1, 6])
         fc_outputs_input = np.concatenate([fc_ground_truth, fc_covar, ], axis=2)
+
+        if j_batch == 0:
+            curr_ekf_state[:, [3]] = fc_ground_truth[-1, :, [0]] * 10  # !!! initial state
 
         _se3_outputs, _curr_ekf_states, _curr_ekf_covar = sess.run(
                 [se3_outputs, ekf_out_states, ekf_out_covar],
