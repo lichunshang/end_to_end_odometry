@@ -94,7 +94,7 @@ class DataLoader(object):
 
         if frames:
             range_start = self.raw_range[seq][0] + frames.start
-            range_stop = range_start + frames.stop
+            range_stop = range_start + (frames.stop - frames.start)
         else:
             range_start = self.raw_range[seq][0]
             range_stop = self.raw_range[seq][1] + 1
@@ -450,7 +450,7 @@ class StatefulRollerDataGen(object):
                 se3_ground_truth[:, i_b, :] = self.se3_ground_truth[cur_seq][idx:idx + n, :]
                 fc_ground_truth[:, i_b, :] = self.fc_ground_truth[cur_seq][idx:idx + n - 1, :]
                 imu_measurements[:, i_b, :] = self.imu_measurements[cur_seq][idx:idx + n - 1, :]
-                imu_dt[:, i_b] = self.imu_timestamps[cur_seq][idx:idx + n]
+                imu_dt[:, i_b] = self.imu_timestamps[cur_seq][idx:idx + n - 1]
             else:
                 # data going backwards
                 idx = start_idx[i_b] - idx_offset
@@ -466,7 +466,7 @@ class StatefulRollerDataGen(object):
                     se3_ground_truth[:, i_b, :] = np.flip(se3_ground_truth[:, i_b, :], axis=0)
                     fc_ground_truth[:, i_b, :] = np.flip(fc_ground_truth[:, i_b, :], axis=0)
                     imu_measurements[:, i_b, :] = np.flip(imu_measurements[:, i_b, :], axis=0)
-                    imu_dt[:, i_b] = np.flip(self.imu_timestamps[cur_seq][idx - n:idx - 1, :], axis=0)
+                    imu_dt[:, i_b] = np.flip(self.imu_timestamps[cur_seq][idx - n:idx - 1], axis=0)
                 else:
                     batch[:, i_b, :, :] = self.input_frames[cur_seq][idx - n:idx, :, :, :]
                     se3_ground_truth[:, i_b, :] = self.se3_ground_truth[cur_seq][idx - n:idx, :]
@@ -477,7 +477,7 @@ class StatefulRollerDataGen(object):
                     se3_ground_truth[:, i_b, :] = np.flip(se3_ground_truth[:, i_b, :], axis=0)
                     fc_ground_truth[:, i_b, :] = np.flip(fc_ground_truth[:, i_b, :], axis=0)
                     imu_measurements[:, i_b, :] = np.flip(imu_measurements[:, i_b, :], axis=0)
-                    imu_dt[:, i_b] = np.flip(self.imu_timestamps[cur_seq][idx - n:idx - 1, :], axis=0)
+                    imu_dt[:, i_b] = np.flip(self.imu_timestamps[cur_seq][idx - n:idx - 1], axis=0)
 
         if self.cfg.data_type == "cam":
             batch = np.divide(batch, 255.0, dtype=np.float32)  # ensure float32

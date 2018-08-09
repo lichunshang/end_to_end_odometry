@@ -2,7 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import config
 
-sequences = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]
+# sequences = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]
+sequences = ["06"]
+
 
 data_dir = config.save_path + "/ekf_debug/"
 

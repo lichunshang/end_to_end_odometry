@@ -8,8 +8,8 @@ import os
 import model
 
 kitti_seq = "06"
-# frames = [range(0, 100)]
 frames = [None]
+# frames = [range(260, 437)]
 
 
 class SeqTrainLidarConfig:
@@ -44,7 +44,7 @@ fc_outputs = tf.placeholder(tf.float32, shape=[cfg.timesteps, cfg.batch_size, 12
 ekf_initial_state = tf.placeholder(tf.float32, name="ekf_init_state", shape=[cfg.batch_size, 17])
 ekf_initial_covariance = tf.placeholder(tf.float32, name="ekf_init_covar", shape=[cfg.batch_size, 17, 17])
 initial_poses = tf.placeholder(tf.float32, name="initial_poses", shape=[cfg.batch_size, 7])
-dt = tf.placeholder(tf.float32, shape=[], name="dt")
+dt = tf.placeholder(tf.float32, shape=[cfg.timesteps, cfg.batch_size], name="dt")
 
 stack1 = []
 for i in range(fc_outputs.shape[0]):
@@ -91,19 +91,22 @@ with tf.Session() as sess:
 
     curr_ekf_state = np.zeros([cfg.batch_size, 17], dtype=np.float32)
     ekf_states[0, :] = curr_ekf_state
-    curr_ekf_cov_state = 0 * np.repeat(np.expand_dims(np.identity(17, dtype=np.float32), axis=0),
+    curr_ekf_cov_state = 0.1 * np.repeat(np.expand_dims(np.identity(17, dtype=np.float32), axis=0),
                                        repeats=cfg.batch_size, axis=0)
 
     while data_gen.has_next_batch():
         j_batch = data_gen.curr_batch()
 
         _, _, batch_data, fc_ground_truth, se3_ground_truth, imu_meas, elapsed_time = data_gen.next_batch()
-        fc_covar = np.reshape(np.array([1] * 6, dtype=np.float32), [1, 1, 6])
+        fc_covar = np.reshape(np.array([1e-8] * 6, dtype=np.float32), [1, 1, 6])
         fc_outputs_input = np.concatenate([fc_ground_truth, fc_covar, ], axis=2)
 
         if j_batch == 0:
-            curr_ekf_state[:, 9] = 0.26980048
+            # curr_ekf_state[:, 9] = 0.26980048
             curr_ekf_state[:, 3] = fc_ground_truth[-1, :, [0]] * 10  # !!! initial state
+
+        # curr_ekf_state[:, 4] = 0
+        # curr_ekf_state[:, 9] = 0
 
         _se3_outputs, _curr_ekf_states, _curr_ekf_covar = sess.run(
                 [se3_outputs, ekf_out_states, ekf_out_covar],
@@ -119,6 +122,8 @@ with tf.Session() as sess:
         init_pose = _se3_outputs[-1]
         curr_ekf_state = _curr_ekf_states[-1]
         curr_ekf_covar = _curr_ekf_covar[-1]
+
+        # print(elapsed_time)
 
         # curr_ekf_state[:, [6, 7]] = 0
 

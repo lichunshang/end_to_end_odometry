@@ -2,6 +2,7 @@ import tensorflow as tf
 import math as m
 
 tfe = tf.contrib.eager
+g = -9.80665
 
 
 # function to map tensors with inner dimension 3 to 3x3 skew symmetric matrices
@@ -231,28 +232,8 @@ def full_ekf_layer(imu_meas_in, nn_meas, nn_covar, prev_state, prev_covar, gyro_
         lift_g_bias_covar = tf.tile(tf.expand_dims(gyro_bias_covar, axis=0), [imu_meas.shape[1], 1, 1])
         lift_a_bias_covar = tf.tile(tf.expand_dims(acc_bias_covar, axis=0), [imu_meas.shape[1], 1, 1])
 
-        g = -9.80665
         gfull = tf.tile(tf.expand_dims(tf.constant([[0], [0], [g]], dtype=tf.float32, name="g"), axis=0),
                         [imu_meas.shape[1], 1, 1])
-
-        diRo = tf.Variable([[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, -dt, 0],
-                            [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, -dt]], dtype=tf.float32, name="diRo")
-
-        dbacc = tf.constant([[0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
-                             [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
-                             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0]], dtype=tf.float32, name="dbacc")
-
-        diRim1 = tf.Variable([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -dt, 0, 0],
-                              [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -dt, 0],
-                              [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -dt]], dtype=tf.float32, name="diRim1")
-
-        dbgy = tf.constant([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
-                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
-                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]], dtype=tf.float32, name="dbgy")
-
-        # Prepare the constant part of Fk and tile across all batches
-        fkstat = tf.tile(tf.expand_dims(tf.concat([diRo, dbacc, diRim1, dbgy], axis=0), axis=0),
-                         [imu_meas.shape[1], 1, 1])
 
         # hk is mercifully constant
         hk = tf.constant([[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -264,9 +245,9 @@ def full_ekf_layer(imu_meas_in, nn_meas, nn_covar, prev_state, prev_covar, gyro_
 
         Hk = tf.tile(tf.expand_dims(hk, axis=0), [imu_meas.shape[1], 1, 1])
 
+        # loop through time
         for i in range(imu_meas.shape[0]):
-            next_state, next_covariance = run_update(imu_meas[i, ...], dt, prev_states[i], covar_output[i], gfull, g,
-                                                     fkstat,
+            next_state, next_covariance = run_update(imu_meas[i, ...], dt[i], prev_states[i], covar_output[i], gfull, g,
                                                      Hk, lift_g_bias_covar, lift_a_bias_covar, lift_g_covar,
                                                      lift_a_covar, nn_meas[i, ...],
                                                      nn_covar[i, ...])
@@ -279,7 +260,7 @@ def full_ekf_layer(imu_meas_in, nn_meas, nn_covar, prev_state, prev_covar, gyro_
 
 # Abstract out one iteration of the ekf
 
-def run_update(imu_meas_in, dt, prev_state_in, prev_covar_in, gfull, g, fkstat, Hk, lift_g_bias_covar,
+def run_update(imu_meas_in, dt, prev_state_in, prev_covar_in, gfull, g, Hk, lift_g_bias_covar,
                lift_a_bias_covar, lift_g_covar, lift_a_covar, nn_meas_in, nn_covar_in):
     # multiple by one to get names for debugger
     prev_state = tf.multiply(1.0, prev_state_in, name='ekf_prev_state')
@@ -342,6 +323,32 @@ def run_update(imu_meas_in, dt, prev_state_in, prev_covar_in, gfull, g, fkstat, 
                                -g * dt * dt * dRglobal_dE], axis=-1)
                     ], axis=1)
 
+    # loop through all the batches to assign dt =correctly
+    fkstat = []
+    for i in range(0, imu_meas.shape[0]):
+        dt_2x2 = tf.diag([dt[i]] * 2)
+        dt_3x3 = tf.diag([dt[i]] * 3)
+        diRo = tf.constant([[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+                            [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0]], dtype=tf.float32)
+        diRo = tf.concat([diRo, dt_2x2], axis=1, name="diRo")
+
+        dbacc = tf.constant([[0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+                             [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+                             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0]], dtype=tf.float32, name="dbacc")
+
+        diRim1 = tf.constant([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                              [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                              [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]], dtype=tf.float32)
+        diRim1 = tf.concat([diRim1, dt_3x3], axis=1, name="diRim1")
+
+        dbgy = tf.constant([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
+                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
+                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]], dtype=tf.float32, name="dbgy")
+
+        fkstat.append(tf.concat([diRo, dbacc, diRim1, dbgy], axis=0))
+
+    fkstat = tf.stack(fkstat, axis=0)  # pack up along the batches
+
     Fkfull = tf.concat([Fk, fkstat], axis=1)
 
     # Combine covariance matrices into one large matrix. order is measurement noise (gyro then acc), then bias noise (
@@ -368,27 +375,32 @@ def run_update(imu_meas_in, dt, prev_state_in, prev_covar_in, gfull, g, fkstat, 
                      tf.zeros([imu_meas.shape[0], 3, 3], dtype=tf.float32),
                      tf.zeros([imu_meas.shape[0], 3, 3], dtype=tf.float32)), axis=-1)
 
-    drotglobal = tf.tile(tf.expand_dims(
-            tf.Variable([[0, -dt, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                         [0, 0, -dt, 0, 0, 0, 0, 0, 0, 0, 0, 0]], dtype=tf.float32, name="dro"), axis=0),
-            [imu_meas.shape[0], 1, 1])
+    drotglobal = []
+    drotrel = []
+    for i in range(0, imu_meas.shape[0]):
+        dt_2x2 = tf.diag([dt[i]] * 2)
+        dt_3x3 = tf.diag([dt[i]] * 3)
+        # stack along the columns
+        drotglobal.append(tf.concat([tf.zeros([2, 1]), dt_2x2, tf.zeros([2, 9])], axis=1))
+        drotrel.append(tf.concat([dt_3x3, tf.zeros([3, 9])], axis=1))
+
+    drotglobal = tf.stack(drotglobal, axis=0, name="drotglobal")
+    drotrel = tf.stack(drotrel, axis=0, name="drotrel")
 
     daccbias = tf.tile(tf.expand_dims(tf.constant([
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]], dtype=tf.float32, name="daccbias"), axis=0), [imu_meas.shape[0], 1, 1])
-
-    drotrel = tf.tile(tf.expand_dims(tf.Variable([
-        [-dt, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [0, -dt, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, -dt, 0, 0, 0, 0, 0, 0, 0, 0, 0]], dtype=tf.float32, name="drotrel"), axis=0), [imu_meas.shape[0], 1, 1])
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]], dtype=tf.float32, name="daccbias"), axis=0),
+            [imu_meas.shape[0], 1, 1])
 
     dgyrobias = tf.tile(tf.expand_dims(tf.constant([
         [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0]], dtype=tf.float32, name="dgyrobias"), axis=0), [imu_meas.shape[0], 1, 1])
+        [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0]], dtype=tf.float32, name="dgyrobias"), axis=0),
+            [imu_meas.shape[0], 1, 1])
 
     J_noise = tf.concat((dpi, dvi, drotglobal, daccbias, drotrel, dgyrobias), axis=-2)
+
 
     # Assemble global covariance matrix
 
