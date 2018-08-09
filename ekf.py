@@ -215,7 +215,7 @@ def getLittleJacobian(eulers):
 # covar matrices should be 3x3, except for prev_covar which is batch_size x 17x17 and nn_covar which is time x batch x 6 x 6
 
 def full_ekf_layer(imu_meas_in, nn_meas, nn_covar, prev_state, prev_covar, gyro_bias_covar, acc_bias_covar, gyro_covar,
-                   acc_covar, dt=tf.constant(0.1, dtype=tf.float32)):
+                   acc_covar, dt):
     with tf.variable_scope("ekf_layer", reuse=tf.AUTO_REUSE):
         prev_states = []
         covar_output = []
