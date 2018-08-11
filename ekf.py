@@ -269,9 +269,10 @@ def run_update(imu_meas_in, dt, prev_state_in, prev_covar_in, gfull, g, Hk, lift
     nn_meas = tf.multiply(1.0, nn_meas_in, name='ekf_nn_meas')
     nn_covar = tf.multiply(1.0, nn_covar_in, name='ekf_nn_covar')
 
-    pred_rot_euler = dt * imu_meas[..., 0:3] - dt * prev_state[..., 14:17]
+    dt_dim = tf.expand_dims(dt, 1)
+    pred_rot_euler = dt_dim * imu_meas[..., 0:3] - dt_dim * prev_state[..., 14:17]
     pred_rot = euler2rot(pred_rot_euler)
-    pred_global = dt * imu_meas[..., 1:3] - dt * prev_state[..., 15:17] + prev_state[..., 6:8]
+    pred_global = dt_dim * imu_meas[..., 1:3] - dt_dim * prev_state[..., 15:17] + prev_state[..., 6:8]
 
     pred_global_rot = euler2rot2param(pred_global)
 
@@ -282,10 +283,10 @@ def run_update(imu_meas_in, dt, prev_state_in, prev_covar_in, gfull, g, Hk, lift
 
     # position prediction
     pred_list.append(
-            tf.squeeze(tf.matmul(pred_rot, dt * tf.expand_dims(prev_state[..., 3:6], axis=-1))) + (0.5 * dt * dt) * \
+            tf.squeeze(tf.matmul(pred_rot, tf.expand_dims(dt_dim * prev_state[..., 3:6], axis=-1))) + (0.5 * dt_dim * dt_dim) * \
             (tf.squeeze(tf.matmul(pred_global_rot, gfull)) + imu_meas[:, 3:6] - prev_state[..., 8:11]))
     # velocity prediction
-    pred_list.append(tf.squeeze(tf.matmul(pred_rot, tf.expand_dims(prev_state[..., 3:6], axis=-1))) + dt * \
+    pred_list.append(tf.squeeze(tf.matmul(pred_rot, tf.expand_dims(prev_state[..., 3:6], axis=-1))) + dt_dim * \
                      (tf.squeeze(tf.matmul(pred_global_rot, gfull)) + imu_meas[:, 3:6] - prev_state[..., 8:11]))
 
     # global pitch and roll prediction
@@ -307,20 +308,21 @@ def run_update(imu_meas_in, dt, prev_state_in, prev_covar_in, gfull, g, Hk, lift
     dRglobal_dE = tf.concat([tf.zeros([imu_meas.shape[0], 3, 1], dtype=tf.float32), getLittleJacobian(pred_global)],
                             axis=-1)
 
+    dt_dim_dim = tf.expand_dims(dt_dim, -1)
     Fk = tf.concat([tf.concat([tf.zeros([imu_meas.shape[0], 3, 3]),
-                               dt * pred_rot,
-                               0.5 * dt * dt * g * getLittleJacobian(pred_global),
-                               -0.5 * dt * dt * tf.eye(3, batch_shape=[imu_meas.shape[0]], dtype=tf.float32),
+                               dt_dim_dim * pred_rot,
+                               0.5 * dt_dim_dim * dt_dim_dim * g * getLittleJacobian(pred_global),
+                               -0.5 * dt_dim_dim * dt_dim_dim * tf.eye(3, batch_shape=[imu_meas.shape[0]], dtype=tf.float32),
                                tf.zeros([imu_meas.shape[0], 3, 3]),
-                               -dt * getJacobian(pred_rot_euler, dt * prev_state[..., 3:6]) -
-                               g * 0.5 * dt * dt * dt * dRglobal_dE], axis=-1),
+                               -dt_dim_dim * getJacobian(pred_rot_euler, dt_dim * prev_state[..., 3:6]) -
+                               g * 0.5 * dt_dim_dim * dt_dim_dim * dt_dim_dim * dRglobal_dE], axis=-1),
                     tf.concat([tf.zeros([imu_meas.shape[0], 3, 3]),
                                pred_rot,
-                               dt * g * getLittleJacobian(pred_global),
-                               -dt * tf.eye(3, batch_shape=[imu_meas.shape[0]], dtype=tf.float32),
+                               dt_dim_dim * g * getLittleJacobian(pred_global),
+                               -dt_dim_dim * tf.eye(3, batch_shape=[imu_meas.shape[0]], dtype=tf.float32),
                                tf.zeros([imu_meas.shape[0], 3, 3]),
-                               -dt * getJacobian(pred_rot_euler, prev_state[..., 3:6]) + \
-                               -g * dt * dt * dRglobal_dE], axis=-1)
+                               -dt_dim_dim * getJacobian(pred_rot_euler, prev_state[..., 3:6]) + \
+                               -g * dt_dim_dim * dt_dim_dim * dRglobal_dE], axis=-1)
                     ], axis=1)
 
     # loop through all the batches to assign dt =correctly
@@ -363,15 +365,15 @@ def run_update(imu_meas_in, dt, prev_state_in, prev_covar_in, gfull, g, Hk, lift
 
     reuse = tf.concat((tf.zeros([imu_meas.shape[0], 3, 1], dtype=tf.float32), getLittleJacobian(pred_global)), axis=-1)
 
-    dpi = tf.concat((getJacobian(pred_rot_euler, dt * prev_state[..., 3:6]) * -dt
-                     + (0.5 * dt * dt) * (-dt * g * reuse),
-                     (-0.5 * dt * dt) * tf.eye(3, batch_shape=[imu_meas.shape[0]], dtype=tf.float32),
+    dpi = tf.concat((getJacobian(pred_rot_euler, dt_dim * prev_state[..., 3:6]) * -dt_dim_dim
+                     + (0.5 * dt_dim_dim * dt_dim_dim) * (-dt_dim_dim * g * reuse),
+                     (-0.5 * dt_dim_dim * dt_dim_dim) * tf.eye(3, batch_shape=[imu_meas.shape[0]], dtype=tf.float32),
                      tf.zeros([imu_meas.shape[0], 3, 3], dtype=tf.float32),
                      tf.zeros([imu_meas.shape[0], 3, 3], dtype=tf.float32)), axis=-1)
 
-    dvi = tf.concat((getJacobian(pred_rot_euler, prev_state[..., 3:6]) * -dt
-                     + dt * (-dt * g * reuse),
-                     (-dt * tf.eye(3, batch_shape=[imu_meas.shape[0]], dtype=tf.float32)),
+    dvi = tf.concat((getJacobian(pred_rot_euler, prev_state[..., 3:6]) * -dt_dim_dim
+                     + dt_dim_dim * (-dt_dim_dim * g * reuse),
+                     (-dt_dim_dim * tf.eye(3, batch_shape=[imu_meas.shape[0]], dtype=tf.float32)),
                      tf.zeros([imu_meas.shape[0], 3, 3], dtype=tf.float32),
                      tf.zeros([imu_meas.shape[0], 3, 3], dtype=tf.float32)), axis=-1)
 
