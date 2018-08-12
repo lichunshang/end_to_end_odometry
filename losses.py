@@ -68,6 +68,7 @@ def reduce_prod_6(x):
 
 # assumes time major
 def fc_losses(outputs, output_covar, labels_u, k):
+    return pair_train_fc_losses(outputs, labels_u, k)
     with tf.variable_scope("fc_losses"):
         diff_u = tf.subtract(outputs[:, :, 0:6], labels_u, name="diff_u")
         diff_u2 = tf.square(diff_u)

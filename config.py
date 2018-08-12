@@ -39,7 +39,7 @@ class SeqTrainConfigs(Configs):
 
 
 class SeqTrainLidarConfig(Configs):
-    timesteps = 1
+    timesteps = 4
     sequence_stride = timesteps
     init_length = 1
     batch_size = 32
@@ -80,7 +80,7 @@ class SeqTrainLidarConfig(Configs):
     lstm_size = 256
     lstm_layers = 1
 
-    k_fc = 1.0
+    k_fc = 50.0
     k_se3 = 500.0
 
     num_epochs = 200
