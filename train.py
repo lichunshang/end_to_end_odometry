@@ -397,7 +397,8 @@ class Train(object):
                 j_batch = self.train_data_gen.curr_batch()
 
                 # get inputs
-                batch_id, curr_seq, batch_data, fc_ground_truth, se3_ground_truth, imu_measurements = self.train_data_gen.next_batch()
+                batch_id, curr_seq, batch_data, fc_ground_truth, se3_ground_truth, imu_measurements, elapsed_time = \
+                    self.train_data_gen.next_batch()
                 data_roller.get_init_lstm_state(lstm_states_dic, curr_lstm_states, curr_seq, batch_id,
                                                 self.cfg.bidir_aug)
 
@@ -436,7 +437,8 @@ class Train(object):
                                 self.t_epoch: i_epoch,
                                 self.t_ekf_initial_state: curr_ekf_state,
                                 self.t_ekf_initial_covariance: curr_ekf_cov_state,
-                                self.t_imu_data: imu_measurements
+                                self.t_imu_data: imu_measurements,
+                                self.t_dt: elapsed_time
                             },
                             options=self.tf_run_options,
                             run_metadata=self.tf_run_metadata)

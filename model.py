@@ -367,7 +367,7 @@ def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ek
         for i in range(fc_outputs.shape[0]):
             stack2 = []
             for j in range(fc_outputs.shape[1]):
-                stack2.append(tf.diag(tf.square(fc_outputs[i, j, 6:]) + np.array([1e-6, 1e-6, 1e-6, 1e-8, 1e-8, 1e-8])))
+                stack2.append(tf.diag(tf.square(fc_outputs[i, j, 6:])))
             stack1.append(tf.stack(stack2, axis=0))
 
         nn_covar = tf.stack(stack1, axis=0)
@@ -383,10 +383,10 @@ def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ek
             acc_covar_diag = tf.get_variable('acc_sqrt')
 
         with tf.name_scope("ekf_ops"):
-            gyro_bias_covar = tf.diag(tf.square(gyro_bias_diag) + 1e-5)
-            acc_bias_covar = tf.diag(tf.square(acc_bias_diag) + 1e-5)
-            gyro_covar = tf.diag(tf.square(gyro_covar_diag) + 1e-5)
-            acc_covar = tf.diag(tf.square(acc_covar_diag) + 1e-5)
+            gyro_bias_covar = tf.diag(tf.square(gyro_bias_diag) + 1e-4)
+            acc_bias_covar = tf.diag(tf.square(acc_bias_diag) + 1e-4)
+            gyro_covar = tf.diag(tf.square(gyro_covar_diag) + 1e-4)
+            acc_covar = tf.diag(tf.square(acc_covar_diag) + 1e-4)
 
             ekf_out_states, ekf_out_covar = ekf.full_ekf_layer(imu_data, fc_outputs[..., 0:6], nn_covar,
                                                                feed_ekf_init_state, feed_ekf_init_covar,
