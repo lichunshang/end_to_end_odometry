@@ -122,7 +122,7 @@ for i, sequence in enumerate(sequences):
             plt.figure(i)
             plt.clf()
             x = np.array(range(0, ekf_states.shape[0])) / 10.0
-            y = ekf_states[:, j]
+            y = ekf_states[1:, j]
 
             plt.plot(x, y)
 

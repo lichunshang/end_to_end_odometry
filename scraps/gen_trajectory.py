@@ -12,8 +12,8 @@ dir_name = "trajectory_results"
 # kitti_seqs = ["00", "01", "02", "08", "09"]
 # kitti_seqs = ["04", "05", "06", "07", "10"]
 kitti_seqs = ["00", "01", "02", "04", "05", "06", "07", "08", "09", "10"]
-# kitti_seqs = ["01", "06", "08", "09", "10"]
-restore_model_file = "/home/cs4li/Dev/end_to_end_odometry/results/train_seq_20180808-00-45-36_normalized_error_good_covar/model_epoch_checkpoint-99"
+# kitti_seqs = ["08"]
+restore_model_file = "/home/cs4li/Dev/end_to_end_odometry/results/train_seq_20180812-16-22-19/model_epoch_checkpoint-175"
 
 save_ground_truth = True
 config_class = config.SeqTrainLidarConfig

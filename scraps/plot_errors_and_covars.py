@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import config
 
 sequences = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]
-save_dir = "/home/cs4li/Dev/end_to_end_odometry/results/train_seq_20180808-00-45-36_normalized_error_good_covar/"
+save_dir = "/home/cs4li/Dev/end_to_end_odometry/results/train_seq_20180812-16-22-19/"
 
 for sequence in sequences:
 
@@ -47,6 +47,11 @@ for sequence in sequences:
                                                     num=200))
         plt.title("Sequence %s %s Error Histogram" % (sequence, plot_names[i]))
         plt.savefig(data_dir + "fig_%s_%02d_%s_error_hist.png" % (sequence, i, plot_names[i]))
+        plt.clf()
+
+        plt.plot(fc_errors[1:, i], "r")
+        plt.title("Sequence %s %s Error" % (sequence, plot_names[i]))
+        plt.savefig(data_dir + "fig_%s_%02d_%s_error.png" % (sequence, i, plot_names[i]))
         plt.clf()
 
     print("Sequence %s done." % sequence)
