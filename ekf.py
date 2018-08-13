@@ -332,7 +332,7 @@ def run_update(imu_meas_in, dt, prev_state_in, prev_covar_in, gfull, g, Hk, lift
         dt_3x3 = tf.diag([dt[i]] * 3)
         diRo = tf.constant([[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
                             [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0]], dtype=tf.float32)
-        diRo = tf.concat([diRo, dt_2x2], axis=1, name="diRo")
+        diRo = tf.concat([diRo, -dt_2x2], axis=1, name="diRo")
 
         dbacc = tf.constant([[0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
                              [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
@@ -341,7 +341,7 @@ def run_update(imu_meas_in, dt, prev_state_in, prev_covar_in, gfull, g, Hk, lift
         diRim1 = tf.constant([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                               [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                               [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]], dtype=tf.float32)
-        diRim1 = tf.concat([diRim1, dt_3x3], axis=1, name="diRim1")
+        diRim1 = tf.concat([diRim1, -dt_3x3], axis=1, name="diRim1")
 
         dbgy = tf.constant([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
                             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
@@ -383,8 +383,8 @@ def run_update(imu_meas_in, dt, prev_state_in, prev_covar_in, gfull, g, Hk, lift
         dt_2x2 = tf.diag([dt[i]] * 2)
         dt_3x3 = tf.diag([dt[i]] * 3)
         # stack along the columns
-        drotglobal.append(tf.concat([tf.zeros([2, 1]), dt_2x2, tf.zeros([2, 9])], axis=1))
-        drotrel.append(tf.concat([dt_3x3, tf.zeros([3, 9])], axis=1))
+        drotglobal.append(tf.concat([tf.zeros([2, 1]), -dt_2x2, tf.zeros([2, 9])], axis=1))
+        drotrel.append(tf.concat([-dt_3x3, tf.zeros([3, 9])], axis=1))
 
     drotglobal = tf.stack(drotglobal, axis=0, name="drotglobal")
     drotrel = tf.stack(drotrel, axis=0, name="drotrel")
