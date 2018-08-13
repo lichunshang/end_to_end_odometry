@@ -269,7 +269,7 @@ def run_update(imu_meas_in, dt, prev_state_in, prev_covar_in, gfull, g, Hk, lift
     nn_meas = tf.multiply(1.0, nn_meas_in, name='ekf_nn_meas')
     nn_covar = tf.multiply(1.0, nn_covar_in, name='ekf_nn_covar')
 
-    dt_dim = tf.expand_dims(dt, 1)
+    dt_dim = tf.expand_dims(dt, -1)
     pred_rot_euler = dt_dim * imu_meas[..., 0:3] - dt_dim * prev_state[..., 14:17]
     pred_rot = euler2rot(pred_rot_euler)
     pred_global = dt_dim * imu_meas[..., 1:3] - dt_dim * prev_state[..., 15:17] + prev_state[..., 6:8]
