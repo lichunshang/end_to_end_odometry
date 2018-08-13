@@ -8,8 +8,8 @@ import os
 import model
 
 kitti_seq = "06"
-frames = [None]
-# frames = [range(260, 437)]
+# frames = [None]
+frames = [range(260, 500)]
 
 
 class SeqTrainLidarConfig:
@@ -98,15 +98,17 @@ with tf.Session() as sess:
         j_batch = data_gen.curr_batch()
 
         _, _, batch_data, fc_ground_truth, se3_ground_truth, imu_meas, elapsed_time = data_gen.next_batch()
-        fc_covar = np.reshape(np.array([1e-8] * 6, dtype=np.float32), [1, 1, 6])
+        fc_covar = np.reshape(np.array([1000] * 6, dtype=np.float32), [1, 1, 6])
         fc_outputs_input = np.concatenate([fc_ground_truth, fc_covar, ], axis=2)
 
         if j_batch == 0:
-            # curr_ekf_state[:, 9] = 0.26980048
+            # curr_ekf_state[:, 9] = -0.26980048
             curr_ekf_state[:, 3] = fc_ground_truth[-1, :, [0]] * 10  # !!! initial state
 
         # curr_ekf_state[:, 4] = 0
         # curr_ekf_state[:, 9] = 0
+        # imu_meas[:, :, ] = 0
+        # imu_meas[:, :, 5] = 0
 
         _se3_outputs, _curr_ekf_states, _curr_ekf_covar = sess.run(
                 [se3_outputs, ekf_out_states, ekf_out_covar],
