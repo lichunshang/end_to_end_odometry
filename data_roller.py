@@ -450,7 +450,7 @@ class StatefulRollerDataGen(object):
                 se3_ground_truth[:, i_b, :] = self.se3_ground_truth[cur_seq][idx:idx + n, :]
                 fc_ground_truth[:, i_b, :] = self.fc_ground_truth[cur_seq][idx:idx + n - 1, :]
                 imu_measurements[:, i_b, :] = self.imu_measurements[cur_seq][idx:idx + n - 1, :]
-                imu_dt[:, i_b] = self.imu_timestamps[cur_seq][idx:idx + n]
+                # imu_dt[:, i_b] = self.imu_timestamps[cur_seq][idx:idx + n]
             else:
                 # data going backwards
                 idx = start_idx[i_b] - idx_offset
@@ -466,7 +466,7 @@ class StatefulRollerDataGen(object):
                     se3_ground_truth[:, i_b, :] = np.flip(se3_ground_truth[:, i_b, :], axis=0)
                     fc_ground_truth[:, i_b, :] = np.flip(fc_ground_truth[:, i_b, :], axis=0)
                     imu_measurements[:, i_b, :] = np.flip(imu_measurements[:, i_b, :], axis=0)
-                    imu_dt[:, i_b] = np.flip(self.imu_timestamps[cur_seq][idx - n:idx - 1, :], axis=0)
+                    # imu_dt[:, i_b] = np.flip(self.imu_timestamps[cur_seq][idx - n:idx - 1, :], axis=0)
                 else:
                     batch[:, i_b, :, :] = self.input_frames[cur_seq][idx - n:idx, :, :, :]
                     se3_ground_truth[:, i_b, :] = self.se3_ground_truth[cur_seq][idx - n:idx, :]
@@ -477,7 +477,7 @@ class StatefulRollerDataGen(object):
                     se3_ground_truth[:, i_b, :] = np.flip(se3_ground_truth[:, i_b, :], axis=0)
                     fc_ground_truth[:, i_b, :] = np.flip(fc_ground_truth[:, i_b, :], axis=0)
                     imu_measurements[:, i_b, :] = np.flip(imu_measurements[:, i_b, :], axis=0)
-                    imu_dt[:, i_b] = np.flip(self.imu_timestamps[cur_seq][idx - n:idx - 1, :], axis=0)
+                    # imu_dt[:, i_b] = np.flip(self.imu_timestamps[cur_seq][idx - n:idx - 1, :], axis=0)
 
         if self.cfg.data_type == "cam":
             batch = np.divide(batch, 255.0, dtype=np.float32)  # ensure float32
@@ -486,7 +486,7 @@ class StatefulRollerDataGen(object):
         self.current_batch += 1
         self.sequence_batch[cur_seq] += 1
 
-        return batch_id, cur_seq, batch, fc_ground_truth, se3_ground_truth, imu_measurements, imu_dt.astype(np.float32)
+        return batch_id, cur_seq, batch, fc_ground_truth, se3_ground_truth, imu_measurements, 0
 
     def has_next_batch(self):
         return self.current_batch < self.batch_cnt

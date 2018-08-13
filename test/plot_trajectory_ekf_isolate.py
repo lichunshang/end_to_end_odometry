@@ -19,11 +19,11 @@ for i, sequence in enumerate(sequences):
 
     x = trajectory[:, 0]
     y = trajectory[:, 1]
-    z = trajectory[:, 3]
+    z = trajectory[:, 2]
 
     x_gt = trajectory_gt[:, 0]
     y_gt = trajectory_gt[:, 1]
-    z_gt = trajectory_gt[:, 3]
+    z_gt = trajectory_gt[:, 2]
 
     plt.figure(1)
     plt.clf()
