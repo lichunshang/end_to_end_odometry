@@ -104,11 +104,13 @@ with tf.Session() as sess:
         if j_batch == 0:
             # curr_ekf_state[:, 9] = -0.26980048
             curr_ekf_state[:, 3] = fc_ground_truth[-1, :, [0]] * 10  # !!! initial state
+            curr_ekf_state[:, 4] = fc_ground_truth[-1, :, [1]] * 10
+            curr_ekf_state[:, 5] = fc_ground_truth[-1, :, [2]] * 10
 
         # curr_ekf_state[:, 4] = 0
         # curr_ekf_state[:, 9] = 0
-        # imu_meas[:, :, ] = 0
-        # imu_meas[:, :, 5] = 0
+        # imu_meas[:, :, 4] = 0
+        # imu_meas[:, :, 5] = 9.8
 
         _se3_outputs, _curr_ekf_states, _curr_ekf_covar = sess.run(
                 [se3_outputs, ekf_out_states, ekf_out_covar],
