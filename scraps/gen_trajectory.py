@@ -11,9 +11,9 @@ import transformations
 dir_name = "trajectory_results"
 # kitti_seqs = ["00", "01", "02", "08", "09"]
 # kitti_seqs = ["04", "05", "06", "07", "10"]
-# kitti_seqs = ["00", "01", "02", "04", "05", "06", "07", "08", "09", "10"]
-kitti_seqs = ["06"]
-restore_model_file = "/home/cs4li/Dev/end_to_end_odometry/results/train_seq_20180730-18-22-53_lowsyscovar/model_epoch_checkpoint-199"
+kitti_seqs = ["00", "01", "02", "04", "05", "06", "07", "08", "09", "10"]
+# kitti_seqs = ["08"]
+restore_model_file = "/home/cs4li/Dev/end_to_end_odometry/results/train_seq_20180812-16-22-19/model_epoch_checkpoint-175"
 
 save_ground_truth = True
 config_class = config.SeqTrainLidarConfig
@@ -70,7 +70,8 @@ for kitti_seq in kitti_seqs:
         data_gen_si = data.StatefulRollerDataGen(cfg_si, config.dataset_path, [kitti_seq],
                                                  frames=[range(0, cfg_si.timesteps + 1)])
 
-    results_dir_path = os.path.join(config.save_path, dir_name)
+    # results_dir_path = os.path.join(config.save_path, dir_name)
+    results_dir_path = os.path.join(os.path.dirname(restore_model_file), dir_name)
     if not os.path.exists(results_dir_path):
         os.makedirs(results_dir_path)
 
