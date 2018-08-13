@@ -6,6 +6,8 @@ import data_roller
 import tools
 import os
 import model
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
 kitti_seq = "06"
 # frames = [None]
@@ -92,7 +94,7 @@ with tf.Session() as sess:
     curr_ekf_state = np.zeros([cfg.batch_size, 17], dtype=np.float32)
     ekf_states[0, :] = curr_ekf_state
     curr_ekf_cov_state = 0.1 * np.repeat(np.expand_dims(np.identity(17, dtype=np.float32), axis=0),
-                                       repeats=cfg.batch_size, axis=0)
+                                         repeats=cfg.batch_size, axis=0)
 
     while data_gen.has_next_batch():
         j_batch = data_gen.curr_batch()
@@ -146,3 +148,20 @@ with tf.Session() as sess:
     np.save(os.path.join(results_dir_path, "%s_fc_ground_truth" % kitti_seq), fc_ground_truths)
     np.save(os.path.join(results_dir_path, "%s_ekf_states" % kitti_seq), ekf_states)
     np.save(os.path.join(results_dir_path, "%s_imu_measurements" % kitti_seq), imu_measurements)
+
+    # fig = plt.figure()
+    # ax = fig.gca(projection='3d')
+    # x = prediction[:, 0]
+    # y = prediction[:, 1]
+    # z = prediction[:, 2]
+    # x_gt = ground_truths[:, 0]
+    # y_gt = ground_truths[:, 1]
+    # z_gt = ground_truths[:, 2]
+    # ax.plot(x, y, z, color="r")
+    # ax.plot(x_gt, y_gt, z_gt, color="b")
+    # plt.xlabel("x")
+    # plt.xlabel("y")
+    # plt.xlabel("z")
+    # # plt.axes("equal")
+    #
+    # plt.show()

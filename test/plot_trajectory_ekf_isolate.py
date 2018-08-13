@@ -1,10 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import config
+import transformations
 
 # sequences = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]
 sequences = ["06"]
-
 
 data_dir = config.save_path + "/ekf_debug/"
 
@@ -22,10 +22,18 @@ for i, sequence in enumerate(sequences):
     x = trajectory[:, 0]
     y = trajectory[:, 1]
     z = trajectory[:, 2]
+    euler = np.stack([transformations.euler_from_quaternion(trajectory[j, 3:], axes="rzyx") for j in range(trajectory.shape[0])])
+    yaw = euler[:, 0]
+    pitch = euler[:, 1]
+    roll = euler[:, 2]
 
     x_gt = trajectory_gt[:, 0]
     y_gt = trajectory_gt[:, 1]
     z_gt = trajectory_gt[:, 2]
+    euler_gt = np.stack([transformations.euler_from_quaternion(trajectory_gt[j, 3:], axes="rzyx") for j in range(trajectory.shape[0])])
+    yaw_gt = euler_gt[:, 0]
+    pitch_gt = euler_gt[:, 1]
+    roll_gt = euler_gt[:, 2]
 
     plt.figure(1)
     plt.clf()
@@ -39,6 +47,18 @@ for i, sequence in enumerate(sequences):
     plt.clf()
     plt.plot(y, z, linewidth=1.0, color="r", label="LiDAR Odometry")
     plt.plot(y_gt, z_gt, linewidth=1.0, color="b", label="Ground Truth")
+    plt.figure(4)
+    plt.clf()
+    plt.plot(yaw, linewidth=1.0, color="r", label="LiDAR Odometry")
+    plt.plot(yaw_gt, linewidth=1.0, color="b", label="Ground Truth")
+    plt.figure(5)
+    plt.clf()
+    plt.plot(pitch, linewidth=1.0, color="r", label="LiDAR Odometry")
+    plt.plot(pitch_gt, linewidth=1.0, color="b", label="Ground Truth")
+    plt.figure(6)
+    plt.clf()
+    plt.plot(roll, linewidth=1.0, color="r", label="LiDAR Odometry")
+    plt.plot(roll_gt, linewidth=1.0, color="b", label="Ground Truth")
 
     if not file_not_found:
         plt.figure(1)
@@ -47,7 +67,7 @@ for i, sequence in enumerate(sequences):
         plt.ylabel("y [m]")
         plt.title("KITTI Sequence %s Trajectory" % sequence)
         plt.legend()
-        plt.savefig(data_dir + "%s_#00_fig_xy_trajectory.png" % sequence)
+        plt.savefig(data_dir + "%s_#00_0_fig_xy_trajectory.png" % sequence)
 
         plt.figure(2)
         # plt.axis("equal")
@@ -55,7 +75,7 @@ for i, sequence in enumerate(sequences):
         plt.ylabel("z [m]")
         plt.title("KITTI Sequence %s Trajectory" % sequence)
         plt.legend()
-        plt.savefig(data_dir + "%s_#00_fig_xz_trajectory.png" % sequence)
+        plt.savefig(data_dir + "%s_#00_1_fig_xz_trajectory.png" % sequence)
 
         plt.figure(3)
         # plt.axis("equal")
@@ -63,7 +83,28 @@ for i, sequence in enumerate(sequences):
         plt.ylabel("z [m]")
         plt.title("KITTI Sequence %s Trajectory" % sequence)
         plt.legend()
-        plt.savefig(data_dir + "%s_#00_fig_yz_trajectory.png" % sequence)
+        plt.savefig(data_dir + "%s_#00_2_fig_yz_trajectory.png" % sequence)
+
+        plt.figure(4)
+        plt.xlabel("y [m]")
+        plt.ylabel("z [m]")
+        plt.title("KITTI Sequence %s Trajectory" % sequence)
+        plt.legend()
+        plt.savefig(data_dir + "%s_#00_3_fig_yaw_trajectory.png" % sequence)
+
+        plt.figure(5)
+        plt.xlabel("y [m]")
+        plt.ylabel("z [m]")
+        plt.title("KITTI Sequence %s Trajectory" % sequence)
+        plt.legend()
+        plt.savefig(data_dir + "%s_#00_4_fig_pitch_trajectory.png" % sequence)
+
+        plt.figure(6)
+        plt.xlabel("y [m]")
+        plt.ylabel("z [m]")
+        plt.title("KITTI Sequence %s Trajectory" % sequence)
+        plt.legend()
+        plt.savefig(data_dir + "%s_#00_5_fig_roll_trajectory.png" % sequence)
 
         # plt.show()
         print("Plot saved for sequence %s" % sequence)
@@ -123,7 +164,7 @@ for i, sequence in enumerate(sequences):
         for j in range(0, ekf_states.shape[1]):
             plt.figure(i)
             plt.clf()
-            x = np.array(range(0, ekf_states.shape[0])) / 10.0
+            x = np.array(range(0, ekf_states.shape[0]))[1:] / 10.0
             y = ekf_states[1:, j]
 
             plt.plot(x, y)
