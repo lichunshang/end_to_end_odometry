@@ -8,41 +8,61 @@ data_dir = config.save_path + "/ekf_debug/"
 
 for i, sequence in enumerate(sequences):
 
-    trajectories_to_overlay = [
-        (data_dir + "%s_trajectory.npy" % sequence, {"linewidth": 1.0, "color": "r"}, "LiDAR Odometry"),
-        (data_dir + "%s_ground_truth.npy" % sequence, {"linewidth": 1.0, "color": "b"}, "Ground Truth")
-    ]
-
-    plt.figure(i)
     file_not_found = False
-    for trj in trajectories_to_overlay:
-        try:
-            trajectory = np.load(trj[0])
-        except FileNotFoundError:
-            file_not_found = True
-            print("Cannot find %s" % trj[0])
-            break
+    try:
+        trajectory = np.load(data_dir + "%s_trajectory.npy" % sequence)
+        trajectory_gt = np.load(data_dir + "%s_ground_truth.npy" % sequence)
+    except FileNotFoundError:
+        file_not_found = True
+        print("Cannot find trajectory for seq %s" % sequence)
+        continue
 
-        y = trajectory[:, 1]
-        x = trajectory[:, 0]
+    x = trajectory[:, 0]
+    y = trajectory[:, 1]
+    z = trajectory[:, 3]
 
-        plt.plot(x, y, **trj[1], label=trj[2])
+    x_gt = trajectory_gt[:, 0]
+    y_gt = trajectory_gt[:, 1]
+    z_gt = trajectory_gt[:, 3]
+
+    plt.figure(1)
+    plt.clf()
+    plt.plot(x, y, linewidth=1.0, color="r", label="LiDAR Odometry")
+    plt.plot(x_gt, y_gt, linewidth=1.0, color="b", label="Ground Truth")
+    plt.figure(2)
+    plt.clf()
+    plt.plot(x, z, linewidth=1.0, color="r", label="LiDAR Odometry")
+    plt.plot(x_gt, z_gt, linewidth=1.0, color="b", label="Ground Truth")
+    plt.figure(3)
+    plt.clf()
+    plt.plot(y, z, linewidth=1.0, color="r", label="LiDAR Odometry")
+    plt.plot(y_gt, z_gt, linewidth=1.0, color="b", label="Ground Truth")
 
     if not file_not_found:
+        plt.figure(1)
         plt.axis("equal")
         plt.xlabel("x [m]")
         plt.ylabel("y [m]")
-
-        if sequence in ["00", "01", "02", "08", "09"]:
-            set_type = "Training Set"
-        elif sequence in ["07"]:
-            set_type = "Validation Set"
-        else:
-            set_type = "Test Set"
-
-        plt.title("KITTI Sequence %s Trajectory (%s)" % (sequence, set_type))
+        plt.title("KITTI Sequence %s Trajectory" % sequence)
         plt.legend()
-        plt.savefig(data_dir + "%s_#00_fig_trajectory.png" % sequence)
+        plt.savefig(data_dir + "%s_#00_fig_xy_trajectory.png" % sequence)
+
+        plt.figure(2)
+        # plt.axis("equal")
+        plt.xlabel("x [m]")
+        plt.ylabel("z [m]")
+        plt.title("KITTI Sequence %s Trajectory" % sequence)
+        plt.legend()
+        plt.savefig(data_dir + "%s_#00_fig_xz_trajectory.png" % sequence)
+
+        plt.figure(3)
+        # plt.axis("equal")
+        plt.xlabel("y [m]")
+        plt.ylabel("z [m]")
+        plt.title("KITTI Sequence %s Trajectory" % sequence)
+        plt.legend()
+        plt.savefig(data_dir + "%s_#00_fig_yz_trajectory.png" % sequence)
+
         # plt.show()
         print("Plot saved for sequence %s" % sequence)
 
@@ -102,7 +122,7 @@ for i, sequence in enumerate(sequences):
             plt.figure(i)
             plt.clf()
             x = np.array(range(0, ekf_states.shape[0])) / 10.0
-            y = ekf_states[:, j]
+            y = ekf_states[1:, j]
 
             plt.plot(x, y)
 

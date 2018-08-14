@@ -110,7 +110,7 @@ def fc_losses(outputs, output_covar, labels_u, k):
         # need to scale angular error by k
         ksq = tf.sqrt(k)
         diff_u_scaled = tf.concat([diff_u[..., 0:3], ksq * diff_u[..., 3:6]], axis=-1)
-        diff_u_normalized = tf.div(diff_u_scaled, labels_u)
+        # diff_u_normalized = tf.div(diff_u_scaled, labels_u)
 
         # sum of diff_u' * inv_Q * diff_u
         s = tf.reduce_sum(tf.squeeze(tf.matmul(tf.expand_dims(diff_u_scaled, axis=-1), tf.matmul(inv_Q, tf.expand_dims(diff_u_scaled, axis=-1)), transpose_a=True), axis=-1), axis=0)
@@ -120,7 +120,7 @@ def fc_losses(outputs, output_covar, labels_u, k):
         # add and multiplies of sum by 1 / t
         loss = (s + sum_det_Q) / t
 
-        xloss = tf.sqrt(tf.reduce_mean(tf.reduce_sum(diff_u2[..., 0], axis=0), axis=0))
+        xloss = tf.sqrt(tf.reduce_mean(tf.reduce_sum(diff_u2[..., 0], axis=0), axis=0), name="x_loss_sqrt")
         yloss = tf.sqrt(tf.reduce_mean(tf.reduce_sum(diff_u2[..., 1], axis=0), axis=0))
         zloss = tf.sqrt(tf.reduce_mean(tf.reduce_sum(diff_u2[..., 2], axis=0), axis=0))
         xyzloss = tf.reduce_mean(tf.reduce_sum(diff_u2[..., 0:3], axis=[0, 2]), axis=0)
