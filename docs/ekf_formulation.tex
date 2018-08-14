@@ -1,0 +1,61 @@
+\documentclass[]{article}
+
+\usepackage{amsmath,amssymb,amstext} % Lots of math symbols and environments
+
+%opening
+\title{End to End EKF Formulation}
+\author{Benjamin Skikos}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This is the formulation for the EKF layer. It is designed to fuse IMU information in using a simple, discrete-time, dynamic model. The IMU measurements are treated as inputs to the process model.
+\end{abstract}
+
+\section{States}
+
+\begin{itemize}
+	\item $p(t)$ Incremental displacement between previous and current timestep
+	\item $v(t)$ Body frame velocity with respect to an inertial frame
+	\item $\Theta_{global}(t)$ Orientation with respect to gravity parameterized as pitch and yaw Euler angles 
+	\item $b_a(t)$ Accelerometer bias
+	\item $\Theta_{inc}(t)$ Incremental rotation between previous and current timestep, parameterized and yaw, pitch, roll Euler angles.
+	\item $b_g(t)$ Gyroscope bias
+\end{itemize}
+
+\section{Inputs}
+
+Inputs are assumed constant from time $t_{i-1}$ to time $t_i$.
+
+\begin{itemize}
+	\item $a(t) = \bar{a}(t) + \eta_{acc}$ Acceleration as measured by the accelerometer. Modeled with white noise.
+	\item $w(t) = \bar{w}(t) + \eta_{gyro}$ Angular velocity as measured by the gyroscope. Modeled with white noise.
+\end{itemize}
+
+\section{Process Model}
+
+$R(\Theta)$ Is the function that maps YPR Euler angles to a rotation matrix. Any quantities denoted by $\eta$ are white noise.
+
+\begin{align}
+\delta &= t_i - t_{i-1} \\
+p(t_i) &= \delta R(\Theta_{inc}(t_i)) v(t_{i-1}) + \frac{\delta^2}{2}(R(\Theta_{global}(t_i))g + a(t_i) - b_a(t_{i-1})) \\
+v(t_i) &= R(\Theta_{inc}(t_i)) v(t_{i-1}) + \delta(R(\Theta_{global}(t_i))g + a(t_i) - b_a(t_{i-1}) \\
+\Theta_{global}(t_i) &= \Theta_{global}(t_{i-1}) + \delta(w(t_i) - b_g(t_{i-1})) \\
+b_a(t_i) &= b_a(t_{i - 1}) + \eta_{accbias} \\
+\Theta_{inc}(t) &= \delta (w(t_i) - b_g(t_{i-1})) \\
+b_g(t_i) &= b_g(t_{i-1}) + \eta_{gyrobias}
+\end{align}
+
+The noise model for this process is non-additive due to the noise associated with the IMU inputs. Let $x(t)$ be the complete state, and $u(t)$ the complete input. Then the noise can be approximated as additive:
+
+\begin{align}
+\Sigma_{process} \sim \frac{\partial x(t)}{\partial u(t)} \Sigma_{input} \frac{\partial x(t)}{\partial u(t)}^T + \Sigma_{bias}
+\end{align}
+
+\section{Measurement Model}
+
+The neural network is trained to directly output incremental position and orientation (with a YPR Euler angle parameterization). Therefore, the measurement model is simply the corresponding states.
+
+\end{document}
