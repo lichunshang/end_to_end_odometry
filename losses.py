@@ -76,7 +76,7 @@ def pair_train_fc_losses(outputs, labels_u, k):
         z_loss = tf.reduce_mean(tf.sqrt(diff_p_sq[:, :, 2]))
 
         return tf.reduce_mean(loss), tf.reduce_mean(sum_diff_p_dot_p / t), tf.reduce_mean(sum_diff_e_dot_e / t), \
-               x_loss, y_loss, z_loss
+               x_loss, y_loss, z_loss, tf.constant(0)
 
 
 # reduce_prod for tensor length 6, x shape is [time length, batch size, 6]
@@ -133,7 +133,7 @@ def fc_losses_covar(outputs, output_covar, labels_u, k):
 
         mean = tf.reduce_mean(loss, name="reduce_mean_loss")
 
-        return mean, xyzloss, yprloss, xloss, yloss, zloss
+        return mean, xyzloss, yprloss, xloss, yloss, zloss, tf.constant(0)
 
 
 def fc_losses_covar_info(outputs, output_covar, output_info, labels_u, k):
@@ -182,10 +182,11 @@ def fc_losses_covar_info(outputs, output_covar, output_info, labels_u, k):
         zloss = tf.sqrt(tf.reduce_mean(tf.reduce_sum(diff_u2[..., 2], axis=0), axis=0))
         xyzloss = tf.reduce_mean(tf.reduce_sum(diff_u2[..., 0:3], axis=[0, 2]), axis=0)
         yprloss = tf.reduce_mean(tf.reduce_sum(diff_u2[..., 3:6], axis=[0, 2]), axis=0)
+        matrix_loss = tf.reduce_mean(sum_matrix_norm_sq)
 
         mean = tf.reduce_mean(loss, name="reduce_mean_loss")
 
-        return mean, xyzloss, yprloss, xloss, yloss, zloss
+        return mean, xyzloss, yprloss, xloss, yloss, zloss, matrix_loss
 
 
 def fc_losses(outputs, output_covar, output_info, labels_u, k):
