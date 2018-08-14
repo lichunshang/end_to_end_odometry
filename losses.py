@@ -22,6 +22,7 @@ def se3_losses_all_ts(outputs, labels, k):
 
         return tf.reduce_mean(loss), tf.reduce_mean(sum_diff_p_dot_p / t), tf.reduce_mean(sum_diff_q_dot_q / t)
 
+
 # assumes time major
 def se3_losses_last_ts(outputs, labels, k):
     with tf.variable_scope("se3_losses"):
@@ -29,7 +30,7 @@ def se3_losses_last_ts(outputs, labels, k):
         # diff_p = outputs[:, :, 0:3] - labels[:, :, 0:3]
 
         q_dot_squared = tf.square(tf.reduce_sum(tf.multiply(outputs[-1, :, 3:], labels[-1, :, 3:]), 1))
-        #q_dot_squared = tf.square(tf.reduce_sum(tf.multiply(outputs[:, :, 3:], labels[:, :, 3:]), 2))
+        # q_dot_squared = tf.square(tf.reduce_sum(tf.multiply(outputs[:, :, 3:], labels[:, :, 3:]), 2))
         # diff_q = outputs[:, :, 3:] - labels[:, :, 3:]
 
         diff_q = tf.subtract(tf.constant(1.0, dtype=tf.float32), q_dot_squared)
@@ -49,8 +50,10 @@ def se3_losses_last_ts(outputs, labels, k):
 
         return tf.reduce_mean(loss), tf.reduce_mean(sum_diff_p_dot_p / t), tf.reduce_mean(sum_diff_q_dot_q / t)
 
+
 def se3_losses(outputs, labels, k):
     return se3_losses_all_ts(outputs, labels, k)
+
 
 def pair_train_fc_losses(outputs, labels_u, k):
     with tf.variable_scope("pair_train_fc_losses"):
@@ -88,8 +91,7 @@ def reduce_prod_6(x):
 
 
 # assumes time major
-def fc_losses(outputs, output_covar, labels_u, k):
-    return pair_train_fc_losses(outputs, labels_u, k)
+def fc_losses_covar(outputs, output_covar, labels_u, k):
     with tf.variable_scope("fc_losses"):
         diff_u = tf.subtract(outputs[:, :, 0:6], labels_u, name="diff_u")
         diff_u2 = tf.square(diff_u)
@@ -100,7 +102,7 @@ def fc_losses(outputs, output_covar, labels_u, k):
         log_det_Q = tf.log(tf.matrix_determinant(Q))
 
         # Need to normalize
-        norm1 = tf.tile(tf.expand_dims(tf.diag(1e-5*tf.ones([6], dtype=tf.float32)), axis=0), [Q.shape[1], 1, 1])
+        norm1 = tf.tile(tf.expand_dims(tf.diag(1e-5 * tf.ones([6], dtype=tf.float32)), axis=0), [Q.shape[1], 1, 1])
         norm2 = tf.tile(tf.expand_dims(norm1, axis=0), [Q.shape[0], 1, 1, 1])
         inv_Q = tf.matrix_inverse(Q)
 
@@ -113,7 +115,10 @@ def fc_losses(outputs, output_covar, labels_u, k):
         # diff_u_normalized = tf.div(diff_u_scaled, labels_u)
 
         # sum of diff_u' * inv_Q * diff_u
-        s = tf.reduce_sum(tf.squeeze(tf.matmul(tf.expand_dims(diff_u_scaled, axis=-1), tf.matmul(inv_Q, tf.expand_dims(diff_u_scaled, axis=-1)), transpose_a=True), axis=-1), axis=0)
+        s = tf.reduce_sum(tf.squeeze(
+                tf.matmul(tf.expand_dims(diff_u_scaled, axis=-1),
+                          tf.matmul(inv_Q, tf.expand_dims(diff_u_scaled, axis=-1)),
+                          transpose_a=True), axis=-1), axis=0)
 
         t = tf.cast(tf.shape(outputs)[0], tf.float32)
 
@@ -125,7 +130,61 @@ def fc_losses(outputs, output_covar, labels_u, k):
         zloss = tf.sqrt(tf.reduce_mean(tf.reduce_sum(diff_u2[..., 2], axis=0), axis=0))
         xyzloss = tf.reduce_mean(tf.reduce_sum(diff_u2[..., 0:3], axis=[0, 2]), axis=0)
         yprloss = tf.reduce_mean(tf.reduce_sum(diff_u2[..., 3:6], axis=[0, 2]), axis=0)
-        
+
         mean = tf.reduce_mean(loss, name="reduce_mean_loss")
 
         return mean, xyzloss, yprloss, xloss, yloss, zloss
+
+
+def fc_losses_covar_info(outputs, output_covar, output_info, labels_u, k):
+    with tf.variable_scope("fc_losses"):
+        diff_u = tf.subtract(outputs[:, :, 0:6], labels_u, name="diff_u")
+        diff_u2 = tf.square(diff_u)
+
+        # dense covariance
+        Q = tf.identity(output_covar, name="Q_check")
+
+        log_det_Q = tf.log(tf.matrix_determinant(Q))
+
+        # Need to normalize
+        # norm1 = tf.tile(tf.expand_dims(tf.diag(1e-5 * tf.ones([6], dtype=tf.float32)), axis=0), [Q.shape[1], 1, 1])
+        # norm2 = tf.tile(tf.expand_dims(norm1, axis=0), [Q.shape[0], 1, 1, 1])
+        # inv_Q = tf.matrix_inverse(Q)
+        inv_Q = output_info
+
+        # sum of determinants along the time
+        sum_det_Q = tf.reduce_sum(log_det_Q, axis=0)
+
+        # need to scale angular error by k
+        ksq = tf.sqrt(k)
+        diff_u_scaled = tf.concat([diff_u[..., 0:3], ksq * diff_u[..., 3:6]], axis=-1)
+        # diff_u_normalized = tf.div(diff_u_scaled, labels_u)
+
+        # sum of diff_u' * inv_Q * diff_u
+        s = tf.reduce_sum(tf.squeeze(
+                tf.matmul(tf.expand_dims(diff_u_scaled, axis=-1),
+                          tf.matmul(inv_Q, tf.expand_dims(diff_u_scaled, axis=-1)),
+                          transpose_a=True), axis=-1), axis=0)
+
+        t = tf.cast(tf.shape(outputs)[0], tf.float32)
+
+        # loss to constrain the info matrix and covar matrix
+        diff_info_covar_from_eye = tf.eye(6, batch_shape=outputs.shape.as_list()[0:2]) - tf.matmul(Q, inv_Q)
+        sum_matrix_norm = tf.reduce_sum(tf.norm(diff_info_covar_from_eye[-2, -1]), axis=0)  # sum up along time
+
+        # add and multiplies of sum by 1 / t
+        loss = (s + sum_det_Q + sum_matrix_norm) / t
+
+        xloss = tf.sqrt(tf.reduce_mean(tf.reduce_sum(diff_u2[..., 0], axis=0), axis=0), name="x_loss_sqrt")
+        yloss = tf.sqrt(tf.reduce_mean(tf.reduce_sum(diff_u2[..., 1], axis=0), axis=0))
+        zloss = tf.sqrt(tf.reduce_mean(tf.reduce_sum(diff_u2[..., 2], axis=0), axis=0))
+        xyzloss = tf.reduce_mean(tf.reduce_sum(diff_u2[..., 0:3], axis=[0, 2]), axis=0)
+        yprloss = tf.reduce_mean(tf.reduce_sum(diff_u2[..., 3:6], axis=[0, 2]), axis=0)
+
+        mean = tf.reduce_mean(loss, name="reduce_mean_loss")
+
+        return mean, xyzloss, yprloss, xloss, yloss, zloss
+
+
+def fc_losses(outputs, output_covar, output_info, labels_u, k):
+    return fc_losses_covar_info(outputs, output_covar, output_info, labels_u, k)

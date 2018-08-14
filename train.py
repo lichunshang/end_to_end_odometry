@@ -12,6 +12,7 @@ import time
 import config
 import debug_filters
 
+
 class Train(object):
     def __init__(self, num_gpu, cfg, train_sequences, val_sequence, tensorboard_meta=False, start_epoch=0,
                  restore_file=None, restore_ekf_state_file=None, train_frames_range=None, val_frames_range=None):
@@ -115,14 +116,15 @@ class Train(object):
     def __init_tf_savers(self):
         self.tf_saver_checkpoint = tf.train.Saver(max_to_keep=2)
         self.tf_saver_best = tf.train.Saver(max_to_keep=2)
-        if self.cfg.dont_restore_init:
-            varlist = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="cnn_layer") + \
-                      tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="fc_layer") + \
-                      tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="rnn_layer")
-        else:
-            varlist = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
 
-        self.tf_saver_restore = tf.train.Saver(var_list=varlist)
+        var_list = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
+
+        if self.cfg.dont_restore_init:
+            var_list = list(filter(lambda a: "initializer_layer" not in a.name, var_list))
+        if self.cfg.dont_restore_fc:
+            var_list = list(filter(lambda a: "fc_layer" not in a.name, var_list))
+
+        self.tf_saver_restore = tf.train.Saver(var_list=var_list)
         self.best_val_path = os.path.join(self.results_dir_path, "best_val")
         self.model_epoch_path = self.results_dir_path
 
@@ -172,7 +174,7 @@ class Train(object):
             with tf.name_scope("tower_%d" % i), tf.device(device_setter):
                 tools.printf("Building model...")
 
-                fc_outputs, fc_covar, se3_outputs, lstm_states, ekf_states, ekf_covar_states, _, _, _ = \
+                fc_outputs, fc_covar, fc_info, se3_outputs, lstm_states, ekf_states, ekf_covar_states, _, _, _ = \
                     model.build_seq_model(self.cfg, ts_inputs[i], ts_lstm_initial_state[i], ts_initial_poses[i],
                                           ts_imu_data[i], ts_ekf_initial_state[i], ts_ekf_initial_covar[i],
                                           self.t_is_training, get_activations=True,
@@ -189,7 +191,7 @@ class Train(object):
                     se3_loss, se3_xyz_loss, se3_quat_loss \
                         = losses.se3_losses(se3_outputs, ts_se3_labels[i], self.cfg.k_se3)
                     fc_loss, fc_xyz_loss, fc_ypr_loss, x_loss, y_loss, z_loss \
-                        = losses.fc_losses(fc_outputs, fc_covar, ts_fc_labels[i], self.cfg.k_fc)
+                        = losses.fc_losses(fc_outputs, fc_covar, fc_info, ts_fc_labels[i], self.cfg.k_fc)
                     total_loss = (1 - self.t_alpha) * se3_loss + self.t_alpha * fc_loss
 
                     for k, v in ts_losses_dict.items():

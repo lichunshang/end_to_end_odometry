@@ -146,12 +146,13 @@ def fc_model(inputs):
         return fc_12
 
 
-def pair_train_fc_layer(inputs):
-    with tf.variable_scope("pair_train_fc_model", reuse=tf.AUTO_REUSE):
+# Outputs the info and covariance matrix
+def fc_18_model(inputs):
+    with tf.variable_scope("sqrt_info_covar_matrix_fc_model"):
         fc_128 = tf.contrib.layers.fully_connected(inputs, 128, scope="fc_128", activation_fn=tf.nn.relu,
                                                    weights_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0005))
-        fc_12 = tf.contrib.layers.fully_connected(fc_128, 12, scope="fc_12", activation_fn=None)
-        return fc_12
+        fc_18 = tf.contrib.layers.fully_connected(fc_128, 18, scope="fc_18", activation_fn=None)
+        return fc_18
 
 
 def pair_train_fc_layer_1024(inputs):
@@ -350,7 +351,7 @@ def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ek
     if cfg.train_ekf_with_fcgt:
         fc_outputs = fc_labels
     else:
-        fc_outputs = fc_layer(lstm_outputs, fc_model)
+        fc_outputs = fc_layer(lstm_outputs, fc_18_model)
 
     # if we want to fix covariances in fc_outputs
     if cfg.fix_fc_covar:
@@ -361,14 +362,19 @@ def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ek
             fc_outputs = tf.concat([fc_outputs[:, :, 0:6], tf.constant(fixed_covar, tf.float32)], axis=2)
 
     with tf.name_scope("stack_for_ekf"):
-        stack1 = []
+        covar_stack_time = []
+        info_stack_time = []
         for i in range(fc_outputs.shape[0]):
-            stack2 = []
+            covar_stack_batch = []
+            info_stack_batch = []
             for j in range(fc_outputs.shape[1]):
-                stack2.append(tf.diag(tf.square(fc_outputs[i, j, 6:]) + np.array([1e-6, 1e-6, 1e-6, 1e-8, 1e-8, 1e-8])))
-            stack1.append(tf.stack(stack2, axis=0))
+                covar_stack_batch.append(tf.diag(tf.square(fc_outputs[i, j, 6:12]) + np.array([1e-6] * 3 + [1e-8] * 3)))
+                info_stack_batch.append(tf.diag(tf.square(fc_outputs[i, j, 12:18]) + np.array([1e-6] * 3 + [1e-8] * 3)))
+            covar_stack_time.append(tf.stack(covar_stack_batch, axis=0))
+            info_stack_time.append(tf.stack(info_stack_batch, axis=0))
 
-        nn_covar = tf.stack(stack1, axis=0)
+        nn_covar = tf.stack(covar_stack_time, axis=0)
+        nn_info = tf.stack(info_stack_time, axis=0)
 
     if use_ekf:
         print("Building EKF...")
@@ -409,6 +415,6 @@ def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ek
 
     se3_outputs = se3_layer(rel_disp, initial_poses)
 
-    return rel_disp, rel_covar, se3_outputs, lstm_states, \
+    return rel_disp, rel_covar, nn_info, se3_outputs, lstm_states, \
            ekf_out_states[-1, ...], ekf_out_covar[-1, ...], \
            feed_init_states, feed_ekf_init_state, feed_ekf_init_covar
