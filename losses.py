@@ -170,10 +170,12 @@ def fc_losses_covar_info(outputs, output_covar, output_info, labels_u, k):
 
         # loss to constrain the info matrix and covar matrix
         diff_info_covar_from_eye = tf.eye(6, batch_shape=outputs.shape.as_list()[0:2]) - tf.matmul(Q, inv_Q)
-        sum_matrix_norm = tf.reduce_sum(tf.norm(diff_info_covar_from_eye[-2, -1]), axis=0)  # sum up along time
+        matmul_transpose = tf.matmul(diff_info_covar_from_eye, diff_info_covar_from_eye, transpose_b=True)
+        trace = tf.trace(matmul_transpose)
+        sum_matrix_norm_sq = tf.reduce_sum(trace, axis=0)  # sum up along time
 
         # add and multiplies of sum by 1 / t
-        loss = (s + sum_det_Q + sum_matrix_norm) / t
+        loss = (s + sum_det_Q + sum_matrix_norm_sq) / t
 
         xloss = tf.sqrt(tf.reduce_mean(tf.reduce_sum(diff_u2[..., 0], axis=0), axis=0), name="x_loss_sqrt")
         yloss = tf.sqrt(tf.reduce_mean(tf.reduce_sum(diff_u2[..., 1], axis=0), axis=0))
