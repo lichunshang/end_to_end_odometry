@@ -8,12 +8,13 @@ import os
 import pykitti
 import transformations
 
+convert_to_camera_frame = False
 dir_name = "trajectory_results"
 # kitti_seqs = ["00", "01", "02", "08", "09"]
 # kitti_seqs = ["04", "05", "06", "07", "10"]
 kitti_seqs = ["00", "01", "02", "04", "05", "06", "07", "08", "09", "10"]
 # kitti_seqs = ["08"]
-restore_model_file = "/home/cs4li/Dev/end_to_end_odometry/results/train_seq_20180812-16-22-19/model_epoch_checkpoint-175"
+restore_model_file = "/home/cs4li/Dev/end_to_end_odometry/results/train_seq_20180813-12-32-50/model_epoch_checkpoint-145"
 
 save_ground_truth = True
 config_class = config.SeqTrainLidarConfig
@@ -35,11 +36,12 @@ cfg_si.bidir_aug = False
 # cfg_si.use_init = what ever the original setting was
 
 tools.printf("Building eval model....")
-inputs, lstm_initial_state, initial_poses, imu_data, ekf_initial_state, ekf_initial_covariance, _, _ \
+inputs, lstm_initial_state, initial_poses, imu_data, ekf_initial_state, ekf_initial_covariance, _, _, dt \
     = model.seq_model_inputs(cfg)
-fc_outputs, fc_covar, se3_outputs, lstm_states, ekf_states, ekf_covar_states, _, _, _ = \
+fc_outputs, fc_covar, se3_outputs, lstm_states, ekf_out_states, ekf_out_covar, _, _, _ = \
     model.build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ekf_initial_state,
                           ekf_initial_covariance,
+                          dt,
                           tf.constant(False, dtype=tf.bool),  # is training
                           False,  # get_activation
                           tf.constant(False, dtype=tf.bool),  # use initializer
@@ -57,6 +59,7 @@ if cfg_si.use_init:
                               np.zeros([cfg_si.batch_size, 17], dtype=np.float32),
                               0.01 * np.repeat(np.expand_dims(np.identity(17, dtype=np.float32), axis=0),
                                                repeats=cfg_si.batch_size, axis=0),
+                              tf.constant(0.1, dtype=tf.float32),
                               tf.constant(False, dtype=tf.bool),  # is training
                               False,
                               tf.constant(True, dtype=tf.bool),  # use initializer
@@ -88,20 +91,26 @@ for kitti_seq in kitti_seqs:
         total_batches = data_gen.total_batches()
         tools.printf("Start evaluation loop...")
 
-        prediction = np.zeros([total_batches + 1, 7])
-        ground_truth = np.zeros([total_batches + 1, 7])
+        se3_predictions = np.zeros([total_batches + 1, 7])
+        se3_ground_truths = np.zeros([total_batches + 1, 7])
+        fc_ground_truths = np.zeros([total_batches + 1, 6])
+        imu_measurements = np.zeros([total_batches + 1, 6])
         fc_errors = np.zeros([total_batches + 1, 6])
         fc_covars = np.zeros([total_batches + 1, 6])
+        ekf_states = np.zeros([total_batches + 1, 17])
+
         init_pose = np.expand_dims(data_gen.get_sequence_initial_pose(kitti_seq), axis=0)
-        prediction[0, :] = init_pose
-        ground_truth[0, :] = init_pose
+        se3_predictions[0, :] = init_pose
+        se3_ground_truths[0, :] = init_pose
         fc_covars[0, :] = np.zeros([6])
         fc_errors[0, :] = np.zeros([6])
+        fc_ground_truths[0, :] = np.zeros([6])
+        imu_measurements[0, :] = np.zeros([6])
 
         # if an initializer is used, get the current starting LSTM state from running network
         if cfg_si.use_init:
             tools.printf("Calculating initial LSTM state from initializer network...")
-            _, _, batch_data_si, _, _, imu_meas_si = data_gen_si.next_batch()
+            _, _, batch_data_si, _, _, imu_meas_si, _ = data_gen_si.next_batch()
             curr_lstm_states, curr_ekf_state, curr_ekf_cov_state = sess.run(
                     [feed_lstm_initial_states, feed_ekf_inital_states, feed_initial_covariance],
                     feed_dict={
@@ -116,65 +125,80 @@ for kitti_seq in kitti_seqs:
             curr_ekf_state = np.zeros([cfg.batch_size, 17], dtype=np.float32)
             curr_ekf_cov_state = 0.01 * np.repeat(np.expand_dims(np.identity(17, dtype=np.float32), axis=0),
                                                   repeats=cfg.batch_size, axis=0)
+
+        ekf_states[0, :] = curr_ekf_state
+
         while data_gen.has_next_batch():
             j_batch = data_gen.curr_batch()
 
             # get inputs
-            _, _, batch_data, fc_ground_truth, se3_ground_truth, imu_meas = data_gen.next_batch()
+            _, _, batch_data, fc_ground_truth, se3_ground_truth, imu_meas, elapsed_time = data_gen.next_batch()
 
             # Run training session
-            _curr_lstm_states, _se3_outputs, _fc_outputs, _fc_covar = sess.run(
-                    [lstm_states, se3_outputs, fc_outputs, fc_covar],
+            _se3_outputs, _fc_outputs, _fc_covar, _curr_lstm_states, _ekf_out_states, _ekf_out_covar = sess.run(
+                    [se3_outputs, fc_outputs, fc_covar, lstm_states, ekf_out_states, ekf_out_covar],
                     feed_dict={
                         inputs: batch_data,
                         lstm_initial_state: curr_lstm_states,
                         initial_poses: init_pose,
-                        imu_data: imu_meas
+                        ekf_initial_state: curr_ekf_state,
+                        ekf_initial_covariance: curr_ekf_cov_state,
+                        imu_data: imu_meas,
+                        dt: elapsed_time
                     },
             )
             curr_lstm_states = _curr_lstm_states
+            curr_ekf_state = _ekf_out_states
+            curr_ekf_covar = _ekf_out_covar
             init_pose = _se3_outputs[-1]
 
-            prediction[j_batch + 1, :] = _se3_outputs[-1, -1]
-            ground_truth[j_batch + 1, :] = se3_ground_truth[-1, -1]
+            se3_predictions[j_batch + 1, :] = _se3_outputs[-1, -1]
+            se3_ground_truths[j_batch + 1, :] = se3_ground_truth[-1, -1]
             fc_covars[j_batch + 1, :] = _fc_covar[-1, -1].diagonal()
             fc_errors[j_batch + 1, :] = _fc_outputs - fc_ground_truth
+
+            ekf_states[j_batch + 1, :] = curr_ekf_state
+            fc_ground_truths[j_batch + 1, :] = fc_ground_truth
+            imu_measurements[j_batch + 1, :] = imu_meas
 
             if j_batch % 100 == 0:
                 tools.printf("Processed %.2f%%" % (data_gen.curr_batch() / data_gen.total_batches() * 100))
 
-        # The trajectory is in the frame of the sensor, now put it back to cam0
-        data_odom_kitti = pykitti.odometry(config.dataset_path, kitti_seq)
-        if cfg.data_type == "cam" and cfg.input_channels == 3:
-            T_cam2_cam0 = data_odom_kitti.calib.T_cam2_velo. \
-                dot(np.linalg.inv(data_odom_kitti.calib.T_cam0_velo))
-            T_cam0_xxx = np.linalg.inv(T_cam2_cam0)
-        elif cfg.data_type == "lidar":
-            T_cam0_xxx = data_odom_kitti.calib.T_cam0_velo
-        else:
-            T_cam0_xxx = np.eye(4)  # else cam0 transformation is just identity
+        if convert_to_camera_frame:
+            # The trajectory is in the frame of the sensor, now put it back to cam0
+            data_odom_kitti = pykitti.odometry(config.dataset_path, kitti_seq)
+            if cfg.data_type == "cam" and cfg.input_channels == 3:
+                T_cam2_cam0 = data_odom_kitti.calib.T_cam2_velo. \
+                    dot(np.linalg.inv(data_odom_kitti.calib.T_cam0_velo))
+                T_cam0_xxx = np.linalg.inv(T_cam2_cam0)
+            elif cfg.data_type == "lidar":
+                T_cam0_xxx = data_odom_kitti.calib.T_cam0_velo
+            else:
+                T_cam0_xxx = np.eye(4)  # else cam0 transformation is just identity
 
-        T_cam0_xxx_inv = np.linalg.inv(T_cam0_xxx)
+            T_cam0_xxx_inv = np.linalg.inv(T_cam0_xxx)
 
-        for i in range(0, prediction.shape[0]):
-            pose_tf = transformations.quaternion_matrix(prediction[i, 3:7])
-            pose_tf[0:3, 3] = prediction[i, 0:3]
+            for i in range(0, se3_predictions.shape[0]):
+                pose_tf = transformations.quaternion_matrix(se3_predictions[i, 3:7])
+                pose_tf[0:3, 3] = se3_predictions[i, 0:3]
 
-            gt_tf = transformations.quaternion_matrix(ground_truth[i, 3:7])
-            gt_tf[0:3, 3] = ground_truth[i, 0:3]
+                gt_tf = transformations.quaternion_matrix(se3_ground_truths[i, 3:7])
+                gt_tf[0:3, 3] = se3_ground_truths[i, 0:3]
 
-            pose_tf = np.dot(T_cam0_xxx, np.dot(pose_tf, T_cam0_xxx_inv))
-            gt_tf = np.dot(T_cam0_xxx, np.dot(gt_tf, T_cam0_xxx_inv))
+                pose_tf = np.dot(T_cam0_xxx, np.dot(pose_tf, T_cam0_xxx_inv))
+                gt_tf = np.dot(T_cam0_xxx, np.dot(gt_tf, T_cam0_xxx_inv))
 
-            prediction[i, 0:3] = pose_tf[0:3, 3]
-            prediction[i, 3:7] = transformations.quaternion_from_matrix(pose_tf)
+                se3_predictions[i, 0:3] = pose_tf[0:3, 3]
+                se3_predictions[i, 3:7] = transformations.quaternion_from_matrix(pose_tf)
 
-            ground_truth[i, 0:3] = gt_tf[0:3, 3]
-            ground_truth[i, 3:7] = transformations.quaternion_from_matrix(gt_tf)
+                se3_ground_truths[i, 0:3] = gt_tf[0:3, 3]
+                se3_ground_truths[i, 3:7] = transformations.quaternion_from_matrix(gt_tf)
 
         # save the trajectories
-        np.save(os.path.join(results_dir_path, "trajectory_" + kitti_seq), prediction)
-        np.save(os.path.join(results_dir_path, "fc_covars_" + kitti_seq), fc_covars)
-        np.save(os.path.join(results_dir_path, "fc_errors_" + kitti_seq), fc_errors)
-        if save_ground_truth:
-            np.save(os.path.join(results_dir_path, "ground_truth_" + kitti_seq), ground_truth)
+        np.save(os.path.join(results_dir_path, "%s_trajectory" % kitti_seq), se3_predictions)
+        np.save(os.path.join(results_dir_path, "%s_fc_covars" % kitti_seq), fc_covars)
+        np.save(os.path.join(results_dir_path, "%s_fc_errors" % kitti_seq), fc_errors)
+        np.save(os.path.join(results_dir_path, "%s_ground_truth" % kitti_seq), se3_ground_truths)
+        np.save(os.path.join(results_dir_path, "%s_ekf_states" % kitti_seq), ekf_states)
+        np.save(os.path.join(results_dir_path, "%s_fc_ground_truth" % kitti_seq), fc_ground_truths)
+        np.save(os.path.join(results_dir_path, "%s_imu_measurements" % kitti_seq), imu_measurements)

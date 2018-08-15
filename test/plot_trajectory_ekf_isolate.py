@@ -106,7 +106,6 @@ for i, sequence in enumerate(sequences):
         plt.legend()
         plt.savefig(data_dir + "%s_#00_5_fig_roll_trajectory.png" % sequence)
 
-        # plt.show()
         print("Plot saved for sequence %s" % sequence)
 
     # plot the ekf states
@@ -136,6 +135,7 @@ for i, sequence in enumerate(sequences):
                         "IMU Rate Roll", "IMU Rate Pitch", "IMU Rate Yaw",
 
                         "IMU Accel X", "IMU Accel Y", "IMU Accel Z"]
+
     ekf_state_units = ["m", "m", "m",
                        "m/s", "m/s", "m/s",
                        "rad", "rad",
