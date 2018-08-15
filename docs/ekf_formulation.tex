@@ -1,6 +1,7 @@
 \documentclass[]{article}
 
 \usepackage{amsmath,amssymb,amstext} % Lots of math symbols and environments
+\usepackage[margin=0.5in]{geometry}
 
 %opening
 \title{End to End EKF Formulation}
@@ -40,11 +41,11 @@ $R(\Theta)$ Is the function that maps YPR Euler angles to a rotation matrix. Any
 
 \begin{align}
 \delta &= t_i - t_{i-1} \\
-p(t_i) &= \delta R(\Theta_{inc}(t_i)) v(t_{i-1}) + \frac{\delta^2}{2}(R(\Theta_{global}(t_i))g + a(t_i) - b_a(t_{i-1})) \\
-v(t_i) &= R(\Theta_{inc}(t_i)) v(t_{i-1}) + \delta(R(\Theta_{global}(t_i))g + a(t_i) - b_a(t_{i-1}) \\
-\Theta_{global}(t_i) &= \Theta_{global}(t_{i-1}) + \delta(w(t_i) - b_g(t_{i-1})) \\
+p(t_i) &= R(\delta (\bar{w}(t_i) + \eta_{gyro} - b_g(t_{i-1})))\delta v(t_{i-1}) + \frac{\delta^2}{2}(R(\Theta_{global}(t_{i-1}) + \delta(\bar{w}(t_i) + \eta_{gyro} - b_g(t_{i-1})))g + \bar{a}(t_i) + \eta_{acc} - b_a(t_{i-1})) \\
+v(t_i) &= R(\delta (\bar{w}(t_i) + \eta_{gyro} - b_g(t_{i-1}))) v(t_{i-1}) + \delta(R(\Theta_{global}(t_{i-1}) + \delta(\bar{w}(t_i) + \eta_{gyro} - b_g(t_{i-1})))g + \bar{a}(t_i) + \eta_{acc} - b_a(t_{i-1})) \\
+\Theta_{global}(t_i) &= \Theta_{global}(t_{i-1}) + \delta(\bar{w}(t_i) + \eta_{gyro} - b_g(t_{i-1})) \\
 b_a(t_i) &= b_a(t_{i - 1}) + \eta_{accbias} \\
-\Theta_{inc}(t) &= \delta (w(t_i) - b_g(t_{i-1})) \\
+\Theta_{inc}(t) &= \delta (\bar{w}(t_i) + \eta_{gyro} - b_g(t_{i-1})) \\
 b_g(t_i) &= b_g(t_{i-1}) + \eta_{gyrobias}
 \end{align}
 
