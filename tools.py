@@ -174,8 +174,10 @@ def ensure_file_dir_exists(path):
 
 
 def log_file_content(log_path, file_paths):
+    common_prefix = os.path.commonprefix(file_paths)
     for f in file_paths:
-        copyfile(f, ensure_file_dir_exists(os.path.join(log_path, "code_log", os.path.basename(f))))
+        rel_path = os.path.relpath(f, common_prefix)
+        copyfile(f, ensure_file_dir_exists(os.path.join(log_path, "code_log", rel_path)))
 
 
 file_to_log = None

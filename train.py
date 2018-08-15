@@ -12,7 +12,7 @@ import time
 import config
 import debug_filters
 import re
-
+import glob
 
 class Train(object):
     def __init__(self, num_gpu, cfg, train_sequences, val_sequence, tensorboard_meta=False, start_epoch=0,
@@ -104,13 +104,12 @@ class Train(object):
     def __log_files_and_configs(self):
         self.results_dir_path = tools.create_results_dir("train_seq")
         self.curr_dir_path = os.path.dirname(os.path.realpath(__file__))
-        tools.log_file_content(self.results_dir_path, [os.path.realpath(__file__),
-                                                       os.path.join(self.curr_dir_path, "data_roller.py"),
-                                                       os.path.join(self.curr_dir_path, "model.py"),
-                                                       os.path.join(self.curr_dir_path, "losses.py"),
-                                                       os.path.join(self.curr_dir_path, "train.py"),
-                                                       os.path.join(self.curr_dir_path, "train_seq.py"),
-                                                       os.path.join(self.curr_dir_path, "config.py")])
+
+        files_to_log = []
+        for filename in glob.iglob(os.path.join(self.curr_dir_path, "**"), recursive=True):
+            if "/results/" not in filename and filename.endswith(".py"):
+                files_to_log.append(filename)
+        tools.log_file_content(self.results_dir_path, files_to_log)
         tools.set_log_file(os.path.join(self.results_dir_path, "print_logs.txt"))
         config.print_configs(self.cfg)
 
