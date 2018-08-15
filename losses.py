@@ -175,7 +175,7 @@ def fc_losses_covar_info(outputs, output_covar, output_info, labels_u, k):
         sum_matrix_norm_sq = tf.reduce_sum(trace, axis=0)  # sum up along time
 
         # add and multiplies of sum by 1 / t
-        loss = (s + sum_det_Q + sum_matrix_norm_sq) / t
+        loss = (s + sum_det_Q + 1000*sum_matrix_norm_sq) / t
 
         xloss = tf.sqrt(tf.reduce_mean(tf.reduce_sum(diff_u2[..., 0], axis=0), axis=0), name="x_loss_sqrt")
         yloss = tf.sqrt(tf.reduce_mean(tf.reduce_sum(diff_u2[..., 1], axis=0), axis=0))

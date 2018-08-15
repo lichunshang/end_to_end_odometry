@@ -368,8 +368,8 @@ def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ek
             covar_stack_batch = []
             info_stack_batch = []
             for j in range(fc_outputs.shape[1]):
-                covar_stack_batch.append(tf.diag(tf.square(fc_outputs[i, j, 6:12]) + np.array([1e-6] * 3 + [1e-8] * 3)))
-                info_stack_batch.append(tf.diag(tf.square(fc_outputs[i, j, 12:18]) + np.array([1e-6] * 3 + [1e-8] * 3)))
+                covar_stack_batch.append(tf.diag(tf.square(fc_outputs[i, j, 6:12]) + np.array([1e-6] * 3 + [1e-7] * 3)))
+                info_stack_batch.append(tf.diag(tf.square(fc_outputs[i, j, 12:18])))
             covar_stack_time.append(tf.stack(covar_stack_batch, axis=0))
             info_stack_time.append(tf.stack(info_stack_batch, axis=0))
 
