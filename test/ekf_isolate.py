@@ -9,9 +9,12 @@ import model
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-kitti_seq = "06"
-# frames = [None]
-frames = [range(260, 500)]
+kitti_seq = "00"
+frames = [None]
+# frames = [range(260, 500)]
+
+matlab_data_file_str = ""
+matlab_data_file_str += "dt dx dy dz dyaw dpitch wx wy wz ax ay az\n"
 
 
 class SeqTrainLidarConfig:
@@ -133,6 +136,12 @@ with tf.Session() as sess:
 
         # curr_ekf_state[:, [6, 7]] = 0
 
+        matlab_data_file_str += ("%.8f  %s  %s\n" %
+                                 (elapsed_time[-1, -1],
+                                  " ".join("%.8f" % x for x in fc_ground_truth[-1, -1]),
+                                  " ".join("%.8f" % x for x in imu_meas[-1, -1]))
+                                 )
+
         prediction[j_batch + 1, :] = _se3_outputs[-1, -1]
         ground_truths[j_batch + 1, :] = se3_ground_truth[-1, -1]
         ekf_states[j_batch + 1, :] = curr_ekf_state
@@ -165,3 +174,5 @@ with tf.Session() as sess:
     # # plt.axes("equal")
     #
     # plt.show()
+
+    print(matlab_data_file_str)

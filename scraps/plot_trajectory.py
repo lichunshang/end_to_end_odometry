@@ -64,7 +64,7 @@ for i, sequence in enumerate(sequences):
 
     if not file_not_found:
         plt.figure(1)
-        # plt.axis("equal")
+        plt.axis("equal")
         plt.xlabel("x [m]")
         plt.ylabel("y [m]")
         plt.title("KITTI Seq. %s Trajectory XY Plane" % sequence)
@@ -72,7 +72,7 @@ for i, sequence in enumerate(sequences):
         plt.savefig(data_dir + "%s_#00_0_fig_xy_trajectory.png" % sequence)
 
         plt.figure(2)
-        plt.axis("equal")
+        # plt.axis("equal")
         plt.xlabel("x [m]")
         plt.ylabel("z [m]")
         plt.title("KITTI Seq. %s Trajectory XZ Plane" % sequence)
