@@ -71,6 +71,8 @@ class SeqTrainLidarConfig(Configs):
     only_train_init = False  # only used when use init is True
     dont_restore_init = True  # only used when use init is True
 
+    dont_restore_fc = True
+
     debug = False
 
     init_prob = 1
