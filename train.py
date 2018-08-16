@@ -12,7 +12,7 @@ import time
 import config
 import debug_filters
 import glob
-
+import re
 
 class Train(object):
     def __init__(self, num_gpu, cfg, train_sequences, val_sequence, tensorboard_meta=False, start_epoch=0,
@@ -116,14 +116,17 @@ class Train(object):
     def __init_tf_savers(self):
         self.tf_saver_checkpoint = tf.train.Saver(max_to_keep=2)
         self.tf_saver_best = tf.train.Saver(max_to_keep=2)
-        if self.cfg.dont_restore_init:
-            varlist = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="cnn_layer") + \
-                      tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="fc_layer") + \
-                      tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="rnn_layer")
-        else:
-            varlist = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
 
-        self.tf_saver_restore = tf.train.Saver(var_list=varlist)
+        var_list = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
+
+        if self.cfg.dont_restore_init:
+            regex = re.compile("initializer_layer")
+            var_list = list(filter(lambda a: not regex.match(a.name), var_list))
+        if self.cfg.dont_restore_fc:
+            regex = re.compile("fc_layer")
+            var_list = list(filter(lambda a: not regex.match(a.name), var_list))
+
+        self.tf_saver_restore = tf.train.Saver(var_list=var_list)
         self.best_val_path = os.path.join(self.results_dir_path, "best_val")
         self.model_epoch_path = self.results_dir_path
 
