@@ -126,6 +126,10 @@ class Train(object):
             regex = re.compile("fc_layer")
             var_list = list(filter(lambda a: not regex.match(a.name), var_list))
 
+        tools.printf("Variables to load from checkpoint...")
+        for i in range(0, len(var_list)):
+            tools.printf("    " + var_list[i].name)
+
         self.tf_saver_restore = tf.train.Saver(var_list=var_list)
         self.best_val_path = os.path.join(self.results_dir_path, "best_val")
         self.model_epoch_path = self.results_dir_path
@@ -221,6 +225,10 @@ class Train(object):
                 train_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, "imu_noise_params")
             else:
                 train_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
+
+            tools.printf("Variables to be trained by the optimizer...")
+            for i in range(0, len(train_vars)):
+                tools.printf("    " + train_vars[i].name)
 
             self.op_trainer = tf.train.AdamOptimizer(learning_rate=self.t_lr). \
                 minimize(self.t_total_loss, colocate_gradients_with_ops=True, var_list=train_vars)
