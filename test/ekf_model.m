@@ -29,8 +29,8 @@ H = eval(jacobian(h, x));
 
 Ju = jacobian(f, u);
 Jb = zeros(17, 6);
-Jb(9:11,1:3) = eye(3,3);
-Jb(15:17,4:6) = eye(3,3);
+Jb(9:11,4:6) = eye(3,3);
+Jb(15:17,1:3) = eye(3,3);
 
 % Convert to matlab functions for faster processing
 F_func = matlabFunction(F, 'Vars', {[x; u; dt]});
@@ -55,6 +55,6 @@ m = [cy * cp,    cy * sp * sr - sy * cr,    cy * sp * cr + sy * sr;
 end
 
 function m = R2(x)
-% m = R([0, x(1), x(2)]);
-m = eye(3,3);
+m = R([0, x(1), x(2)]);
+% m = eye(3,3);
 end
