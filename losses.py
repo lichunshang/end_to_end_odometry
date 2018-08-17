@@ -89,7 +89,7 @@ def reduce_prod_6(x):
 
 # assumes time major
 def fc_losses(outputs, output_covar, labels_u, k):
-    return pair_train_fc_losses(outputs, labels_u, k)
+    # return pair_train_fc_losses(outputs, labels_u, k)
     with tf.variable_scope("fc_losses"):
         diff_u = tf.subtract(outputs[:, :, 0:6], labels_u, name="diff_u")
         diff_u2 = tf.square(diff_u)
@@ -97,12 +97,12 @@ def fc_losses(outputs, output_covar, labels_u, k):
         # dense covariance
         Q = tf.identity(output_covar, name="Q_check")
 
-        log_det_Q = tf.log(tf.matrix_determinant(Q))
+        log_det_Q = tf.log(tf.matrix_determinant(Q) + 1e-7)
 
         # Need to normalize
         norm1 = tf.tile(tf.expand_dims(tf.diag(1e-5*tf.ones([6], dtype=tf.float32)), axis=0), [Q.shape[1], 1, 1])
         norm2 = tf.tile(tf.expand_dims(norm1, axis=0), [Q.shape[0], 1, 1, 1])
-        inv_Q = tf.matrix_inverse(Q)
+        inv_Q = tf.matrix_inverse(Q + norm2)
 
         # sum of determinants along the time
         sum_det_Q = tf.reduce_sum(log_det_Q, axis=0)
