@@ -90,7 +90,7 @@ class DataLoader(object):
             raise ValueError("%s sequence not supported" % seq)
 
         self.cfg = cfg
-        self.imu_time_sync_shift = 1  # we discovered IMU seems to be delayed, so we shifted it forward
+        self.imu_time_sync_shift = 0  # we discovered IMU seems to be delayed, so we shifted it forward
 
         if frames:
             range_start = self.raw_range[seq][0] + frames.start

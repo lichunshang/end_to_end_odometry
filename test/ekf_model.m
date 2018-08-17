@@ -55,6 +55,6 @@ m = [cy * cp,    cy * sp * sr - sy * cr,    cy * sp * cr + sy * sr;
 end
 
 function m = R2(x)
-m = R([0, x(1), x(2)]);
+m = R([0, x(1), x(2)]).';
 % m = eye(3,3);
 end
