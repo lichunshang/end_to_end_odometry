@@ -5,7 +5,7 @@ clear;
 disp('Working on it...')
 
 run("ekf_model.m")
-data = importdata('/home/cs4li/Dev/end_to_end_odometry/test/seq_06.dat');
+data = importdata('/home/cs4li/Dev/end_to_end_odometry/test/seq_00.dat');
 data_size = size(data.data);
 % range = 1:600;
 range = 1:data_size(1);
@@ -40,29 +40,30 @@ P_prev(4,4) = 1e-3;
 % P_prev(5,5) = 1e-3;
 % P_prev(6,6) = 1e-3;
 
-% x_prev(10) = 0.26980048;
+% x_prev(10) = 0.5;
 % P_prev(10,10) = 1e-3;
 % x_prev(11) = -0.01;
 % P_prev(11,11) = 1e-3;
 
 
-x_prev(7) = 0.009729;
-P_prev(7,7) = 1e-4;
-x_prev(8) = 0.04639;
-P_prev(8,8) = 1e-4;
+x_prev(7) = 0.009729; 
+P_prev(7,7) = 1e-4; 
+x_prev(8) = 0.04639; 
+P_prev(8,8) = 1e-4; 
 
 
 x_prev(16) = 0;
 P_prev(16,16) = 1e-4;
+% P_prev(9:11, 9:11) = eye(3) * 0.0001;
 
 % covariances
-cov_imu = eye(6) * 1e-3;
-cov_imu(1:3,1:3) = eye(3,3) * 1e-3;
+cov_imu = eye(6) * 1e0;
+cov_imu(1:3,1:3) = eye(3,3) * 1e-6;
 % cov_imu(2,2) = 10;
 % cov_imu(3,3) = 10;
-cov_bias = eye(6) * 1e-3;
-cov_bias(4:6,4:6) = eye(3,3) * 1e0;
-cov_fc = eye(6) * 1e-1; % Rk
+cov_bias = eye(6) * 1e0;
+cov_bias(4:6,4:6) = eye(3,3) * 1e-3;
+cov_fc = eye(6) * 1e-3; % Rk
 
 x_est_log = zeros(17, timesteps);
 P_est_log = zeros(17, 17, timesteps);
@@ -73,7 +74,7 @@ curr_tf = eye(4);
 trajectory_xyz = zeros(3, timesteps);
 trajectory_eul = zeros(3, timesteps);
 
-for i = 1:timesteps
+for i = 1:timesteps    
     dat_imu = [dat_wz(i); dat_wy(i); dat_wx(i); dat_ax(i); dat_ay(i); dat_az(i)];
     sub_in = [x_prev; dat_imu; dat_dt(i)];
        
@@ -117,6 +118,8 @@ for i = 1:timesteps
     x_prev = xk_est;
     P_prev = Pk_est;
     
+%     x_prev(4:6) = [dat_dx(i)/dat_dt(i); dat_dy(i)/dat_dt(i); dat_dz(i)/dat_dt(i)];
+    
     Pk_est
 end
 
@@ -146,6 +149,7 @@ title('Trajectory YZ')
 legend('Estimate', 'Ground Truth')
 xlabel('y [m]')
 ylabel('z [m]')
+axis('equal');
 grid;
 
 figure('visible', figure_visible); hold on; % XZ
@@ -155,6 +159,7 @@ title('Trajectory XZ')
 legend('Estimate', 'Ground Truth')
 xlabel('x [m]')
 ylabel('z [m]')
+axis('equal');
 grid;
 
 % ==============================================================
