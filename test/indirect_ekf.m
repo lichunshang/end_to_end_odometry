@@ -5,10 +5,10 @@ clear;
 disp('Working on it...')
 
 run("indirect_ekf_model.m")
-data = importdata('/home/cs4li/Dev/end_to_end_odometry/test/seq_04.dat');
+data = importdata('/home/cs4li/Dev/end_to_end_odometry/test/seq_00.dat');
 data_size = size(data.data);
-% range = 1:600;
-range = 1:data_size(1);
+range = 1:10;
+% range = 1:data_size(1);
 
 dat_dt = data.data(range, 1);
 dat_dx = data.data(range, 2);
@@ -33,6 +33,7 @@ timesteps = dat_dt_size(1);
 x_nom_prev = zeros(19, 1);
 x_nom_prev(17:19) = g0; % initialize gravity to -g
 x_nom_prev(7:10) = [1 0 0 0].'; % initialize the first pose to be identity
+x_nom_prev(4) = dat_dx(1) / dat_dt(1);
 x_prev = zeros(18, 1);
 P_prev = eye(18) * 1;
 
@@ -60,53 +61,56 @@ for i = 1:timesteps
     % Updating Nominal State
     xk_nom_pred = f_nom_func([x_nom_prev; dat_imu; dat_dt(i)]);
     
-%     % Prediction Error State
-%     Fxk = Fx_func([x_nom_prev; x_prev; dat_imu; dat_dt(i)]);
-%     Qik = Qi_func([imu_covar; dat_dt(i)]);
-%     
-%     xk_pred = Fxk * x_prev; % this is always zero
-%     Pk_pred = Fxk * P_prev * Fxk.' + Fi * Qik * Fi.';
-%     
-%     % Update Error State
-%     yk = dat_fc - H_es * xk_pred; % xk_pred is always zero
-%     Sk = H_es * Pk_pred * H_es.' + cov_fc;
-%     Kk = Pk_pred * H_es.' * inv(Sk);
-%     xk_est = xk_pred + Kk * yk; % xk_pred is always zero
-%     Pk_est = (eye(18, 18) - Kk * H_es) * Pk_pred;
-%     
-%     % Propagate for reset
-%     Gk = G_func(xk_est);
-%     Pk_est_reset = Gk * Pk_est * Gk.';
-%     
-%     % Correct nominal states with estimate from EKF
-%     xk_nom_est = xk_nom_pred;
-%     xk_nom_est(1:6) = xk_nom_pred(1:6) + xk_est(1:6); % position, and velocity
-%     xk_nom_est(7:10) = mul_q(xk_nom_pred(7:10), q_v(xk_est(7:9))); % velocity
-%     xk_nom_est(11:19) = xk_nom_pred(11:19) + xk_est(10:18); % accel bias, gyro bias, gravity
-%     
-%     % log results
-%     x_est_log(:,i) = xk_est;
-%     x_nom_est_log(:,i) = xk_nom_est;
-%     x_pred_log(:,i) = xk_pred;
-%     x_nom_pred_log(:,i) = xk_nom_pred;
-%     P_est_log(:,:,i) =  Pk_est;
-%     P_pred_log(:,:,i) =  Pk_pred;
-%     P_est_reset_log(:,:,i) = Pk_est_reset;
-%     
-%     delta_tf = eye(4, 4);
-%     delta_tf(1:3, 1:3) = quat2rotm(xk_nom_est(7:10).');
-%     delta_tf(1:3, 4) = xk_nom_est(1:3);
-%     curr_tf = curr_tf*delta_tf;
-%     trajectory_xyz(:,i) = curr_tf(1:3, 4);
-%     trajectory_eul(:,i) = rotm2eul(curr_tf(1:3,1:3),'ZYX');
-% 
-%     % Prep for the next time step
-%     x_prev = zeros(18, 1); % x_prev is always zero after reset
-%     P_prev = Pk_est_reset;
-    x_nom_prev = xk_nom_pred;
+    % Prediction Error State
+    Fxk = Fx_func([x_nom_prev; x_prev; dat_imu; dat_dt(i)]);
+    Qik = Qi_func([imu_covar; dat_dt(i)]);
     
-    x_nom_est_log(:,i) = x_nom_prev;
+    xk_pred = Fxk * x_prev; % this is always zero
+    Pk_pred = Fxk * P_prev * Fxk.' + Fi * Qik * Fi.';
+    
+    % Update Error State
+    yk = dat_fc - H_es * xk_pred; % xk_pred is always zero
+    Sk = H_es * Pk_pred * H_es.' + cov_fc;
+    Kk = Pk_pred * H_es.' * inv(Sk);
+    xk_est = xk_pred + Kk * yk; % xk_pred is always zero
+    Pk_est = (eye(18, 18) - Kk * H_es) * Pk_pred;
+    
+    % Propagate for reset
+    Gk = G_func(xk_est);
+    Pk_est_reset = Gk * Pk_est * Gk.';
+    
+    % Correct nominal states with estimate from EKF
+    xk_nom_est = xk_nom_pred;
+    xk_nom_est(1:6) = xk_nom_pred(1:6) + xk_est(1:6); % position, and velocity
+    xk_nom_est(7:10) = mul_q(xk_nom_pred(7:10), q_v(xk_est(7:9))); % velocity
+    xk_nom_est(11:19) = xk_nom_pred(11:19) + xk_est(10:18); % accel bias, gyro bias, gravity
+    
+    % log results
+    x_est_log(:,i) = xk_est;
+    x_nom_est_log(:,i) = xk_nom_est;
+    x_pred_log(:,i) = xk_pred;
+    x_nom_pred_log(:,i) = xk_nom_pred;
+    P_est_log(:,:,i) =  Pk_est;
+    P_pred_log(:,:,i) =  Pk_pred;
+    P_est_reset_log(:,:,i) = Pk_est_reset;
+    
+    delta_tf = eye(4, 4);
+    delta_tf(1:3, 1:3) = quat2rotm(xk_nom_est(7:10).');
+    delta_tf(1:3, 4) = xk_nom_est(1:3);
+    curr_tf = curr_tf*delta_tf;
+    trajectory_xyz(:,i) = curr_tf(1:3, 4);
+    trajectory_eul(:,i) = rotm2eul(curr_tf(1:3,1:3),'ZYX');
+
+    % Prep for the next time step
+    x_prev = zeros(18, 1); % x_prev is always zero after reset
+    P_prev = Pk_est_reset;
+    x_nom_prev = xk_nom_est;
+    
+%     x_nom_prev = xk_nom_pred;
+%     x_nom_est_log(:,i) = x_nom_prev;
 end
+
+x_nom_est_eul_log = quat2eul(x_nom_est_log(7:10,:).', 'ZYX').';
 
 disp('all done!')
 disp('Generating figures...')
@@ -116,42 +120,42 @@ figure_visible = 'off';
 % ==============================================================
 % Trajectory
 
-figure('visible', figure_visible); hold on; % XY
-plot(trajectory_xyz(1,:), trajectory_xyz(2,:), 'r')
-plot(trajectory_gt_xyz(:,1), trajectory_gt_xyz(:,2), 'b')
-title('Trajectory XY');
-legend('Estimate', 'Ground Truth');
-xlabel('x [m]');
-ylabel('y [m]');
-axis('equal');
-grid;
-
-
-figure('visible', figure_visible); hold on; % YZ
-plot(trajectory_xyz(2,:), trajectory_xyz(3,:), 'r')
-plot(trajectory_gt_xyz(:,2), trajectory_gt_xyz(:,3), 'b')
-title('Trajectory YZ')
-legend('Estimate', 'Ground Truth')
-xlabel('y [m]')
-ylabel('z [m]')
-axis('equal');
-grid;
-
-figure('visible', figure_visible); hold on; % XZ
-plot(trajectory_xyz(1,:), trajectory_xyz(3,:), 'r')
-plot(trajectory_gt_xyz(:,1), trajectory_gt_xyz(:,3), 'b')
-title('Trajectory XZ')
-legend('Estimate', 'Ground Truth')
-xlabel('x [m]')
-ylabel('z [m]')
-axis('equal');
-grid;
+% figure('visible', figure_visible); hold on; % XY
+% plot(trajectory_xyz(1,:), trajectory_xyz(2,:), 'r')
+% plot(trajectory_gt_xyz(:,1), trajectory_gt_xyz(:,2), 'b')
+% title('Trajectory XY');
+% legend('Estimate', 'Ground Truth');
+% xlabel('x [m]');
+% ylabel('y [m]');
+% axis('equal');
+% grid;
+% 
+% 
+% figure('visible', figure_visible); hold on; % YZ
+% plot(trajectory_xyz(2,:), trajectory_xyz(3,:), 'r')
+% plot(trajectory_gt_xyz(:,2), trajectory_gt_xyz(:,3), 'b')
+% title('Trajectory YZ')
+% legend('Estimate', 'Ground Truth')
+% xlabel('y [m]')
+% ylabel('z [m]')
+% axis('equal');
+% grid;
+% 
+% figure('visible', figure_visible); hold on; % XZ
+% plot(trajectory_xyz(1,:), trajectory_xyz(3,:), 'r')
+% plot(trajectory_gt_xyz(:,1), trajectory_gt_xyz(:,3), 'b')
+% title('Trajectory XZ')
+% legend('Estimate', 'Ground Truth')
+% xlabel('x [m]')
+% ylabel('z [m]')
+% axis('equal');
+% grid;
 
 % ==============================================================
 % Individual
 
 figure('visible', figure_visible); hold on; % X
-plot(trajectory_xyz(1,:), 'r')
+plot(x_nom_est_log(1,:), 'r')
 plot(trajectory_gt_xyz(:,1), 'b')
 title('Global X')
 legend('Estimate', 'Ground Truth')
@@ -160,7 +164,7 @@ ylabel('Dist [m]')
 grid;
 
 figure('visible', figure_visible); hold on; % Y
-plot(trajectory_xyz(2,:), 'r')
+plot(x_nom_est_log(2,:), 'r')
 plot(trajectory_gt_xyz(:,2), 'b')
 title('Global Y')
 legend('Estimate', 'Ground Truth')
@@ -169,7 +173,7 @@ ylabel('Dist [m]')
 grid;
 
 figure('visible', figure_visible); hold on; % Z
-plot(trajectory_xyz(3,:), 'r')
+plot(x_nom_est_log(3,:), 'r')
 plot(trajectory_gt_xyz(:,3), 'b')
 title('Global Z')
 legend('Estimate', 'Ground Truth')
@@ -178,7 +182,7 @@ ylabel('Dist [m]')
 grid;
 
 figure('visible', figure_visible); hold on; % Yaw
-plot(unwrap(trajectory_eul(1,:)), 'r')
+plot(unwrap(x_nom_est_eul_log(3,:)), 'r')
 plot(unwrap(trajectory_gt_eul(:,1)), 'b')
 title('Global Yaw')
 legend('Estimate', 'Ground Truth')
@@ -187,7 +191,7 @@ ylabel('Angle [rad]')
 grid;
 
 figure('visible', figure_visible); hold on; % Pitch
-plot(unwrap(trajectory_eul(2,:)), 'r')
+plot(unwrap(x_nom_est_eul_log(2,:)), 'r')
 plot(unwrap(trajectory_gt_eul(:,2)), 'b')
 title('Global Pitch')
 legend('Estimate', 'Ground Truth')
@@ -196,7 +200,7 @@ ylabel('Angle [rad]')
 grid;
 
 figure('visible', figure_visible); hold on; % Roll
-plot(unwrap(trajectory_eul(3,:)), 'r')
+plot(unwrap(x_nom_est_eul_log(1,:)), 'r')
 plot(unwrap(trajectory_gt_eul(:,3)), 'b')
 title('Global Roll')
 legend('Estimate', 'Ground Truth')
