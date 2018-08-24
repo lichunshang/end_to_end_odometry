@@ -1,6 +1,6 @@
 syms dt m_fcx m_fcy m_fcz m_fcyaw m_fcpitch m_fcroll m_wx m_wy m_wz m_ax m_ay m_az real % Measurement & control inputs
 syms s_dpx s_dpy s_dpz s_dvx s_dvy s_dvz s_dthetax s_dthetay s_dthetaz s_dbax s_dbay s_dbaz s_dbwx s_dbwy s_dbwz s_dgx s_dgy s_dgz s_real % error state
-syms ns_dpx ns_dpy ns_dpz ns_vx ns_vy ns_vz ns_qw ns_qx ns_qy ns_qz ns_dthetax ns_dthetay ns_dthetaz ns_bax ns_bay ns_baz ns_bwx ns_bwy ns_bwz ns_gx ns_gy ns_gz real % nominal state
+syms ns_px ns_py ns_pz ns_vx ns_vy ns_vz ns_qw ns_qx ns_qy ns_qz ns_bax ns_bay ns_baz ns_bwx ns_bwy ns_bwz ns_gx ns_gy ns_gz real % nominal state
 syms cov_a cov_w cov_ba cov_bw
   
 % Measurements and inputs
@@ -19,31 +19,28 @@ s_dg = [s_dgx s_dgy s_dgz].';
 g0 = [0 0 -9.80665].';
 
 % Nominal variables
-ns_dp = [ns_dpx, ns_dpy, ns_dpz].';
+ns_p = [ns_px, ns_py, ns_pz].';
 ns_v = [ns_vx, ns_vy, ns_vz].';
 ns_q = [ns_qw, ns_qx, ns_qy, ns_qz].';
-ns_dtheta = [ns_dthetax ns_dthetay ns_dthetaz].';
 ns_ba = [ns_bax, ns_bay, ns_baz].';
 ns_bw = [ns_bwx, ns_bwy, ns_bwz].';
 ns_g = [ns_gx, ns_gy, ns_gz].';
 
 % nominal states
-ns_dp_kp1 = ns_v * dt + 0.5 * dt^2 * (R_quat(ns_q) * (am - ns_ba) + ns_g);
+ns_p_kp1 = ns_p + ns_v * dt + 0.5 * dt^2 * (R_quat(ns_q) * (am - ns_ba) + ns_g);
 ns_v_kp1 = ns_v + dt * (R_quat(ns_q) * (am - ns_ba) + ns_g);
 ns_q_kp1 = mul_q(ns_q, q_v((wm - ns_bw)*dt));
-ns_dtheta_kp1 = (wm - ns_bw)*dt;
 ns_ba_kp1 = ns_ba;
 ns_bw_kp1 = ns_bw;
 ns_g_kp1 = ns_g;
 
-f_nom = [ns_dp_kp1; ns_v_kp1; ns_q_kp1; ns_dtheta_kp1; ns_ba_kp1; ns_bw_kp1; ns_g_kp1];
-x_nom = [ns_dp; ns_v; ns_q; ns_dtheta; ns_ba; ns_bw; ns_g];
-h_nom = [R_quat(ns_q)*ns_dp; ns_dtheta];
+f_nom = [ns_p_kp1; ns_v_kp1; ns_q_kp1; ns_ba_kp1; ns_bw_kp1; ns_g_kp1];
+x_nom = [ns_p; ns_v; ns_q; ns_ba; ns_bw; ns_g];
+h_nom = [ns_p; ns_q];
 H_nom = eval(jacobian(h_nom, x_nom)); % dh_dom / dx_nom
 
 f_nom_func = matlabFunction(f_nom, 'Vars', {[x_nom; imu_meas; dt]});
 h_nom_func = matlabFunction(h_nom, 'Vars', {x_nom});
-H_nom_func = matlabFunction(H_nom, 'Vars', {x_nom});
 
 % error state KF
 Fx = sym(zeros(18,18));
@@ -77,19 +74,15 @@ Qi_func = matlabFunction(Qi, 'Vars', {[cov_p; dt]});
 G_func = matlabFunction(G, 'Vars', {x_es});
 
 % injecting error state into nominal
-f_nom_corr_approx = sym(zeros(22, 1));
-f_nom_corr_approx(1:6) = x_nom(1:6) + x_es(1:6);
-f_nom_corr_approx(14:22) = x_nom(14:22) + x_es(10:18);
-f_nom_corr_approx(7:10) = mul_q(x_nom(7:10), q_v(x_es(7:9)));
-f_nom_corr_approx(11:13) = bch_approx(x_nom(11:13), x_es(7:9));
+f_nom_corr = sym(zeros(19, 1));
+f_nom_corr(1:6) = x_nom(1:6) + x_es(1:6);
+f_nom_corr(11:19) = x_nom(11:19) + x_es(10:18);
+f_nom_corr(7:10) = mul_q(x_nom(7:10), q_v(x_es(7:9)));
 
-f_nom_corr_exact = f_nom_corr_approx;
-f_nom_corr_exact(11:13) = log_map(R_v(x_nom(11:13)) * R_v(x_es(7:9)));
-
-H_es = jacobian(f_nom_corr_approx, x_es); % dx_nom / x_xes
+H_es = jacobian(f_nom_corr, x_es); % dx_nom / x_xes
 H_es = limit(limit(limit(H_es,s_dthetax,0), s_dthetay, 0), s_dthetaz, 0);
 
 H_es_func = matlabFunction(H_es, 'Vars', {x_nom});
-f_nom_corr_func = matlabFunction(f_nom_corr_exact, 'Vars', {[x_nom; x_es]});
+f_nom_corr_func = matlabFunction(f_nom_corr, 'Vars', {[x_nom; x_es]});
 
 
