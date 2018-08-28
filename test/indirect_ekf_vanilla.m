@@ -5,7 +5,7 @@ clear;
 disp('Working on it...')
 
 run("indirect_ekf_model_vanilla.m")
-data = importdata('/home/cs4li/Dev/end_to_end_odometry/test/seq_06.dat');
+data = importdata('/home/cs4li/Dev/end_to_end_odometry/test/seq_04.dat');
 data_size = size(data.data);
 % range = 287:320;
 range = 1:data_size(1);
@@ -32,16 +32,16 @@ timesteps = dat_dt_size(1);
 
 % initial states
 x_nom_prev = zeros(19, 1);
-x_nom_prev(1:3) = data.data(range(1),14:16)';
+x_nom_prev(1:3) = [0 0 0].';
 x_nom_prev(4) = dat_dx(1) / dat_dt(1);
-x_nom_prev(7:10) = data.data(range(1), 17:20).'; % initialize the first pose to be identity
+x_nom_prev(7:10) = [1 0 0 0].'; % initialize the first pose to be identity
 x_nom_prev(17:19) = g0; % initialize gravity to -g
 x_prev = zeros(18, 1);
-P_prev = eye(18) * 100;
+P_prev = eye(18) * 10;
 
 % covariances
-imu_covar = [1e-3, 1e-3 , 1e-3 , 1e-3].'; % a w ba bw
-cov_meas = eye(7) * 1e-1; % measurement covar
+imu_covar = [1e-2, 1e-2 , 1e0 , 1e0].'; % a w ba bw
+cov_meas = eye(7) * 1e-8; % measurement covar
 
 x_est_log = zeros(18, timesteps);
 P_est_log = zeros(18, 18, timesteps);
@@ -55,6 +55,7 @@ trajectory_xyz = zeros(3, timesteps);
 trajectory_eul = zeros(3, timesteps);
 
 for i = 1:timesteps
+    i
     dat_imu = [dat_ax(i); dat_ay(i); dat_az(i); dat_wx(i); dat_wy(i); dat_wz(i)];
     dat_meas = [trajectory_gt_xyz(i, :) trajectory_gt_quat(i, :)].';
     
@@ -66,16 +67,16 @@ for i = 1:timesteps
     Qik = Qi_func([imu_covar; dat_dt(i)]);
     
     xk_pred = Fxk * x_prev; % this is always zero
-    Pk_pred = Fxk * P_prev * Fxk.' + Fi * Qik * Fi.';
+    Pk_pred = Fxk * P_prev * Fxk.' + Fi * Qik * Fi.'
     
     H = H_nom * H_es_func(xk_nom_pred);
     
     % Update Error State
-    yk = dat_meas - h_nom_func(xk_nom_pred);
+    yk = dat_meas(1:3) - h_nom_func(xk_nom_pred);
 %     yk(4:7) = dat_meas
-    Sk = H * Pk_pred * H.' + cov_meas;
+    Sk = H * Pk_pred * H.' + cov_meas(1:3, 1:3);
     Kk = Pk_pred * H.' * inv(Sk);
-    xk_est = xk_pred + Kk * yk; % xk_pred is always zero
+    xk_est = xk_pred + Kk * yk % xk_pred is always zero
     Pk_est = (eye(18, 18) - Kk * H) * Pk_pred;
     
     % Propagate for reset
@@ -84,6 +85,8 @@ for i = 1:timesteps
     
     % Correct nominal states with estimate from EKF
     xk_nom_est = f_nom_corr_func([xk_nom_pred; xk_est]);
+%     xk_nom_est(7:10) = mul_q(xk_nom_pred(7:10), q_v_nonsym(xk_est(7:9)));
+    xk_nom_est = xk_nom_pred;
    
     % log results
     x_est_log(:,i) = xk_est;

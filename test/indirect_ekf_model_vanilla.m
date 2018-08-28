@@ -14,7 +14,7 @@ s_dp = [s_dpx s_dpy s_dpz].';
 s_dv = [s_dvx s_dvy s_dvz].';
 s_dtheta = [s_dthetax, s_dthetay, s_dthetaz].';
 s_dba = [s_dbax s_dbay s_dbaz].';
-s_dbg = [s_dbwz s_dbwy s_dbwz].';
+s_dbg = [s_dbwx s_dbwy s_dbwz].';
 s_dg = [s_dgx s_dgy s_dgz].';
 g0 = [0 0 -9.80665].';
 
@@ -36,7 +36,7 @@ ns_g_kp1 = ns_g;
 
 f_nom = [ns_p_kp1; ns_v_kp1; ns_q_kp1; ns_ba_kp1; ns_bw_kp1; ns_g_kp1];
 x_nom = [ns_p; ns_v; ns_q; ns_ba; ns_bw; ns_g];
-h_nom = [ns_p; ns_q];
+h_nom = [ns_p];
 H_nom = eval(jacobian(h_nom, x_nom)); % dh_dom / dx_nom
 
 f_nom_func = matlabFunction(f_nom, 'Vars', {[x_nom; imu_meas; dt]});

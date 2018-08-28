@@ -9,13 +9,9 @@ import model
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-kitti_seqs = ["00", "01", "02", "04", "05", "06", "07", "08", "09", "10"]
+kitti_seqs = ["04"]
 frames = [None]
 # frames = [range(260, 500)]
-
-matlab_data_file_str = ""
-matlab_data_file_str += "dt dx dy dz dyaw dpitch wx wy wz ax ay az gx gy gz gqw gqx gqy gqz\n"
-
 
 class SeqTrainLidarConfig:
     timesteps = 1
@@ -32,6 +28,10 @@ class SeqTrainLidarConfig:
     data_type = "lidar"
 
 for kitti_seq in kitti_seqs:
+
+    matlab_data_file_str = ""
+    matlab_data_file_str += "dt dx dy dz dyaw dpitch wx wy wz ax ay az gx gy gz gqw gqx gqy gqz\n"
+
     cfg = SeqTrainLidarConfig
 
     gyro_bias_diag = np.array([0.0] * 3, dtype=np.float32)
