@@ -117,6 +117,9 @@ class DataLoader(object):
 
         self.__load_imu()
 
+    def get_initial_states(self):
+        return self.data_imu_kitti.oxts[0].packet
+
     def __load_imu(self):
         num_frames = self.get_num_frames()
 
@@ -283,6 +286,7 @@ class StatefulRollerDataGen(object):
         if not frames:
             frames = [None] * len(sequences)
 
+        self.initial_states = {}
         self.input_frames = {}
         self.poses = {}
 
@@ -323,6 +327,8 @@ class StatefulRollerDataGen(object):
         for i_seq, seq in enumerate(sequences):
             seq_loader = DataLoader(self.cfg, base_dir, seq, frames=frames[i_seq])
             num_frames = seq_loader.get_num_frames()
+
+            self.initial_states[seq] = seq_loader.get_initial_states()
 
             self.input_frames[seq] = np.zeros(
                     [num_frames, self.cfg.input_channels, self.cfg.input_height, self.cfg.input_width],
@@ -530,6 +536,9 @@ class StatefulRollerDataGen(object):
 
     def current_sequence(self):
         return self.sequences[self.curr_batch_sequence]
+
+    def get_initial_state(self, seq):
+        return self.initial_states[seq]
 
 
 # lstm_states: dictionary indexed by sequence ids, each elem being [batch_count, 2, num_layers, batch_size, lstm_size]

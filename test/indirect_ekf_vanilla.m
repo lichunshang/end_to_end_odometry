@@ -6,6 +6,7 @@ disp('Working on it...')
 
 run("indirect_ekf_model_vanilla.m")
 data = importdata('/home/cs4li/Dev/end_to_end_odometry/test/seq_04.dat');
+data_init = importdata('/home/cs4li/Dev/end_to_end_odometry/test/seq_04_init.dat');
 data_size = size(data.data);
 % range = 287:320;
 range = 1:data_size(1);
@@ -27,14 +28,20 @@ trajectory_gt_xyz = data.data(range,14:16);
 trajectory_gt_quat = data.data(range,17:20);
 trajectory_gt_eul = quat2eul(data.data(range, 17:20), 'ZYX');
 
+data_v0 = data_init.data(9:11);
+data_euler0 = flip(data_init.data(4:6));
+
 dat_dt_size = size(dat_dt);
 timesteps = dat_dt_size(1);
 
 % initial states
 x_nom_prev = zeros(19, 1);
 x_nom_prev(1:3) = [0 0 0].';
-x_nom_prev(4) = dat_dx(1) / dat_dt(1);
-x_nom_prev(7:10) = [1 0 0 0].'; % initialize the first pose to be identity
+x_nom_prev(4:6) = data_v0;
+% x_nom_prev(7:10) = [1 0 0 0].'; % initialize the first pose to be identity
+% x_nom_prev(7:10) = eul2quat(data_euler0, 'ZYX'); % initialize the first pose to be identity
+x_nom_prev(7:10) = rotm2quat(eul2rotm([data_euler0(1) 0 0], 'ZYX').' * eul2rotm(data_euler0, 'ZYX'));
+
 x_nom_prev(17:19) = g0; % initialize gravity to -g
 x_prev = zeros(18, 1);
 P_prev = eye(18) * 10;
@@ -85,8 +92,8 @@ for i = 1:timesteps
     
     % Correct nominal states with estimate from EKF
     xk_nom_est = f_nom_corr_func([xk_nom_pred; xk_est]);
-%     xk_nom_est(7:10) = mul_q(xk_nom_pred(7:10), q_v_nonsym(xk_est(7:9)));
-    xk_nom_est = xk_nom_pred;
+    xk_nom_est(7:10) = mul_q(xk_nom_pred(7:10), q_v_nonsym(xk_est(7:9)));
+%     xk_nom_est = xk_nom_pred;
    
     % log results
     x_est_log(:,i) = xk_est;
@@ -217,19 +224,19 @@ grid;
 % figure('visible', figure_visible); hold on; 
 % plot(x_est_log(3,:), 'r'); plot(dat_dz, 'b');
 % title('State Delta Z');legend('Estimate', 'Ground Truth');xlabel('Frame # []');ylabel('Dist [m]');grid;
-% 
-% figure('visible', figure_visible); hold on; 
-% plot(x_est_log(4,:), 'r'); plot(dat_dx./ dat_dt, 'b');
-% title('State Velocity X');legend('Estimate', 'Ground Truth');xlabel('Frame # []');ylabel('V [m/s]');grid;
-% 
-% figure('visible', figure_visible); hold on; 
-% plot(x_est_log(5,:), 'r'); plot(dat_dy./ dat_dt, 'b');
-% title('State Velocity Y');legend('Estimate', 'Ground Truth');xlabel('Frame # []');ylabel('V [m/s]');grid;
-% 
-% figure('visible', figure_visible); hold on; 
-% plot(x_est_log(6,:), 'r'); plot(dat_dz ./ dat_dt, 'b');
-% title('State Velocity Z');legend('Estimate', 'Ground Truth');xlabel('Frame # []');ylabel('V [m/s]');grid;
-% 
+
+figure('visible', figure_visible); hold on; 
+plot(x_nom_est_log(4,:), 'r'); plot(dat_dx./ dat_dt, 'b');
+title('State Velocity X');legend('Estimate', 'Ground Truth');xlabel('Frame # []');ylabel('V [m/s]');grid;
+
+figure('visible', figure_visible); hold on; 
+plot(x_nom_est_log(5,:), 'r'); plot(dat_dy./ dat_dt, 'b');
+title('State Velocity Y');legend('Estimate', 'Ground Truth');xlabel('Frame # []');ylabel('V [m/s]');grid;
+
+figure('visible', figure_visible); hold on; 
+plot(x_nom_est_log(6,:), 'r'); plot(dat_dz ./ dat_dt, 'b');
+title('State Velocity Z');legend('Estimate', 'Ground Truth');xlabel('Frame # []');ylabel('V [m/s]');grid;
+
 % figure('visible', figure_visible); hold on; 
 % plot(x_est_log(7,:), 'r'); 
 % title('State Gravity Pitch');xlabel('Frame # []');ylabel('Angle [rad]');grid;

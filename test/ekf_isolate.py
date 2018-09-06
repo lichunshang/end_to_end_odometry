@@ -9,8 +9,10 @@ import model
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-kitti_seqs = ["04"]
+kitti_seqs = ["00", "01", "02", "04", "05", "06", "07", "08", "09", "10"]
 frames = [None]
+
+
 # frames = [range(260, 500)]
 
 class SeqTrainLidarConfig:
@@ -27,10 +29,12 @@ class SeqTrainLidarConfig:
 
     data_type = "lidar"
 
+
 for kitti_seq in kitti_seqs:
 
     matlab_data_file_str = ""
     matlab_data_file_str += "dt dx dy dz dyaw dpitch wx wy wz ax ay az gx gy gz gqw gqx gqy gqz\n"
+    matlab_data_initial_state_file_str = ""
 
     cfg = SeqTrainLidarConfig
 
@@ -81,6 +85,10 @@ for kitti_seq in kitti_seqs:
         sess.run(tf.global_variables_initializer())
 
         total_batches = data_gen.total_batches()
+        export_init_states_dict = data_gen.get_initial_state(kitti_seq)._asdict()
+        matlab_data_initial_state_file_str += " ".join(export_init_states_dict.keys()) + "\n"
+        matlab_data_initial_state_file_str += " ".join(["%.15f" % x for x in export_init_states_dict.values()])
+
         tools.printf("Start evaluation loop...")
 
         prediction = np.zeros([total_batches + 1, 7])
@@ -178,4 +186,8 @@ for kitti_seq in kitti_seqs:
         # print(matlab_data_file_str)
         f = open("/home/cs4li/Dev/end_to_end_odometry/test/seq_%s.dat" % kitti_seq, "w")
         f.write(matlab_data_file_str)
+        f.close()
+
+        f = open("/home/cs4li/Dev/end_to_end_odometry/test/seq_%s_init.dat" % kitti_seq, "w")
+        f.write(matlab_data_initial_state_file_str)
         f.close()
