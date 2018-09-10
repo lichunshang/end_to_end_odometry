@@ -35,28 +35,31 @@ dat_dt_size = size(dat_dt);
 timesteps = dat_dt_size(1);
 
 % initial states
-x_nom_prev = zeros(19, 1);
+x_nom_prev = zeros(16, 1);
 x_nom_prev(1:3) = [0 0 0].';
 x_nom_prev(4:6) = data_v0;
 % x_nom_prev(7:10) = [1 0 0 0].'; % initialize the first pose to be identity
 % x_nom_prev(7:10) = eul2quat(data_euler0, 'ZYX'); % initialize the first pose to be identity
 x_nom_prev(7:10) = rotm2quat(eul2rotm([data_euler0(1) 0 0], 'ZYX').' * eul2rotm(data_euler0, 'ZYX'));
 
-x_nom_prev(17:19) = g0; % initialize gravity to -g
-x_prev = zeros(18, 1);
-P_prev = eye(18) * 10;
+% x_nom_prev(17:19) = g0; % initialize gravity to -g
+x_prev = zeros(15, 1);
+P_prev = eye(15) * 10;
+% P_prev(4:6, 4:6) = eye(3, 3) * 1e-3;
+P_prev(7:10, 7:10) = eye(4, 4) * 1e-3;
+P_prev(10:15, 10:15) = zeros(6, 6);
 
 % covariances
-imu_covar = [1e-2, 1e-2 , 1e0 , 1e0].'; % a w ba bw
-cov_meas = eye(7) * 1e-8; % measurement covar
+imu_covar = [1e-2, 1e-2 , 0 * 1e-3 , 0 * 1e-3].'; % a w ba bw
+cov_meas = eye(7) * 0.001 % measurement covar
 
-x_est_log = zeros(18, timesteps);
-P_est_log = zeros(18, 18, timesteps);
-P_est_reset_log = zeros(18, 18, timesteps);
-x_pred_log = zeros(18, timesteps);
-P_pred_log = zeros(18, 18, timesteps);
-x_nom_pred_log = zeros(19, timesteps);
-x_nom_est_log = zeros(19, timesteps);
+x_est_log = zeros(15, timesteps);
+P_est_log = zeros(15, 15, timesteps);
+P_est_reset_log = zeros(15, 15, timesteps);
+x_pred_log = zeros(15, timesteps);
+P_pred_log = zeros(15, 15, timesteps);
+x_nom_pred_log = zeros(16, timesteps);
+x_nom_est_log = zeros(16, timesteps);
    
 trajectory_xyz = zeros(3, timesteps);
 trajectory_eul = zeros(3, timesteps);
@@ -84,7 +87,7 @@ for i = 1:timesteps
     Sk = H * Pk_pred * H.' + cov_meas(1:3, 1:3);
     Kk = Pk_pred * H.' * inv(Sk);
     xk_est = xk_pred + Kk * yk % xk_pred is always zero
-    Pk_est = (eye(18, 18) - Kk * H) * Pk_pred;
+    Pk_est = (eye(15, 15) - Kk * H) * Pk_pred;
     
     % Propagate for reset
     Gk = G_func(xk_est);
@@ -94,6 +97,7 @@ for i = 1:timesteps
     xk_nom_est = f_nom_corr_func([xk_nom_pred; xk_est]);
     xk_nom_est(7:10) = mul_q(xk_nom_pred(7:10), q_v_nonsym(xk_est(7:9)));
 %     xk_nom_est = xk_nom_pred;
+    xk_nom_est
    
     % log results
     x_est_log(:,i) = xk_est;
@@ -109,8 +113,8 @@ for i = 1:timesteps
 
 
     % Prep for the next time step
-    x_prev = zeros(18, 1); % x_prev is always zero after reset
-    P_prev = Pk_est_reset;
+    x_prev = zeros(15, 1); % x_prev is always zero after reset
+    P_prev = Pk_est;
     x_nom_prev = xk_nom_est;
 end
 
@@ -140,7 +144,7 @@ title('Trajectory YZ')
 legend('Estimate', 'Ground Truth')
 xlabel('y [m]')
 ylabel('z [m]')
-axis('equal');
+% axis('equal');
 grid;
 
 figure('visible', figure_visible); hold on; % XZ
@@ -150,7 +154,7 @@ title('Trajectory XZ')
 legend('Estimate', 'Ground Truth')
 xlabel('x [m]')
 ylabel('z [m]')
-axis('equal');
+% axis('equal');
 grid;
 
 % ==============================================================
@@ -245,17 +249,17 @@ title('State Velocity Z');legend('Estimate', 'Ground Truth');xlabel('Frame # []'
 % plot(x_est_log(8,:), 'r'); 
 % title('State Gravity Roll');xlabel('Frame # []');ylabel('Angle [rad]');grid;
 % 
-% figure('visible', figure_visible); hold on; 
-% plot(x_est_log(9,:), 'r'); 
-% title('State Accel Bias X');xlabel('Frame # []');ylabel('a [m/s^2]');grid;
-% 
-% figure('visible', figure_visible); hold on; 
-% plot(x_est_log(10,:), 'r'); 
-% title('State Accel Bias Y');xlabel('Frame # []');ylabel('a [m/s^2]');grid;
-% 
-% figure('visible', figure_visible); hold on; 
-% plot(x_est_log(11,:), 'r'); 
-% title('State Accel Bias Z');xlabel('Frame # []');ylabel('a [m/s^2]');grid;
+figure('visible', figure_visible); hold on; 
+plot(x_nom_est_log(11,:), 'r'); 
+title('State Accel Bias X');xlabel('Frame # []');ylabel('a [m/s^2]');grid;
+
+figure('visible', figure_visible); hold on; 
+plot(x_nom_est_log(12,:), 'r'); 
+title('State Accel Bias Y');xlabel('Frame # []');ylabel('a [m/s^2]');grid;
+
+figure('visible', figure_visible); hold on; 
+plot(x_nom_est_log(13,:), 'r'); 
+title('State Accel Bias Z');xlabel('Frame # []');ylabel('a [m/s^2]');grid;
 % 
 % figure('visible', figure_visible); hold on; 
 % plot(x_est_log(12,:), 'r'); plot(dat_dyaw, 'b');
@@ -269,17 +273,17 @@ title('State Velocity Z');legend('Estimate', 'Ground Truth');xlabel('Frame # []'
 % plot(x_est_log(14,:), 'r'); plot(dat_droll, 'b');
 % title('State Delta Roll');legend('Estimate', 'Ground Truth');xlabel('Frame # []');ylabel('Angle [rad]');grid;
 % 
-% figure('visible', figure_visible); hold on; 
-% plot(x_est_log(15,:), 'r'); 
-% title('State Gyro Bias Yaw');xlabel('Frame # []');ylabel('rate [rad/s]');grid;
-% 
-% figure('visible', figure_visible); hold on; 
-% plot(x_est_log(16,:), 'r'); 
-% title('State Gyro Bias Pitch');xlabel('Frame # []');ylabel('rate [rad/s]');grid;
-% 
-% figure('visible', figure_visible); hold on; 
-% plot(x_est_log(17,:), 'r'); 
-% title('State Gyro Bias Roll');xlabel('Frame # []');ylabel('rate [rad/s]');grid;
+figure('visible', figure_visible); hold on; 
+plot(x_nom_est_log(14,:), 'r'); 
+title('State Gyro Bias Yaw');xlabel('Frame # []');ylabel('rate [rad/s]');grid;
+
+figure('visible', figure_visible); hold on; 
+plot(x_nom_est_log(15,:), 'r'); 
+title('State Gyro Bias Pitch');xlabel('Frame # []');ylabel('rate [rad/s]');grid;
+
+figure('visible', figure_visible); hold on; 
+plot(x_nom_est_log(16,:), 'r'); 
+title('State Gyro Bias Roll');xlabel('Frame # []');ylabel('rate [rad/s]');grid;
 
 % IMU values
 figure('visible', figure_visible); hold on; 
