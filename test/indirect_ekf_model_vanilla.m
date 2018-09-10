@@ -1,7 +1,7 @@
 syms dt m_fcx m_fcy m_fcz m_fcyaw m_fcpitch m_fcroll m_wx m_wy m_wz m_ax m_ay m_az real % Measurement & control inputs
 syms s_dpx s_dpy s_dpz s_dvx s_dvy s_dvz s_dthetax s_dthetay s_dthetaz s_dbax s_dbay s_dbaz s_dbwx s_dbwy s_dbwz s_dgx s_dgy s_dgz s_real % error state
 syms ns_px ns_py ns_pz ns_vx ns_vy ns_vz ns_qw ns_qx ns_qy ns_qz ns_bax ns_bay ns_baz ns_bwx ns_bwy ns_bwz ns_gx ns_gy ns_gz real % nominal state
-syms cov_a cov_w cov_ba cov_bw
+syms cov_a cov_w cov_ba cov_bw real
   
 % Measurements and inputs
 am = [m_ax m_ay m_az].';

@@ -45,13 +45,12 @@ x_nom_prev(7:10) = rotm2quat(eul2rotm([data_euler0(1) 0 0], 'ZYX').' * eul2rotm(
 % x_nom_prev(17:19) = g0; % initialize gravity to -g
 x_prev = zeros(15, 1);
 P_prev = eye(15) * 10;
-% P_prev(4:6, 4:6) = eye(3, 3) * 1e-3;
-P_prev(7:10, 7:10) = eye(4, 4) * 1e-3;
 P_prev(10:15, 10:15) = zeros(6, 6);
+P_prev
 
 % covariances
 imu_covar = [1e-2, 1e-2 , 0 * 1e-3 , 0 * 1e-3].'; % a w ba bw
-cov_meas = eye(7) * 1e-2; % measurement covar
+cov_meas = eye(7) * 0.001 % measurement covar
 
 x_est_log = zeros(15, timesteps);
 P_est_log = zeros(15, 15, timesteps);
@@ -114,7 +113,7 @@ for i = 1:timesteps
 
     % Prep for the next time step
     x_prev = zeros(15, 1); % x_prev is always zero after reset
-    P_prev = Pk_est;
+    P_prev = Pk_est_reset;
     x_nom_prev = xk_nom_est;
 end
 
@@ -144,7 +143,7 @@ title('Trajectory YZ')
 legend('Estimate', 'Ground Truth')
 xlabel('y [m]')
 ylabel('z [m]')
-% axis('equal');
+axis('equal');
 grid;
 
 figure('visible', figure_visible); hold on; % XZ
@@ -154,7 +153,7 @@ title('Trajectory XZ')
 legend('Estimate', 'Ground Truth')
 xlabel('x [m]')
 ylabel('z [m]')
-% axis('equal');
+axis('equal');
 grid;
 
 % ==============================================================
@@ -250,15 +249,15 @@ title('State Velocity Z');legend('Estimate', 'Ground Truth');xlabel('Frame # []'
 % title('State Gravity Roll');xlabel('Frame # []');ylabel('Angle [rad]');grid;
 % 
 figure('visible', figure_visible); hold on; 
-plot(x_nom_est_log(11,:), 'r'); 
+plot(x_nom_est_log(10,:), 'r'); 
 title('State Accel Bias X');xlabel('Frame # []');ylabel('a [m/s^2]');grid;
 
 figure('visible', figure_visible); hold on; 
-plot(x_nom_est_log(12,:), 'r'); 
+plot(x_nom_est_log(11,:), 'r'); 
 title('State Accel Bias Y');xlabel('Frame # []');ylabel('a [m/s^2]');grid;
 
 figure('visible', figure_visible); hold on; 
-plot(x_nom_est_log(13,:), 'r'); 
+plot(x_nom_est_log(12,:), 'r'); 
 title('State Accel Bias Z');xlabel('Frame # []');ylabel('a [m/s^2]');grid;
 % 
 % figure('visible', figure_visible); hold on; 
@@ -274,15 +273,15 @@ title('State Accel Bias Z');xlabel('Frame # []');ylabel('a [m/s^2]');grid;
 % title('State Delta Roll');legend('Estimate', 'Ground Truth');xlabel('Frame # []');ylabel('Angle [rad]');grid;
 % 
 figure('visible', figure_visible); hold on; 
-plot(x_nom_est_log(14,:), 'r'); 
+plot(x_est_log(13,:), 'r'); 
 title('State Gyro Bias Yaw');xlabel('Frame # []');ylabel('rate [rad/s]');grid;
 
 figure('visible', figure_visible); hold on; 
-plot(x_nom_est_log(15,:), 'r'); 
+plot(x_est_log(14,:), 'r'); 
 title('State Gyro Bias Pitch');xlabel('Frame # []');ylabel('rate [rad/s]');grid;
 
 figure('visible', figure_visible); hold on; 
-plot(x_nom_est_log(16,:), 'r'); 
+plot(x_est_log(15,:), 'r'); 
 title('State Gyro Bias Roll');xlabel('Frame # []');ylabel('rate [rad/s]');grid;
 
 % IMU values
