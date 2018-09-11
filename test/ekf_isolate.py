@@ -33,7 +33,7 @@ class SeqTrainLidarConfig:
 for kitti_seq in kitti_seqs:
 
     matlab_data_file_str = ""
-    matlab_data_file_str += "dt dx dy dz dyaw dpitch wx wy wz ax ay az gx gy gz gqw gqx gqy gqz\n"
+    matlab_data_file_str += "dt dx dy dz dyaw dpitch droll wx wy wz ax ay az gx gy gz gqw gqx gqy gqz\n"
     matlab_data_initial_state_file_str = ""
 
     cfg = SeqTrainLidarConfig
@@ -184,10 +184,10 @@ for kitti_seq in kitti_seqs:
         # plt.show()
 
         # print(matlab_data_file_str)
-        f = open("/home/cs4li/Dev/end_to_end_odometry/test/seq_%s.dat" % kitti_seq, "w")
+        f = open("/home/cs4li/Dev/end_to_end_odometry/test/data/seq_%s.dat" % kitti_seq, "w")
         f.write(matlab_data_file_str)
         f.close()
 
-        f = open("/home/cs4li/Dev/end_to_end_odometry/test/seq_%s_init.dat" % kitti_seq, "w")
+        f = open("/home/cs4li/Dev/end_to_end_odometry/test/data/seq_%s_init.dat" % kitti_seq, "w")
         f.write(matlab_data_initial_state_file_str)
         f.close()

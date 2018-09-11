@@ -3,10 +3,9 @@ close all;
 clear;
 
 disp('Working on it...')
-
-run("indirect_ekf_model_vanilla.m")
-data = importdata('/home/cs4li/Dev/end_to_end_odometry/test/seq_04.dat');
-data_init = importdata('/home/cs4li/Dev/end_to_end_odometry/test/seq_04_init.dat');
+run('constants.m')
+data = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/artificial_straight.dat');
+data_init = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/artificial_straight_init.dat');
 data_size = size(data.data);
 % range = 287:320;
 range = 1:data_size(1);
@@ -65,28 +64,26 @@ trajectory_xyz = zeros(3, timesteps);
 trajectory_eul = zeros(3, timesteps);
 
 for i = 1:timesteps
-    i
     dat_imu = [dat_ax(i); dat_ay(i); dat_az(i); dat_wx(i); dat_wy(i); dat_wz(i)];
     dat_meas = [trajectory_gt_xyz(i, :) trajectory_gt_quat(i, :)].';
     
     % Updating Nominal State
-    xk_nom_pred = f_nom_func([x_nom_prev; dat_imu; dat_dt(i)]);
+    xk_nom_pred = f_nom_func(x_nom_prev, dat_imu, dat_dt(i));
     
     % Prediction Error State
-    Fxk = Fx_func([x_nom_prev; x_prev; dat_imu; dat_dt(i)]);
-    Qik = Qi_func([imu_covar; dat_dt(i)]);
+    Fxk = Fx_func(x_nom_prev, dat_imu, dat_dt(i));
+    Qik = Qi_func(imu_covar, dat_dt(i));
     
     xk_pred = Fxk * x_prev; % this is always zero
-    Pk_pred = Fxk * P_prev * Fxk.' + Fi * Qik * Fi.'
+    Pk_pred = Fxk * P_prev * Fxk.' + Fi * Qik * Fi.';
     
     H = H_nom * H_es_func(xk_nom_pred);
     
     % Update Error State
-    yk = dat_meas(1:3) - h_nom_func(xk_nom_pred);
-%     yk(4:7) = dat_meas
+    yk = dat_meas(1:3) - xk_nom_pred(1:3);
     Sk = H * Pk_pred * H.' + cov_meas(1:3, 1:3);
     Kk = Pk_pred * H.' * inv(Sk);
-    xk_est = xk_pred + Kk * yk % xk_pred is always zero
+    xk_est = xk_pred + Kk * yk; % xk_pred is always zero
     Pk_est = (eye(15, 15) - Kk * H) * Pk_pred;
     
     % Propagate for reset
@@ -94,10 +91,8 @@ for i = 1:timesteps
     Pk_est_reset = Gk * Pk_est * Gk.';
     
     % Correct nominal states with estimate from EKF
-    xk_nom_est = f_nom_corr_func([xk_nom_pred; xk_est]);
-    xk_nom_est(7:10) = mul_q(xk_nom_pred(7:10), q_v_nonsym(xk_est(7:9)));
-%     xk_nom_est = xk_nom_pred;
-    xk_nom_est
+%     xk_nom_est = f_nom_corr_func(xk_nom_pred, xk_est);
+    xk_nom_est = xk_nom_pred;
    
     % log results
     x_est_log(:,i) = xk_est;
@@ -111,11 +106,16 @@ for i = 1:timesteps
     trajectory_xyz(:,i) = xk_nom_est(1:3);
     trajectory_eul(:,i) = quat2eul(xk_nom_est(7:10).','ZYX');
 
-
     % Prep for the next time step
     x_prev = zeros(15, 1); % x_prev is always zero after reset
     P_prev = Pk_est;
     x_nom_prev = xk_nom_est;
+    
+    % disp
+    i
+    Pk_est
+    xk_est
+    xk_nom_est
 end
 
 disp('all done!')
