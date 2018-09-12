@@ -10,5 +10,7 @@ H_es(7:10,7:9) = [-ns_qx/2, -ns_qy/2, -ns_qz/2;
                    ns_qw/2, -ns_qz/2,  ns_qy/2;
                    ns_qz/2,  ns_qw/2, -ns_qx/2;
                   -ns_qy/2,  ns_qx/2,  ns_qw/2];
+H_es(1:6, 1:6) = eye(6,6);
+H_es(10:15,10:15) = eye(6,6);
 
 end

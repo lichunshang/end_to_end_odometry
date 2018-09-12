@@ -6,6 +6,8 @@ disp('Working on it...')
 run('constants.m')
 data = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/artificial_straight.dat');
 data_init = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/artificial_straight_init.dat');
+% data = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/seq_06.dat');
+% data_init = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/seq_06_init.dat');
 data_size = size(data.data);
 % range = 287:320;
 range = 1:data_size(1);
@@ -49,8 +51,8 @@ P_prev(7:10, 7:10) = eye(4, 4) * 1e-3;
 P_prev(10:15, 10:15) = zeros(6, 6);
 
 % covariances
-imu_covar = [1e-2, 1e-2 , 0 * 1e-3 , 0 * 1e-3].'; % a w ba bw
-cov_meas = eye(7) * 1e-2; % measurement covar
+imu_covar = [1e-2, 1e-2 , 1e-3 , 0 * 1e-3].'; % a w ba bw
+cov_meas = eye(7) * 1e-8; % measurement covar
 
 x_est_log = zeros(15, timesteps);
 P_est_log = zeros(15, 15, timesteps);
@@ -91,8 +93,8 @@ for i = 1:timesteps
     Pk_est_reset = Gk * Pk_est * Gk.';
     
     % Correct nominal states with estimate from EKF
-%     xk_nom_est = f_nom_corr_func(xk_nom_pred, xk_est);
-    xk_nom_est = xk_nom_pred;
+    xk_nom_est = f_nom_corr_func(xk_nom_pred, xk_est);
+%     xk_nom_est = xk_nom_pred;
    
     % log results
     x_est_log(:,i) = xk_est;
@@ -108,11 +110,12 @@ for i = 1:timesteps
 
     % Prep for the next time step
     x_prev = zeros(15, 1); % x_prev is always zero after reset
-    P_prev = Pk_est;
+    P_prev = Pk_est_reset;
     x_nom_prev = xk_nom_est;
     
     % disp
     i
+    yk
     Pk_est
     xk_est
     xk_nom_est
