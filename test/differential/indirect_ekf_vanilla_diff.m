@@ -19,10 +19,10 @@ dat_dz = data.data(range, 4);
 dat_dyaw = data.data(range, 5);
 dat_dpitch = data.data(range, 6);
 dat_droll = data.data(range, 7);
-dat_wx = data.data(range, 8);
+dat_wx = data.data(range, 8)+0.1;
 dat_wy = data.data(range, 9);
 dat_wz = data.data(range, 10);
-dat_ax = data.data(range, 11) + 1;
+dat_ax = data.data(range, 11);
 dat_ay = data.data(range, 12);
 dat_az = data.data(range, 13);
 trajectory_gt_xyz = data.data(range,14:16);
@@ -34,7 +34,6 @@ data_euler0 = flip(data_init.data(4:6));
 
 dat_dt_size = size(dat_dt);
 timesteps = dat_dt_size(1);
-% timesteps = 10;
 
 % initial states
 x_nom_prev = zeros(16, 1);
@@ -46,14 +45,13 @@ x_nom_prev(7:10) = rotm2quat(eul2rotm([data_euler0(1) 0 0], 'ZYX').' * eul2rotm(
 
 % x_nom_prev(17:19) = g0; % initialize gravity to -g
 x_prev = zeros(15, 1);
-P_prev = eye(15) * 10;
+P_prev = eye(15) * 100;
 % P_prev(4:6, 4:6) = eye(3, 3) * 1e-3;
 P_prev(7:10, 7:10) = eye(4, 4) * 1e-3;
 % P_prev(10:15, 10:15) = zeros(6, 6);
-P_prev(13:15, 13:15) = zeros(3, 3);
 
 % covariances
-imu_covar = [1e-1, 1e-1 , 1e-1, 0 * 1e0].'; % a w ba bw
+imu_covar = [1e-3, 1e-3 , 1e0 , 1e0].'; % a w ba bw
 cov_meas = eye(7) * 1e-6; % measurement covar
 
 x_est_log = zeros(15, timesteps);
@@ -84,8 +82,8 @@ for i = 1:timesteps
     H = H_nom * H_es_func(xk_nom_pred);
     
     % Update Error State
-    yk = dat_meas(1:3) + mvnrnd(zeros(3,1), 0*1e-6*eye(3,3))' - xk_nom_pred(1:3);
-%     yk = dat_meas(1:7) + mvnrnd(zeros(7,1), 1e-6*eye(7,7))' - xk_nom_pred([1:3,7:10]);
+%     yk = dat_meas(1:3) + mvnrnd(zeros(3,1), 1e-6*eye(3,3))' - xk_nom_pred(1:3);
+    yk = dat_meas(1:7) + mvnrnd(zeros(7,1), 1e-6*eye(7,7))' - xk_nom_pred([1:3,7:10]);
     
 %     dat_meas_noise = zeros(7, 1);
 %     dat_meas_noise(1:3) = dat_meas(1:3) + mvnrnd(zeros(3,1), 0*1e-3*eye(3,3))';
@@ -94,7 +92,7 @@ for i = 1:timesteps
 %     yk(1:3) = dat_meas_noise(1:3) - xk_nom_pred(1:3);
 %     yk(4:7) = quatmultiply(dat_meas_noise(4:7)', quatinv(xk_nom_pred(7:10)'))';
 %     
-    Sk = H * Pk_pred * H.' + cov_meas(1:3, 1:3);
+    Sk = H * Pk_pred * H.' + cov_meas(1:7, 1:7);
     Kk = Pk_pred * H.' * inv(Sk);
     xk_est = xk_pred + Kk * yk; % xk_pred is always zero
     Pk_est = (eye(15, 15) - Kk * H) * Pk_pred;
