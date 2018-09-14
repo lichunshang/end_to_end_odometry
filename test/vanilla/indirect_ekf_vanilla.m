@@ -121,7 +121,7 @@ for i = 1:timesteps
 
     % Prep for the next time step
     x_prev = zeros(15, 1); % x_prev is always zero after reset
-    P_prev = Pk_est_reset;
+    P_prev = Pk_est;
     x_nom_prev = xk_nom_est;
     
     % disp
