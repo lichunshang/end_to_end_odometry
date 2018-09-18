@@ -6,8 +6,8 @@ disp('Working on it...')
 run('constants.m')
 data = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/artificial_straight.dat');
 data_init = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/artificial_straight_init.dat');
-% data = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/seq_04.dat');
-% data_init = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/seq_04_init.dat');
+% data = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/seq_06.dat');
+% data_init = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/seq_06_init.dat');
 data_size = size(data.data);
 % range = 287:320;
 range = 1:data_size(1);
@@ -53,8 +53,8 @@ P_prev(7:10, 7:10) = eye(4, 4) * 1e-3;
 P_prev(13:15, 13:15) = zeros(3, 3);
 
 % covariances
-imu_covar = [1e-1, 1e-1 , 1e-1, 0 * 1e0].'; % a w ba bw
-cov_meas = eye(7) * 1e-6; % measurement covar
+imu_covar = [1e-1, 1e-1 , 1e-1, 1e-5].'; % a w ba bw
+cov_meas = eye(7) * 1e-5; % measurement covar
 
 x_est_log = zeros(15, timesteps);
 P_est_log = zeros(15, 15, timesteps);
@@ -95,9 +95,11 @@ for i = 1:timesteps
 %     yk(4:7) = quatmultiply(dat_meas_noise(4:7)', quatinv(xk_nom_pred(7:10)'))';
 %     
     Sk = H * Pk_pred * H.' + cov_meas(1:3, 1:3);
-    Kk = Pk_pred * H.' * inv(Sk);
+    Kk = Pk_pred * H.' / Sk;
     xk_est = xk_pred + Kk * yk; % xk_pred is always zero
-    Pk_est = (eye(15, 15) - Kk * H) * Pk_pred;
+%     Pk_est = (eye(15, 15) - Kk * H) * Pk_pred;
+    Pk_est = (eye(15, 15) - Kk * H) * Pk_pred  * (eye(15, 15) - Kk * H).' + Kk * cov_meas(1:3, 1:3) * Kk.';
+    
     
     % Propagate for reset
     Gk = G_func(xk_est);
@@ -121,7 +123,7 @@ for i = 1:timesteps
 
     % Prep for the next time step
     x_prev = zeros(15, 1); % x_prev is always zero after reset
-    P_prev = Pk_est;
+    P_prev = Pk_est_reset;
     x_nom_prev = xk_nom_est;
     
     % disp
