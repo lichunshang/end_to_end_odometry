@@ -1,62 +1,155 @@
 \documentclass[]{article}
 
-\usepackage{amsmath,amssymb,amstext} % Lots of math symbols and environments
+\usepackage{amsmath,amssymb,amstext,mathtools} % Lots of math symbols and environments
 \usepackage[margin=0.5in]{geometry}
 
 %opening
 \title{End to End EKF Formulation}
-\author{Benjamin Skikos}
+\author{Benjamin Skikos, Chunshang Li}
 
 \begin{document}
 
 \maketitle
 
 \begin{abstract}
-This is the formulation for the EKF layer. It is designed to fuse IMU information in using a simple, discrete-time, dynamic model. The IMU measurements are treated as inputs to the process model.
+This is the formulation for the EKF layer. It uses a Error State Kalman Filter. The IMU gets integrated into the nominal states, and the EKF estimates the error states. The error states are used to correct the nominal states.
 \end{abstract}
 
 \section{States}
 
+\subsection{Nominal States}
+
 \begin{itemize}
-	\item $p(t)$ Incremental displacement between previous and current timestep
-	\item $v(t)$ Body frame velocity with respect to an inertial frame
-	\item $\Theta_{global}(t)$ Orientation with respect to gravity parameterized as pitch and yaw Euler angles 
-	\item $b_a(t)$ Accelerometer bias
-	\item $\Theta_{inc}(t)$ Incremental rotation between previous and current timestep, parameterized and yaw, pitch, roll Euler angles.
-	\item $b_g(t)$ Gyroscope bias
+	\item $p$ global position expressed w.r.t. pose at $t_0$, more precisely ${}_{I}{p}_{IB}$ where $I$ is the intertial frame and $B$ is the body/vehicle frame
+	\item $v$ global velocity expressed w.r.t. pose at $t_0$, more precisely ${}_{I}{v}_{IB}$
+	\item $q$ Orientation of the vehicle in quaternion form (w, x, y, z) w.r.t. pose at $t_0$, more precisely ${q}_{IB}$
+	\item $b_a$ Accelerometer bias in body frame
+	\item $b_g$ Gyroscope bias in body frame
 \end{itemize}
 
-\section{Inputs}
-
-Inputs are assumed constant from time $t_{i-1}$ to time $t_i$.
-
+\subsection{Error States}
 \begin{itemize}
-	\item $a(t) = \bar{a}(t) + \eta_{acc}$ Acceleration as measured by the accelerometer. Modeled with white noise.
-	\item $w(t) = \bar{w}(t) + \eta_{gyro}$ Angular velocity as measured by the gyroscope. Modeled with white noise.
+	\item $\delta p$ global position error
+	\item $\delta v$ global velocity error
+	\item $\delta \theta$ Orientation error in so(3)
+	\item $\delta b_a$ Accelerometer bias error
+	\item $\delta b_g$ Gyroscope bias error
 \end{itemize}
 
 \section{Process Model}
 
-$R(\Theta)$ Is the function that maps YPR Euler angles to a rotation matrix. Any quantities denoted by $\eta$ are white noise.
+New IMU measurements are integrated into the nominal state at each time step. The error state process model carries forward the uncertainty of each IMU integration, the errors are estimated at each measurement update. The errors estimate are then injected into the nominal state.
+
+Inputs are assumed constant from time $t_{k}$ to time $t_{k+1}$.
+
+\begin{itemize}
+	\item $a_{m_k} = a_k + \eta_{a}$ Acceleration as measured by the accelerometer. Modeled with white noise.
+	\item $w_{m_k} = w_k + \eta_{w}$ Angular velocity as measured by the gyroscope. Modeled with white noise.
+\end{itemize}
+
+\subsection{Nominal States Discrete Process Model}
+
+IMU measurements are integrated to produce predictions of nominal.
 
 \begin{align}
-\delta &= t_i - t_{i-1} \\
-p(t_i) &= R(\delta (\bar{w}(t_i) + \eta_{gyro} - b_g(t_{i-1})))\delta v(t_{i-1}) + \frac{\delta^2}{2}(R(\Theta_{global}(t_{i-1}) + \delta(\bar{w}(t_i) + \eta_{gyro} - b_g(t_{i-1})))g + \bar{a}(t_i) + \eta_{acc} - b_a(t_{i-1})) \\
-v(t_i) &= R(\delta (\bar{w}(t_i) + \eta_{gyro} - b_g(t_{i-1}))) v(t_{i-1}) + \delta(R(\Theta_{global}(t_{i-1}) + \delta(\bar{w}(t_i) + \eta_{gyro} - b_g(t_{i-1})))g + \bar{a}(t_i) + \eta_{acc} - b_a(t_{i-1})) \\
-\Theta_{global}(t_i) &= \Theta_{global}(t_{i-1}) + \delta(\bar{w}(t_i) + \eta_{gyro} - b_g(t_{i-1})) \\
-b_a(t_i) &= b_a(t_{i - 1}) + \eta_{accbias} \\
-\Theta_{inc}(t) &= \delta (\bar{w}(t_i) + \eta_{gyro} - b_g(t_{i-1})) \\
-b_g(t_i) &= b_g(t_{i-1}) + \eta_{gyrobias}
+\Delta t &= t_{k+1} - t_{k} \\
+\hat{p}_{k+1|k} &= p_{k|k} + v_{k|k} \Delta t + \frac{1}{2}(R\{q_{k|k}\}(a_{m_k} - b_{a_{k|k}}) + g) \Delta t^2 \\
+\hat{v}_{k+1|k} &=  v_{k|k} + (R\{q_{k|k}\}(a_{m_k} - b_{a_{k|k}}) + g) \Delta t \\
+\hat{q}_{k+1|k} &= q \otimes q\{(w_{m_k} - b_{w_{k|k}}) \Delta t\} \\
+\hat{b}_{a_{k+1|k}} &= b_{a_{k|k}} \\
+\hat{b}_{w_{k+1|k}} &= b_{w_{k|k}}
 \end{align}
 
-The noise model for this process is non-additive due to the noise associated with the IMU inputs. Let $x(t)$ be the complete state, and $u(t)$ the complete input. Then the noise can be approximated as additive:
-
+\subsection{Error States Discrete Process Model}
 \begin{align}
-\Sigma_{process} \sim \frac{\partial x(t)}{\partial u(t)} \Sigma_{input} \frac{\partial x(t)}{\partial u(t)}^T + \Sigma_{bias}
+\delta \hat{p}_{k+1|k} &= \delta p_{k|k} + \delta v_{k|k} \Delta t \\
+\delta \hat{v}_{k+1|k} &= \delta v_{k|k} + (-R\{q_k\}[a_{m_k} - b_{a_{k|k}}]_{\times} \delta \theta - R\{q_{k|k}\} \delta b_{a_{k|k}}  + \delta g) \Delta t  + v_i\\
+\delta \hat{\theta}_{k+1|k} &= R\{(w_{m_k} - b_{w_{k|k}})\Delta t\} \delta \theta - \delta b_{w_{k|k}} \Delta t + \theta_{i}\\
+\delta \hat{b}_{a_{k+1|k}} &= \delta b_{a_{k|k}} + a_i \\
+\delta \hat{b}_{w_{k+1|k}} &= \delta b_{w_{k|k}} + w_i
 \end{align}
+
+where the $v_i$, $\theta_{i}$, $a_i$, and $w_i$ are the random impulses resulted from the integration of noise terms from continuous to discrete. let $x$ be the comlete error state, the covariance for the error state process model is given by:
+
+\[Q_k = F_i Q_{i_k} F_i^\intercal\]
+\[F_i = \frac{\partial x}{\partial i}\]
+\[Q_{i_k} = 
+\begin{bmatrix}
+\sigma_{a}^2 \Delta t^2 I_3  &                           0 &                         0 & 0 \\
+                          0  & \sigma_{w}^2 \Delta t^2 I_3 &                         0 & 0 \\
+                          0  &                           0 & \sigma_{b_a} \Delta t I_3 & 0 \\
+                          0  &                           0 &                         0 & \sigma_{b_w} \Delta t I_3
+\end{bmatrix}
+\]
+
+Note that initializing error states to zero will always produce zero predictions, only the uncertainty is carried forward by the process model.
 
 \section{Measurement Model}
 
-The neural network is trained to directly output incremental position and orientation (with a YPR Euler angle parameterization). Therefore, the measurement model is simply the corresponding states.
+The ESKF estimates accumulated error between each measurement update. The error states are injected as follows:
+
+\[\hat{x}_{k+1|k+1} = \hat{x}_{k+1|k} \oplus \hat{\delta x}_{k+1|k+1}\]
+
+\[
+z_k = 
+\begin{bmatrix}
+\hat{p}_{k+1|k+1} \\
+\hat{v}_{k+1|k+1} \\
+\hat{q}_{k+1|k+1} \\
+\hat{b}_{a_{k+1|k+1}} \\
+\hat{b}_{w_{k+1|k+1}}
+\end{bmatrix} =
+\begin{bmatrix}
+\hat{p}_{k+1|k} + \delta \hat{p}_{k+1|k+1}\\
+\hat{v}_{k+1|k} + \delta \hat{v}_{k+1|k+1}\\
+\hat{q}_{k+1|k} \otimes q\{\delta \hat{\theta}_{k+1|k+1}\}\\
+\hat{b}_{a_{k+1|k}} + \delta \hat{b}_{a_{k+1|k+1}}\\
+\hat{b}_{w_{k+1|k}} + \delta \hat{b}_{w_{k+1|k+1}}
+\end{bmatrix}
+\]
+
+The neural network is trained to directly output 6 DoF incremental poses in the $t_k$ body frame. let the neural network output at time k be $\Delta x_k$. Note that ESKF uses global pose and velocity error, and local angle error. Since the network estimates 6 DoF incremental poses, we are interested in using the position error $\hat{p}_{k+1|k+1}$ and angle errors $\delta \hat{\theta}_{k+1|k+1}$ as part of the measurement update. We can measure the error by finding the different between the IMU prediction and network prediction at time $k$. For the position, we have the following:
+\[
+\hat{p}_{k+1|k+1} = \hat{p}_{k+1|k+1}
+\]
+
+
+We can directly measure t he error state by taking the difference between the neural network estimation and IMU estimation.
+
+\[z_k = x_{k} \oplus \delta x_k^{NN} \ominus \hat{x}_{k+1}\]
+
+Since the error state Kalman Filter uses local angle errors and global position errors, let $T_{GI_k} = T\{x_k\}$, the measurement becomes as follows:
+
+
+\[
+z_k = 
+\begin{bmatrix} \delta p \\ \delta \theta \end{bmatrix} = 
+\begin{bmatrix} T_{GI_k} p_k^{NN} - \hat{p}_{k+1} \\ \theta_k^{NN} - (w_{m_k} - b_{w_k}) \Delta t  \end{bmatrix}
+\]
+
+The measurement matrix simply become identity with respect to the position and angle errors. The neural network measurement covariances on position is propagated through rotational portion of $T_{GI_k}$ and the covariances on rotation remains unchanged.
+
+\section{Injecting Error States into Nominal States}
+Estimate for the error state are then injected into the nominal states. The error state set to zero while the error state uncertainty propagates.
+
+To inject the error state into nominal state:
+\begin{align}
+{p}_{k+1} &= \hat{p}_{k+1} + \delta \hat{p}_{k+1}\\
+{v}_{k+1} &= \hat{v}_{k+1} + \delta \hat{v}_{k+1}\\
+{q}_{k+1} &= \hat{q}_{k+1} \otimes q\{\delta \hat{\theta}_{k+1}\}\\
+{b}_{a_{k+1}} &= \hat{b}_{a_{k+1}} + \delta \hat{b}_{a_{k+1}}\\
+{b}_{w_{k+1}} &= \hat{b}_{w_{k+1}} + \delta \hat{b}_{w_{k+1}}
+\end{align}
+
+To propagate error through reset:
+\[P_{k+1}^{reset} = G P_{k+1} G^{\intercal}\] 
+
+\[G = 
+\begin{bmatrix}
+I_6  &    0                                        & 0   \\
+  0  & I_3 - [\frac{1}{2} \delta \theta]_{\times}  & 0  \\
+  0  &    0                                        & I_6  \\
+\end{bmatrix}
+\]
 
 \end{document}
