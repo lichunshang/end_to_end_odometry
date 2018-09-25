@@ -79,23 +79,25 @@ for i = 1:timesteps
     xk_pred = Fxk * x_prev; % this is always zero
     Pk_pred = Fxk * P_prev * Fxk.' + Fi * Qik * Fi.';
     
-    if i == 1
-        T_km1_k = trajectory_gt_SE3(:,:,i);
-        meas_p = T_km1_k(1:3, 4) - xk_nom_pred(1:3);
-    else
-        T_km1_k = inv(trajectory_gt_SE3(:,:,i - 1)) * trajectory_gt_SE3(:,:,i);
-        T_g_km1 = eye(4, 4);
-        T_g_km1(1:3, 1:3) = quat2rotm(x_nom_prev(7:10)');
-        T_g_km1(1:3, 4) = x_nom_prev(1:3);
-        T_g_k = T_g_km1 * T_km1_k;
-        meas_p = T_g_k(1:3, 4) - xk_nom_pred(1:3);
-    end
-    
-    meas_theta = log_map_nonsym(T_km1_k(1:3,1:3)) - (dat_imu(4:6) - x_nom_prev(14:16))*dat_dt(i);
+%     if i == 1
+%         T_km1_k = trajectory_gt_SE3(:,:,i);
+%         meas_p = T_km1_k(1:3, 4) - xk_nom_pred(1:3);
+%     else
+%         T_km1_k = inv(trajectory_gt_SE3(:,:,i - 1)) * trajectory_gt_SE3(:,:,i);
+%         T_g_km1 = eye(4, 4);
+%         T_g_km1(1:3, 1:3) = quat2rotm(x_nom_prev(7:10)');
+%         T_g_km1(1:3, 4) = x_nom_prev(1:3);
+%         T_g_k = T_g_km1 * T_km1_k;
+%         meas_p = T_g_k(1:3, 4) - xk_nom_pred(1:3);
+%     end
+%     
+%     meas_theta = log_map_nonsym(T_km1_k(1:3,1:3)) - (dat_imu(4:6) - x_nom_prev(14:16))*dat_dt(i);
+
+    meas_p = [dat_dx(i) dat_dy(i) dat_dz(i)];
+    meas_theta = log_map_nonsym(eul2rotm([dat_dyaw(i) dat_dpitch(i) dat_droll(i)], 'ZYX'));
     
     % Update Error State
-%     yk = dat_meas(1:3) + mvnrnd(zeros(3,1), 0*1e-6*eye(3,3))' - xk_nom_pred(1:3);
-    yk = [meas_p; meas_theta];
+    yk = dat_meas(1:3) + mvnrnd(zeros(3,1), 0*1e-6*eye(3,3))' - xk_nom_pred(1:3);
 
     Sk = H * Pk_pred * H.' + cov_meas;
     Kk = Pk_pred * H.' / Sk;

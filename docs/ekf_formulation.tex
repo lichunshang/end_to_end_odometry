@@ -3,6 +3,8 @@
 \usepackage{amsmath,amssymb,amstext,mathtools} % Lots of math symbols and environments
 \usepackage[margin=0.5in]{geometry}
 
+\newcommand*\eval[3]{\left.#1\right\rvert_{#2}^{#3}}
+
 %opening
 \title{End to End EKF Formulation}
 \author{Benjamin Skikos, Chunshang Li}
@@ -53,34 +55,34 @@ IMU measurements are integrated to produce predictions of nominal.
 
 \begin{align}
 \Delta t &= t_{k+1} - t_{k} \\
-\hat{p}_{k+1|k} &= p_{k|k} + v_{k|k} \Delta t + \frac{1}{2}(R\{q_{k|k}\}(a_{m_k} - b_{a_{k|k}}) + g) \Delta t^2 \\
-\hat{v}_{k+1|k} &=  v_{k|k} + (R\{q_{k|k}\}(a_{m_k} - b_{a_{k|k}}) + g) \Delta t \\
-\hat{q}_{k+1|k} &= q \otimes q\{(w_{m_k} - b_{w_{k|k}}) \Delta t\} \\
-\hat{b}_{a_{k+1|k}} &= b_{a_{k|k}} \\
-\hat{b}_{w_{k+1|k}} &= b_{w_{k|k}}
+\hat{p}_{k+1|k} &= \hat{p}_{k|k} + \hat{v}_{k|k} \Delta t + \frac{1}{2}(R\{\hat{q}_{k|k}\}(a_{m_k} - \hat{b}_{a_{k|k}}) + g) \Delta t^2 \\
+\hat{v}_{k+1|k} &=  \hat{v}_{k|k} + (R\{\hat{q}_{k|k}\}(a_{m_k} - \hat{b}_{a_{k|k}}) + g) \Delta t \\
+\hat{q}_{k+1|k} &= \hat{q}_{k|k} \otimes q\{(w_{m_k} - \hat{b}_{w_{k|k}}) \Delta t\} \\
+\hat{b}_{a_{k+1|k}} &= \hat{b}_{a_{k|k}} \\
+\hat{b}_{w_{k+1|k}} &= \hat{b}_{w_{k|k}}
 \end{align}
 
 \subsection{Error States Discrete Process Model}
 \begin{align}
-\delta \hat{p}_{k+1|k} &= \delta p_{k|k} + \delta v_{k|k} \Delta t \\
-\delta \hat{v}_{k+1|k} &= \delta v_{k|k} + (-R\{q_k\}[a_{m_k} - b_{a_{k|k}}]_{\times} \delta \theta - R\{q_{k|k}\} \delta b_{a_{k|k}}  + \delta g) \Delta t  + v_i\\
-\delta \hat{\theta}_{k+1|k} &= R\{(w_{m_k} - b_{w_{k|k}})\Delta t\} \delta \theta - \delta b_{w_{k|k}} \Delta t + \theta_{i}\\
-\delta \hat{b}_{a_{k+1|k}} &= \delta b_{a_{k|k}} + a_i \\
-\delta \hat{b}_{w_{k+1|k}} &= \delta b_{w_{k|k}} + w_i
+\delta \hat{p}_{k+1|k} &= \delta \hat{p}_{k|k} + \delta \hat{v}_{k|k} \Delta t \\
+\delta \hat{v}_{k+1|k} &= \delta \hat{v}_{k|k} + (-R\{\hat{q}_k\}[a_{m_k} - \hat{b}_{a_{k|k}}]_{\times} \delta \theta - R\{\hat{q}_{k|k}\} \delta \hat{b}_{a_{k|k}}) \Delta t  + v_i\\
+\delta \hat{\theta}_{k+1|k} &= R\{(w_{m_k} - \hat{b}_{w_{k|k}})\Delta t\} \delta \theta - \delta \hat{b}_{w_{k|k}} \Delta t + \theta_{i}\\
+\delta \hat{b}_{a_{k+1|k}} &= \delta \hat{b}_{a_{k|k}} + a_i \\
+\delta \hat{b}_{w_{k+1|k}} &= \delta \hat{b}_{w_{k|k}} + w_i
 \end{align}
 
 where the $v_i$, $\theta_{i}$, $a_i$, and $w_i$ are the random impulses resulted from the integration of noise terms from continuous to discrete. let $x$ be the comlete error state, the covariance for the error state process model is given by:
 
-\[Q_k = F_i Q_{i_k} F_i^\intercal\]
-\[F_i = \frac{\partial x}{\partial i}\]
-\[Q_{i_k} = 
+\begin{equation}Q_k = F_i Q_{i_k} F_i^\intercal\end{equation}
+\begin{equation}F_i = \frac{\partial x}{\partial i}\end{equation}
+\begin{equation}Q_{i_k} = 
 \begin{bmatrix}
 \sigma_{a}^2 \Delta t^2 I_3  &                           0 &                         0 & 0 \\
                           0  & \sigma_{w}^2 \Delta t^2 I_3 &                         0 & 0 \\
                           0  &                           0 & \sigma_{b_a} \Delta t I_3 & 0 \\
                           0  &                           0 &                         0 & \sigma_{b_w} \Delta t I_3
 \end{bmatrix}
-\]
+\end{equation}
 
 Note that initializing error states to zero will always produce zero predictions, only the uncertainty is carried forward by the process model.
 
@@ -88,10 +90,9 @@ Note that initializing error states to zero will always produce zero predictions
 
 The ESKF estimates accumulated error between each measurement update. The error states are injected as follows:
 
-\[\hat{x}_{k+1|k+1} = \hat{x}_{k+1|k} \oplus \hat{\delta x}_{k+1|k+1}\]
+\begin{equation}\hat{x}_{k+1|k+1} = \hat{x}_{k+1|k} \oplus \hat{\delta x}_{k+1|k+1}\end{equation}
 
-\[
-z_k = 
+\begin{equation}
 \begin{bmatrix}
 \hat{p}_{k+1|k+1} \\
 \hat{v}_{k+1|k+1} \\
@@ -106,50 +107,62 @@ z_k =
 \hat{b}_{a_{k+1|k}} + \delta \hat{b}_{a_{k+1|k+1}}\\
 \hat{b}_{w_{k+1|k}} + \delta \hat{b}_{w_{k+1|k+1}}
 \end{bmatrix}
-\]
+\end{equation}
 
-The neural network is trained to directly output 6 DoF incremental poses in the $t_k$ body frame. let the neural network output at time k be $\Delta x_k$. Note that ESKF uses global pose and velocity error, and local angle error. Since the network estimates 6 DoF incremental poses, we are interested in using the position error $\hat{p}_{k+1|k+1}$ and angle errors $\delta \hat{\theta}_{k+1|k+1}$ as part of the measurement update. We can measure the error by finding the different between the IMU prediction and network prediction at time $k$. For the position, we have the following:
-\[
-\hat{p}_{k+1|k+1} = \hat{p}_{k+1|k+1}
-\]
+The neural network is trained to directly output 6 DoF incremental poses in the $t_k$ body frame. let the neural network output at time k be $\Delta x_k$. Note that ESKF uses global pose and velocity error, and local angle error. Since the network estimates 6 DoF incremental poses, we are interested in using the position error $\hat{p}_{k+1|k+1}$ and angle errors $\delta \hat{\theta}_{k+1|k+1}$ as part of the measurement update. We can measure the error by finding the difference between the IMU prediction and network prediction at time $k$. For the position, we have the following:
 
-
-We can directly measure t he error state by taking the difference between the neural network estimation and IMU estimation.
-
-\[z_k = x_{k} \oplus \delta x_k^{NN} \ominus \hat{x}_{k+1}\]
-
-Since the error state Kalman Filter uses local angle errors and global position errors, let $T_{GI_k} = T\{x_k\}$, the measurement becomes as follows:
-
-
-\[
-z_k = 
-\begin{bmatrix} \delta p \\ \delta \theta \end{bmatrix} = 
-\begin{bmatrix} T_{GI_k} p_k^{NN} - \hat{p}_{k+1} \\ \theta_k^{NN} - (w_{m_k} - b_{w_k}) \Delta t  \end{bmatrix}
-\]
-
-The measurement matrix simply become identity with respect to the position and angle errors. The neural network measurement covariances on position is propagated through rotational portion of $T_{GI_k}$ and the covariances on rotation remains unchanged.
-
-\section{Injecting Error States into Nominal States}
-Estimate for the error state are then injected into the nominal states. The error state set to zero while the error state uncertainty propagates.
-
-To inject the error state into nominal state:
 \begin{align}
-{p}_{k+1} &= \hat{p}_{k+1} + \delta \hat{p}_{k+1}\\
-{v}_{k+1} &= \hat{v}_{k+1} + \delta \hat{v}_{k+1}\\
-{q}_{k+1} &= \hat{q}_{k+1} \otimes q\{\delta \hat{\theta}_{k+1}\}\\
-{b}_{a_{k+1}} &= \hat{b}_{a_{k+1}} + \delta \hat{b}_{a_{k+1}}\\
-{b}_{w_{k+1}} &= \hat{b}_{w_{k+1}} + \delta \hat{b}_{w_{k+1}}
+p_{k+1|k+1} &= p_{k+1|k} + \delta p \\
+R\{q_{k|k}\}(\Delta p_k) + p_{k|k} &= p_{k+1|k} + \delta p \\
+\Delta p_k &= R\{q_{k|k}\}^{\intercal}(p_{k+1|k} + \delta p_{} - p_{k|k})
 \end{align}
 
-To propagate error through reset:
-\[P_{k+1}^{reset} = G P_{k+1} G^{\intercal}\] 
+For rotation we are the following:
 
-\[G = 
+\begin{align}
+q_{k+1|k+1} &= q_{k+1|k} \otimes q\{\delta \theta\} \\
+q_{k|k} \otimes q\{\Delta \theta_k\} &= q_{k+1|k} \otimes q\{\delta \theta\} \\
+R_{k|k} R\{\Delta \theta_k\} &= R_{k+1|k} R\{\delta \theta\} \\
+R_{k|k} R\{\Delta \theta_k\} &= R_{k|k} R\{(w_{m_k}-b_{w_{k|k}}) \Delta t\} R\{\delta \theta\} \\
+R\{\Delta \theta_k\} &= R\{(w_{m_k}-b_{w_{k|k}}) \Delta t\} R\{\delta \theta\} \\
+\Delta \theta_k &= \mathrm{log}(R\{(w_{m_k}-b_{w_{k|k}}) \Delta t\} R\{\delta \theta\})
+\end{align}
+
+The error state is alway equal to zero before the update. Thus, the measurement equation is as follows:
+\begin{equation}
+h(\delta x = 0) = 
+\begin{bmatrix}
+\Delta p_k \\
+\Delta \theta_k
+\end{bmatrix} =
+\begin{bmatrix}
+C\{q_{k|k}\}^{\intercal}(p_{k+1|k} - p_{k|k}) \\
+(w_{m_k}-b_{w_{k|k}}) \Delta t
+\end{bmatrix} + \eta_{meas}
+\end{equation}
+
+The jacobian of the measurement equation is as follows, where $J_r$ is the right Jacobian of $SO(3)$:
+
+\begin{equation}
+H_k = 
+\eval{\frac{\partial}{\partial \delta x}}{\delta x = 0}{} \approx
+\begin{bmatrix}
+R\{q_{k|k}\}^{\intercal} & 0 \\
+                       0 & J_r^{-1}\{(w_{m_k}-b_{w_{k|k}}) \Delta t\}
+\end{bmatrix}
+\end{equation}
+
+\section{To the next time step}
+Before proceeding to the next time step, the error state is reset to zero, and the uncertainty is propagated as follows after the reset:
+
+\begin{equation}P_{k+1|k+1}^{reset} = G P_{k+1|k+1} G^{\intercal}\end{equation} 
+
+\begin{equation}G = 
 \begin{bmatrix}
 I_6  &    0                                        & 0   \\
   0  & I_3 - [\frac{1}{2} \delta \theta]_{\times}  & 0  \\
   0  &    0                                        & I_6  \\
 \end{bmatrix}
-\]
+\end{equation}
 
 \end{document}
