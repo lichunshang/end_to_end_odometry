@@ -6,8 +6,8 @@ disp('Working on it...')
 run('constants.m')
 % data = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/artificial_straight.dat');
 % data_init = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/artificial_straight_init.dat');
-data = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/seq_08.dat');
-data_init = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/seq_08_init.dat');
+data = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/seq_00.dat');
+data_init = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/seq_00_init.dat');
 data_size = size(data.data);
 range = 1:data_size(1);
 
@@ -36,6 +36,7 @@ trajectory_gt_SE3(4,4,:) = 1;
 trajectory_gt_SE3(1:3,1:3,:) = trajectory_gt_SO3;
 trajectory_gt_SE3(1:3,4,:) = trajectory_gt_xyz';
 trajectory_gt_eul = quat2eul(data.data(range, 17:20), 'ZYX');
+velocity_gt_xyz = data.data(range, 2:4).';
 
 data_v0 = data_init.data(9:11);
 data_euler0 = flip(data_init.data(4:6));
@@ -48,11 +49,11 @@ x_nom_prev(7:10) = rotm2quat(eul2rotm([data_euler0(1) 0 0], 'ZYX').' * eul2rotm(
 
 x_prev = zeros(15, 1);
 P_prev = eye(15) * 10;
-P_prev(13:15, 13:15) = eye(3,3) * 1e-3; 
+P_prev(13:15, 13:15) = eye(3,3) * 1e-6; 
 P_prev(10:12, 10:12) = eye(3,3) * 1e-3; 
 
 % covariances
-imu_covar = [1e-1, 1e-3 , 1e-3, 1e-3].'; % a w ba bw
+imu_covar = [1e-1, 1e-3 , 1e-3, 1e-6].'; % a w ba bw
 cov_meas = eye(6,6) * 1e-2; % measurement covar
 
 x_est_log = zeros(15, timesteps);
@@ -91,8 +92,8 @@ for i = 1:timesteps
     Sk = H * Pk_pred * H.' + cov_meas;
     Kk = Pk_pred * H.' / Sk;
     xk_est = xk_pred + Kk * yk; % xk_pred is always zero
-%     Pk_est = (eye(15, 15) - Kk * H) * Pk_pred;
-    Pk_est = (eye(15, 15) - Kk * H) * Pk_pred  * (eye(15, 15) - Kk * H).' + Kk * cov_meas * Kk.';
+    Pk_est = (eye(15, 15) - Kk * H) * Pk_pred;
+%     Pk_est = (eye(15, 15) - Kk * H) * Pk_pred  * (eye(15, 15) - Kk * H).' + Kk * cov_meas * Kk.';
     
     % Propagate for reset
     Gk = G_func(xk_est);
@@ -113,6 +114,7 @@ for i = 1:timesteps
     
     trajectory_xyz(:,i) = xk_nom_est(1:3);
     trajectory_eul(:,i) = quat2eul(xk_nom_est(7:10).','ZYX');
+    velocity_gt_xyz(:,i) = trajectory_gt_SO3(:,:,i) * velocity_gt_xyz(:,i) / dat_dt(i);
 
     % Prep for the next time step
     x_prev = zeros(15, 1); % x_prev is always zero after reset
@@ -127,7 +129,6 @@ for i = 1:timesteps
     xk_nom_est
 end
 
-disp('all done!')
 disp('Generating figures...')
 
 figure_visible = 'off';
@@ -239,25 +240,17 @@ grid;
 % title('State Delta Z');legend('Estimate', 'Ground Truth');xlabel('Frame # []');ylabel('Dist [m]');grid;
 
 figure('visible', figure_visible); hold on; 
-plot(x_nom_est_log(4,:), 'r'); plot(dat_dx./ dat_dt, 'b');
+plot(x_nom_est_log(4,:), 'r'); plot(velocity_gt_xyz(1,:), 'b');
 title('State Velocity X');legend('Estimate', 'Ground Truth');xlabel('Frame # []');ylabel('V [m/s]');grid;
 
 figure('visible', figure_visible); hold on; 
-plot(x_nom_est_log(5,:), 'r'); plot(dat_dy./ dat_dt, 'b');
+plot(x_nom_est_log(5,:), 'r'); plot(velocity_gt_xyz(2,:), 'b');
 title('State Velocity Y');legend('Estimate', 'Ground Truth');xlabel('Frame # []');ylabel('V [m/s]');grid;
 
 figure('visible', figure_visible); hold on; 
-plot(x_nom_est_log(6,:), 'r'); plot(dat_dz ./ dat_dt, 'b');
+plot(x_nom_est_log(6,:), 'r'); plot(velocity_gt_xyz(3,:), 'b');
 title('State Velocity Z');legend('Estimate', 'Ground Truth');xlabel('Frame # []');ylabel('V [m/s]');grid;
 
-% figure('visible', figure_visible); hold on; 
-% plot(x_est_log(7,:), 'r'); 
-% title('State Gravity Pitch');xlabel('Frame # []');ylabel('Angle [rad]');grid;
-% 
-% figure('visible', figure_visible); hold on; 
-% plot(x_est_log(8,:), 'r'); 
-% title('State Gravity Roll');xlabel('Frame # []');ylabel('Angle [rad]');grid;
-% 
 figure('visible', figure_visible); hold on; 
 plot(x_nom_est_log(11,:), 'r'); 
 title('State Accel Bias X');xlabel('Frame # []');ylabel('a [m/s^2]');grid;
@@ -269,19 +262,7 @@ title('State Accel Bias Y');xlabel('Frame # []');ylabel('a [m/s^2]');grid;
 figure('visible', figure_visible); hold on; 
 plot(x_nom_est_log(13,:), 'r'); 
 title('State Accel Bias Z');xlabel('Frame # []');ylabel('a [m/s^2]');grid;
-% 
-% figure('visible', figure_visible); hold on; 
-% plot(x_est_log(12,:), 'r'); plot(dat_dyaw, 'b');
-% title('State Delta Yaw');legend('Estimate', 'Ground Truth');xlabel('Frame # []');ylabel('Angle [rad]');grid;
-% 
-% figure('visible', figure_visible); hold on; 
-% plot(x_est_log(13,:), 'r'); plot(dat_dpitch, 'b');
-% title('State Delta Pitch');legend('Estimate', 'Ground Truth');xlabel('Frame # []');ylabel('Angle [rad]');grid;
-% 
-% figure('visible', figure_visible); hold on; 
-% plot(x_est_log(14,:), 'r'); plot(dat_droll, 'b');
-% title('State Delta Roll');legend('Estimate', 'Ground Truth');xlabel('Frame # []');ylabel('Angle [rad]');grid;
-% 
+
 figure('visible', figure_visible); hold on; 
 plot(x_nom_est_log(14,:), 'r'); 
 title('State Gyro Bias X');xlabel('Frame # []');ylabel('rate [rad/s]');grid;
@@ -321,7 +302,14 @@ title('Accel Z');xlabel('Frame # []');ylabel('a [m/s^2]');grid;
 
 disp('saving figures...')
 
-for i=1:32
+figures_list = findobj('type','figure');
+num_figures = length(figures_list);
+
+for i=1:num_figures
     saveas(i, strcat('/home/cs4li/Dev/end_to_end_odometry/results/ekf_debug_matlab/', strcat(num2str(i), '.png')))
     saveas(i, strcat('/home/cs4li/Dev/end_to_end_odometry/results/ekf_debug_matlab/', strcat(num2str(i), '.fig')))
 end
+
+disp('All done')
+
+% openfig('/home/cs4li/Dev/end_to_end_odometry/results/ekf_debug_matlab/1.fig','new','visible')
