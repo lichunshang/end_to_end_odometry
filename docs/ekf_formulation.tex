@@ -136,7 +136,7 @@ h(\delta x = 0) =
 \Delta \theta_k
 \end{bmatrix} =
 \begin{bmatrix}
-C\{q_{k|k}\}^{\intercal}(p_{k+1|k} - p_{k|k}) \\
+R\{q_{k|k}\}^{\intercal}(p_{k+1|k} - p_{k|k}) \\
 (w_{m_k}-b_{w_{k|k}}) \Delta t
 \end{bmatrix} + \eta_{meas}
 \end{equation}
@@ -147,8 +147,8 @@ The jacobian of the measurement equation is as follows, where $J_r$ is the right
 H_k = 
 \eval{\frac{\partial}{\partial \delta x}}{\delta x = 0}{} \approx
 \begin{bmatrix}
-R\{q_{k|k}\}^{\intercal} & 0 \\
-                       0 & J_r^{-1}\{(w_{m_k}-b_{w_{k|k}}) \Delta t\}
+R\{q_{k|k}\}^{\intercal} & 0_{3 \times 3} &                             0_{3 \times 3} & 0_{3 \times 3} & 0_{3 \times 3} \\
+          0_{3 \times 3} & 0_{3 \times 3} & J_r^{-1}\{(w_{m_k}-b_{w_{k|k}}) \Delta t\} & 0_{3 \times 3} & 0_{3 \times 3}
 \end{bmatrix}
 \end{equation}
 
