@@ -6,8 +6,8 @@ disp('Working on it...')
 run('constants.m')
 % data = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/artificial_straight.dat');
 % data_init = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/artificial_straight_init.dat');
-data = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/seq_00.dat');
-data_init = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/seq_00_init.dat');
+data = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/seq_08.dat');
+data_init = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/seq_08_init.dat');
 data_size = size(data.data);
 range = 1:data_size(1);
 
@@ -48,11 +48,11 @@ x_nom_prev(7:10) = rotm2quat(eul2rotm([data_euler0(1) 0 0], 'ZYX').' * eul2rotm(
 
 x_prev = zeros(15, 1);
 P_prev = eye(15) * 10;
-P_prev(13:15, 13:15) = eye(3,3) * 1e-6; 
+P_prev(13:15, 13:15) = eye(3,3) * 1e-3; 
 P_prev(10:12, 10:12) = eye(3,3) * 1e-3; 
 
 % covariances
-imu_covar = [1e-1, 1e-6 , 1e-3, 1e-6].'; % a w ba bw
+imu_covar = [1e-1, 1e-3 , 1e-3, 1e-3].'; % a w ba bw
 cov_meas = eye(6,6) * 1e-2; % measurement covar
 
 x_est_log = zeros(15, timesteps);
