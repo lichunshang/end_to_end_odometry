@@ -1,20 +1,6 @@
 import numpy as np
 import transformations
-
-
-class StraightProfile(object):
-    name = "straight"
-    dt = 0.1
-    timesteps = 100
-    init_p = np.array([0, 0, 0])
-    init_v = np.array([1, 0, 0])
-    init_q = np.array([1, 0, 0, 0])
-
-    @staticmethod
-    def excitation_policy(timestep):
-        accel = np.array([0, 0, 0])
-        gyro = np.array([0, 0, 0])
-        return gyro, accel
+import test.artifical_data_profiles as profiles
 
 
 def q_v(v):
@@ -40,7 +26,7 @@ def skew(v):
     return m
 
 
-profile = StraightProfile
+profile = profiles.StraightRotate
 
 g = 9.80665
 curr_p = profile.init_p
@@ -62,6 +48,8 @@ for i in range(0, profile.timesteps):
     w, a = profile.excitation_policy(i)
     dt = profile.dt
 
+    # print(a)
+
     new_p = curr_p + curr_v * dt + 0.5 * R_q.dot(a) * dt ** 2
     new_v = curr_v + R_q.dot(a) * dt
     new_q = transformations.quaternion_multiply(curr_q, q_v(w * dt))
@@ -82,7 +70,7 @@ for i in range(0, profile.timesteps):
     dat_file_str += "%.8f  %s  %s  %s\n" % \
                     (dt,
                      " ".join("%.8f" % x for x in np.concatenate([diff_p, diff_euler])),
-                     " ".join("%.8f" % x for x in np.concatenate([w, a_measured])),
+                     " ".join("%.8f" % x for x in np.concatenate([w, a_measured]) + profile.imu_bias(i)),
                      " ".join("%.8f" % x for x in np.concatenate([new_p, new_q])))
 
     curr_p = new_p

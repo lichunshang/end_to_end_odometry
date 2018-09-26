@@ -4,10 +4,10 @@ clear;
 
 disp('Working on it...')
 run('constants.m')
-% data = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/artificial_straight.dat');
-% data_init = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/artificial_straight_init.dat');
-data = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/seq_00.dat');
-data_init = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/seq_00_init.dat');
+data = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/artificial_default.dat');
+data_init = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/artificial_default_init.dat');
+% data = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/seq_06.dat');
+% data_init = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/seq_06_init.dat');
 data_size = size(data.data);
 range = 1:data_size(1);
 
@@ -49,12 +49,15 @@ x_nom_prev(7:10) = rotm2quat(eul2rotm([data_euler0(1) 0 0], 'ZYX').' * eul2rotm(
 
 x_prev = zeros(15, 1);
 P_prev = eye(15) * 10;
-P_prev(13:15, 13:15) = eye(3,3) * 1e-6; 
-P_prev(10:12, 10:12) = eye(3,3) * 1e-3; 
+% P_prev(13:15, 13:15) = eye(3,3) * 1e-6; 
+% P_prev(10:12, 10:12) = eye(3,3) * 1e-3; 
 
 % covariances
-imu_covar = [1e-1, 1e-3 , 1e-3, 1e-6].'; % a w ba bw
-cov_meas = eye(6,6) * 1e-2; % measurement covar
+imu_covar = [1e-6, 1e-7, 1e-3, 1e-3].'; % a w ba bw
+cov_meas = eye(6,6) * 1e-4; % measurement covar
+
+imu_noise_inj = [1e-6, 1e-6, 1e-6, 2e-7, 2e-7, 2e-7];
+meas_noise_inj = [1e-5, 1e-5, 1e-5, 1e-6, 1e-6, 1e-6];
 
 x_est_log = zeros(15, timesteps);
 P_est_log = zeros(15, 15, timesteps);
@@ -68,7 +71,7 @@ trajectory_xyz = zeros(3, timesteps);
 trajectory_eul = zeros(3, timesteps);
 
 for i = 1:timesteps
-    dat_imu = [dat_ax(i); dat_ay(i); dat_az(i); dat_wx(i); dat_wy(i); dat_wz(i)];
+    dat_imu = [dat_ax(i); dat_ay(i); dat_az(i); dat_wx(i); dat_wy(i); dat_wz(i)] + mvnrnd(zeros(6,1), diag(imu_noise_inj)).';
     
     % Updating Nominal State
     xk_nom_pred = f_nom_func(x_nom_prev, dat_imu, dat_dt(i));
@@ -77,12 +80,14 @@ for i = 1:timesteps
     Fxk = Fx_func(x_nom_prev, dat_imu, dat_dt(i));
     Qik = Qi_func(imu_covar, dat_dt(i));
     
+    Fi = zeros(15, 12);
+    Fi(4:15,1:12) = eye(12, 12);
     xk_pred = Fxk * x_prev; % this is always zero
     Pk_pred = Fxk * P_prev * Fxk.' + Fi * Qik * Fi.';
 
     meas_p = [dat_dx(i); dat_dy(i); dat_dz(i)];
     meas_theta = log_map_nonsym(eul2rotm([dat_dyaw(i) dat_dpitch(i) dat_droll(i)], 'ZYX'));
-    dat_meas = [meas_p; meas_theta];
+    dat_meas = [meas_p; meas_theta] + mvnrnd(zeros(6,1), diag(meas_noise_inj)).';
     
     [meas_pred, H] = h_func(x_nom_prev, xk_nom_pred, dat_imu, dat_dt(i));
     
@@ -154,7 +159,7 @@ title('Trajectory YZ')
 legend('Estimate', 'Ground Truth')
 xlabel('y [m]')
 ylabel('z [m]')
-% axis('equal');
+axis('equal');
 grid;
 
 figure('visible', figure_visible); hold on; % XZ
@@ -164,7 +169,7 @@ title('Trajectory XZ')
 legend('Estimate', 'Ground Truth')
 xlabel('x [m]')
 ylabel('z [m]')
-% axis('equal');
+axis('equal');
 grid;
 
 % ==============================================================
