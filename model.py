@@ -365,7 +365,7 @@ def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ek
         for i in range(fc_outputs.shape[0]):
             stack2 = []
             for j in range(fc_outputs.shape[1]):
-                stack2.append(tf.diag(tf.square(fc_outputs[i, j, 6:]) + np.array([1e-4, 1e-4, 1e-4, 1e-6, 1e-6, 1e-6])))
+                stack2.append(tf.diag(tf.square(fc_outputs[i, j, 6:]) + np.array([1e-6, 1e-6, 1e-6, 1e-7, 1e-7, 1e-7])))
             stack1.append(tf.stack(stack2, axis=0))
 
         nn_covar = tf.stack(stack1, axis=0)
