@@ -8,6 +8,7 @@ import pickle
 import gc
 import config
 import scipy.constants
+import commath
 
 
 class LidarDataLoader(object):
@@ -380,19 +381,19 @@ class StatefulRollerDataGen(object):
                     m_reverse_mirror = np.dot(np.linalg.inv(mirror_pose_next), mirror_pose)
 
                     trans_forward = transformations.translation_from_matrix(m_forward)
-                    ypr_forward = transformations.euler_from_matrix(m_forward, axes="rzyx")
+                    so3_forward = commath.log_map_SO3(m_forward)
                     trans_forward_mirror = transformations.translation_from_matrix(m_forward_mirror)
-                    ypr_forward_mirror = transformations.euler_from_matrix(m_forward_mirror, axes="rzyx")
+                    so3_forward_mirror = commath.log_map_SO3(m_forward_mirror)
                     trans_reverse = transformations.translation_from_matrix(m_reverse)
-                    ypr_reverse = transformations.euler_from_matrix(m_reverse, axes="rzyx")
+                    so3_reverse = commath.log_map_SO3(m_reverse)
                     trans_reverse_mirror = transformations.translation_from_matrix(m_reverse_mirror)
-                    ypr_reverse_mirror = transformations.euler_from_matrix(m_reverse_mirror, axes="rzyx")
+                    so3_reverse_mirror = commath.log_map_SO3(m_reverse_mirror)
 
-                    self.fc_ground_truth[seq][i_img] = np.concatenate([trans_forward, ypr_forward])
-                    self.fc_mirror_ground_truth[seq][i_img] = np.concatenate([trans_forward_mirror, ypr_forward_mirror])
-                    self.fc_reverse_ground_truth[seq][i_img] = np.concatenate([trans_reverse, ypr_reverse])
+                    self.fc_ground_truth[seq][i_img] = np.concatenate([trans_forward, so3_forward])
+                    self.fc_mirror_ground_truth[seq][i_img] = np.concatenate([trans_forward_mirror, so3_forward_mirror])
+                    self.fc_reverse_ground_truth[seq][i_img] = np.concatenate([trans_reverse, so3_reverse])
                     self.fc_reverse_mirror_ground_truth[seq][i_img] = np.concatenate(
-                            [trans_reverse_mirror, ypr_reverse_mirror])
+                            [trans_reverse_mirror, so3_reverse_mirror])
 
                     get_imu = seq_loader.get_averaged_imu_in_corresponding_frame
                     self.imu_measurements[seq][i_img] = get_imu(i_img, mirror=False, reverse=False)

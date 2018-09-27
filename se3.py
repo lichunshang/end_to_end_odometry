@@ -1,5 +1,5 @@
 import tensorflow as tf
-import math
+import commath
 
 
 # given input tensors of shape containing normalized quaternions
@@ -38,13 +38,14 @@ def quat_subtract(q1, q2):
     with tf.variable_scope("quat_subtract"):
         diff = quat_multiply_norm(q2, quat_conjugate(q1))
 
-        #need to wrap angles because acos produces 0 to 2pi
+        # need to wrap angles because acos produces 0 to 2pi
 
-        ang = tf.multiply(tf.constant(2, dtype=tf.float32), tf.acos(diff[:,:,0]))
+        ang = tf.multiply(tf.constant(2, dtype=tf.float32), tf.acos(diff[:, :, 0]))
 
-        gtcond = tf.greater(ang, tf.constant(math.pi, dtype=tf.float32))
+        gtcond = tf.greater(ang, tf.constant(commath.pi, dtype=tf.float32))
 
-        return tf.where(gtcond, tf.subtract(ang, tf.constant(2*math.pi)), ang)
+        return tf.where(gtcond, tf.subtract(ang, tf.constant(2 * commath.pi)), ang)
+
 
 # input pose_ypr = [x, y, z, yaw, pitch, roll]
 # output pose_quat = [x, y, z, qr, qx, qy, qz]
@@ -68,6 +69,20 @@ def pose_ypr_to_quat(pose_ypr):
         qz = cr * cp * sy - sr * sp * cy
         n = tf.sqrt(qr ** 2 + qx ** 2 + qy ** 2 + qz ** 2)
         return tf.stack([pose_ypr[0], pose_ypr[1], pose_ypr[2], qr / n, qx / n, qy / n, qz / n])
+
+
+def pose_so3_to_quat(pose_so3):
+    with tf.variable_scope("pose_so3_to_quat"):
+        p = pose_so3
+        phi = tf.sqrt(tf.square(p[3]) + tf.square(p[4]) + tf.square(p[5]))
+        u = (p[3:6] / phi) * tf.sin(phi / 2)
+
+        q = tf.where(tf.less(phi, 1e-12), tf.constant([1, 0, 0, 0], dtype=tf.float32),
+                     tf.stack([tf.cos(phi / 2), u[0], u[1], u[2]]))
+
+        n = tf.sqrt(q[0] ** 2 + q[1] ** 2 + q[2] ** 2 + q[3] ** 2)
+
+        return tf.concat([p[0:3], q / n], axis=0)
 
 
 # input p = [x, y, z, qr, qx, qy, qz], a = [x y z]
@@ -98,12 +113,12 @@ def quat_multiply(q1, q2):
         return tf.stack([r, x, y, z]) / n
 
 
-# input: p1 = [x y z qr qx qy qz], p2 = [x y z yaw pitch roll
+# input: p1 = [x y z qr qx qy qz], p2 = [x y z theta_x theta_y theta_z] axis angle form
 # output: p = [x y z qr qx qy qz]
-def se3_comp(pose_1_quat, pose_2_ypr):
+def se3_comp(pose_1_quat, pose_2_so3):
     with tf.variable_scope("se3_comp"):
-        # first convert ypr to quaternion
-        pose_2_quat = pose_ypr_to_quat(pose_2_ypr)
+        # first convert so3 to quaternion
+        pose_2_quat = pose_so3_to_quat(pose_2_so3)
 
         xyz = comp_pose_pt(pose_1_quat, pose_2_quat[0:3])
         qrqxqyqz = quat_multiply(pose_1_quat[3:7], pose_2_quat[3:7])
