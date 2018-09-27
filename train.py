@@ -14,6 +14,7 @@ import debug_filters
 import glob
 import re
 
+
 class Train(object):
     def __init__(self, num_gpu, cfg, train_sequences, val_sequence, tensorboard_meta=False, start_epoch=0,
                  restore_file=None, restore_ekf_state_file=None, train_frames_range=None, val_frames_range=None):
@@ -55,6 +56,7 @@ class Train(object):
         self.t_total_loss = None
         self.t_sequence_id = None
         self.t_epoch = None
+        self.t_dt = None
 
         # ops
         self.op_trainer = None
@@ -136,7 +138,8 @@ class Train(object):
 
     def __build_model_inputs_and_labels(self):
         self.t_inputs, self.t_lstm_initial_state, self.t_initial_poses, self.t_imu_data, self.t_ekf_initial_state, \
-        self.t_ekf_initial_covariance, self.t_is_training, self.t_use_initializer = model.seq_model_inputs(self.cfg)
+        self.t_ekf_initial_covariance, self.t_is_training, self.t_use_initializer, self.t_dt = \
+            model.seq_model_inputs(self.cfg)
 
         # 7 for translation + quat
         self.t_se3_labels = tf.placeholder(tf.float32, name="se3_labels",
@@ -162,6 +165,7 @@ class Train(object):
             ts_ekf_initial_covar = tf.split(self.t_ekf_initial_covariance, self.num_gpu, 0)
             ts_se3_labels = tf.split(self.t_se3_labels, self.num_gpu, 1)
             ts_fc_labels = tf.split(self.t_fc_labels, self.num_gpu, 1)
+            ts_dt = tf.split(self.t_dt, self.num_gpu, 1)
 
             # list to store results
             ts_ekf_states = []
@@ -182,7 +186,7 @@ class Train(object):
 
                 fc_outputs, fc_covar, se3_outputs, lstm_states, ekf_states, ekf_covar_states, _, _, _ = \
                     model.build_seq_model(self.cfg, ts_inputs[i], ts_lstm_initial_state[i], ts_initial_poses[i],
-                                          ts_imu_data[i], ts_ekf_initial_state[i], ts_ekf_initial_covar[i],
+                                          ts_imu_data[i], ts_ekf_initial_state[i], ts_ekf_initial_covar[i], ts_dt[i],
                                           self.t_is_training, get_activations=True,
                                           use_initializer=self.t_use_initializer,
                                           use_ekf=self.cfg.use_ekf, fc_labels=ts_fc_labels[i])
@@ -291,7 +295,8 @@ class Train(object):
             j_batch = self.val_data_gen.curr_batch()
 
             # never resets state, there will only be one sequence in validation
-            batch_id, curr_seq, batch_data, fc_ground_truth, se3_ground_truth, imu_measurements = self.val_data_gen.next_batch()
+            batch_id, curr_seq, batch_data, fc_ground_truth, se3_ground_truth, imu_measurements, elapsed_time = \
+                self.val_data_gen.next_batch()
 
             init_poses = se3_ground_truth[0, :, :]
 
@@ -310,7 +315,8 @@ class Train(object):
                             self.t_use_initializer: use_init_val,
                             self.t_ekf_initial_state: curr_ekf_state,
                             self.t_ekf_initial_covariance: curr_ekf_cov_state,
-                            self.t_imu_data: imu_measurements
+                            self.t_imu_data: imu_measurements,
+                            self.t_dt: elapsed_time
                         },
                         options=self.tf_run_options,
                         run_metadata=self.tf_run_metadata)
@@ -403,7 +409,8 @@ class Train(object):
                 j_batch = self.train_data_gen.curr_batch()
 
                 # get inputs
-                batch_id, curr_seq, batch_data, fc_ground_truth, se3_ground_truth, imu_measurements = self.train_data_gen.next_batch()
+                batch_id, curr_seq, batch_data, fc_ground_truth, se3_ground_truth, imu_measurements, elapsed_time = \
+                    self.train_data_gen.next_batch()
                 data_roller.get_init_lstm_state(lstm_states_dic, curr_lstm_states, curr_seq, batch_id,
                                                 self.cfg.bidir_aug)
 
@@ -442,7 +449,8 @@ class Train(object):
                                 self.t_epoch: i_epoch,
                                 self.t_ekf_initial_state: curr_ekf_state,
                                 self.t_ekf_initial_covariance: curr_ekf_cov_state,
-                                self.t_imu_data: imu_measurements
+                                self.t_imu_data: imu_measurements,
+                                self.t_dt: elapsed_time
                             },
                             options=self.tf_run_options,
                             run_metadata=self.tf_run_metadata)

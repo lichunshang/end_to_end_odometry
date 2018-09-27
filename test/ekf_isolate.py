@@ -6,10 +6,15 @@ import data_roller
 import tools
 import os
 import model
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
 kitti_seq = "06"
-# frames = [range(0, 100)]
 frames = [None]
+# frames = [range(260, 500)]
+
+matlab_data_file_str = ""
+matlab_data_file_str += "dt dx dy dz dyaw dpitch wx wy wz ax ay az gx gy gz gqw gqx gqy gqz\n"
 
 
 class SeqTrainLidarConfig:
@@ -44,6 +49,7 @@ fc_outputs = tf.placeholder(tf.float32, shape=[cfg.timesteps, cfg.batch_size, 12
 ekf_initial_state = tf.placeholder(tf.float32, name="ekf_init_state", shape=[cfg.batch_size, 17])
 ekf_initial_covariance = tf.placeholder(tf.float32, name="ekf_init_covar", shape=[cfg.batch_size, 17, 17])
 initial_poses = tf.placeholder(tf.float32, name="initial_poses", shape=[cfg.batch_size, 7])
+dt = tf.placeholder(tf.float32, shape=[cfg.timesteps, cfg.batch_size], name="dt")
 
 stack1 = []
 for i in range(fc_outputs.shape[0]):
@@ -56,7 +62,7 @@ nn_covar = tf.stack(stack1, axis=0)
 
 ekf_out_states, ekf_out_covar = ekf.full_ekf_layer(imu_data, fc_outputs[..., 0:6], nn_covar,
                                                    ekf_initial_state, ekf_initial_covariance,
-                                                   gyro_bias_covar, acc_bias_covar, gyro_covar, acc_covar)
+                                                   gyro_bias_covar, acc_bias_covar, gyro_covar, acc_covar, dt)
 
 rel_disp = tf.concat([ekf_out_states[1:, :, 0:3], ekf_out_states[1:, :, 11:14]], axis=-1)
 rel_covar = tf.concat([tf.concat([ekf_out_covar[1:, :, 0:3, 0:3], ekf_out_covar[1:, :, 0:3, 11:14]], axis=-1),
@@ -90,19 +96,26 @@ with tf.Session() as sess:
 
     curr_ekf_state = np.zeros([cfg.batch_size, 17], dtype=np.float32)
     ekf_states[0, :] = curr_ekf_state
-    curr_ekf_cov_state = 0 * np.repeat(np.expand_dims(np.identity(17, dtype=np.float32), axis=0),
+    curr_ekf_cov_state = 0.1 * np.repeat(np.expand_dims(np.identity(17, dtype=np.float32), axis=0),
                                          repeats=cfg.batch_size, axis=0)
 
     while data_gen.has_next_batch():
         j_batch = data_gen.curr_batch()
 
-        _, _, batch_data, fc_ground_truth, se3_ground_truth, imu_meas = data_gen.next_batch()
-        fc_covar = np.reshape(np.array([1] * 6, dtype=np.float32), [1, 1, 6])
+        _, _, batch_data, fc_ground_truth, se3_ground_truth, imu_meas, elapsed_time = data_gen.next_batch()
+        fc_covar = np.reshape(np.array([1000] * 6, dtype=np.float32), [1, 1, 6])
         fc_outputs_input = np.concatenate([fc_ground_truth, fc_covar, ], axis=2)
 
         if j_batch == 0:
-            curr_ekf_state[:, 9] = 0.26980048
+            # curr_ekf_state[:, 9] = -0.26980048
             curr_ekf_state[:, 3] = fc_ground_truth[-1, :, [0]] * 10  # !!! initial state
+            curr_ekf_state[:, 4] = fc_ground_truth[-1, :, [1]] * 10
+            curr_ekf_state[:, 5] = fc_ground_truth[-1, :, [2]] * 10
+
+        # curr_ekf_state[:, 4] = 0
+        # curr_ekf_state[:, 9] = 0
+        # imu_meas[:, :, 4] = 0
+        # imu_meas[:, :, 5] = 9.8
 
         _se3_outputs, _curr_ekf_states, _curr_ekf_covar = sess.run(
                 [se3_outputs, ekf_out_states, ekf_out_covar],
@@ -112,13 +125,22 @@ with tf.Session() as sess:
                     imu_data: imu_meas,
                     ekf_initial_state: curr_ekf_state,
                     ekf_initial_covariance: curr_ekf_cov_state,
+                    dt: elapsed_time
                 },
         )
         init_pose = _se3_outputs[-1]
         curr_ekf_state = _curr_ekf_states[-1]
         curr_ekf_covar = _curr_ekf_covar[-1]
 
+        # print(elapsed_time)
+
         # curr_ekf_state[:, [6, 7]] = 0
+
+        matlab_data_file_str += "%.8f  %s  %s  %s\n" % \
+                                (elapsed_time[-1, -1],
+                                 " ".join("%.8f" % x for x in fc_ground_truth[-1, -1]),
+                                 " ".join("%.8f" % x for x in imu_meas[-1, -1]),
+                                 " ".join("%.8f" % x for x in se3_ground_truth[-1, -1]))
 
         prediction[j_batch + 1, :] = _se3_outputs[-1, -1]
         ground_truths[j_batch + 1, :] = se3_ground_truth[-1, -1]
@@ -135,3 +157,25 @@ with tf.Session() as sess:
     np.save(os.path.join(results_dir_path, "%s_fc_ground_truth" % kitti_seq), fc_ground_truths)
     np.save(os.path.join(results_dir_path, "%s_ekf_states" % kitti_seq), ekf_states)
     np.save(os.path.join(results_dir_path, "%s_imu_measurements" % kitti_seq), imu_measurements)
+
+    # fig = plt.figure()
+    # ax = fig.gca(projection='3d')
+    # x = prediction[:, 0]
+    # y = prediction[:, 1]
+    # z = prediction[:, 2]
+    # x_gt = ground_truths[:, 0]
+    # y_gt = ground_truths[:, 1]
+    # z_gt = ground_truths[:, 2]
+    # ax.plot(x, y, z, color="r")
+    # ax.plot(x_gt, y_gt, z_gt, color="b")
+    # plt.xlabel("x")
+    # plt.xlabel("y")
+    # plt.xlabel("z")
+    # # plt.axes("equal")
+    #
+    # plt.show()
+
+    # print(matlab_data_file_str)
+    f = open("/home/cs4li/Dev/end_to_end_odometry/test/seq_%s.dat" % kitti_seq, "w")
+    f.write(matlab_data_file_str)
+    f.close()

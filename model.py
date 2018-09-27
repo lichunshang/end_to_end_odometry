@@ -289,6 +289,8 @@ def seq_model_inputs(cfg):
                                         shape=[2, cfg.lstm_layers, cfg.batch_size,
                                                cfg.lstm_size])
 
+    dt = tf.placeholder(tf.float32, shape=[cfg.timesteps, cfg.batch_size], name="dt")
+
     # init EKF state. batch size * 17
     ekf_initial_state = tf.placeholder(tf.float32, name="ekf_init_state", shape=[cfg.batch_size, 17])
     # init EKF covariance. batch size * 17 * 17
@@ -325,11 +327,11 @@ def seq_model_inputs(cfg):
                                                                                  dtype=tf.float32),
                                              dtype=tf.float32, trainable=cfg.train_noise_covariance)
 
-    return inputs, lstm_initial_state, initial_poses, imu_data, ekf_initial_state, ekf_initial_covariance, is_training, use_initializer
+    return inputs, lstm_initial_state, initial_poses, imu_data, ekf_initial_state, ekf_initial_covariance, is_training, use_initializer, dt
 
 
 def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ekf_initial_state, ekf_initial_covariance,
-                    is_training, get_activations=False, use_initializer=False, use_ekf=False, fc_labels=None):
+                    dt, is_training, get_activations=False, use_initializer=False, use_ekf=False, fc_labels=None):
     print("Building CNN...")
     cnn_outputs = cnn_layer(inputs, cnn_model_lidar, is_training, get_activations)
 
@@ -381,14 +383,15 @@ def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ek
             acc_covar_diag = tf.get_variable('acc_sqrt')
 
         with tf.name_scope("ekf_ops"):
-            gyro_bias_covar = tf.diag(tf.square(gyro_bias_diag) + 1e-5)
-            acc_bias_covar = tf.diag(tf.square(acc_bias_diag) + 1e-5)
-            gyro_covar = tf.diag(tf.square(gyro_covar_diag) + 1e-5)
-            acc_covar = tf.diag(tf.square(acc_covar_diag) + 1e-5)
+            gyro_bias_covar = tf.diag(tf.square(gyro_bias_diag) + 1e-8)
+            acc_bias_covar = tf.diag(tf.square(acc_bias_diag) + 1e-8)
+            gyro_covar = tf.diag(tf.square(gyro_covar_diag) + 1e-8)
+            acc_covar = tf.diag(tf.square(acc_covar_diag) + 1e-8)
 
             ekf_out_states, ekf_out_covar = ekf.full_ekf_layer(imu_data, fc_outputs[..., 0:6], nn_covar,
                                                                feed_ekf_init_state, feed_ekf_init_covar,
-                                                               gyro_bias_covar, acc_bias_covar, gyro_covar, acc_covar)
+                                                               gyro_bias_covar, acc_bias_covar, gyro_covar, acc_covar,
+                                                               dt)
 
             rel_disp = tf.concat([ekf_out_states[1:, :, 0:3], ekf_out_states[1:, :, 11:14]], axis=-1)
             rel_covar = tf.concat(

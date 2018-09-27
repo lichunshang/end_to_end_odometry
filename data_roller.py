@@ -90,11 +90,11 @@ class DataLoader(object):
             raise ValueError("%s sequence not supported" % seq)
 
         self.cfg = cfg
-        self.imu_time_sync_shift = 1  # we discovered IMU seems to be delayed, so we shifted it forward
+        self.imu_time_sync_shift = 0  # we discovered IMU seems to be delayed, so we shifted it forward
 
         if frames:
             range_start = self.raw_range[seq][0] + frames.start
-            range_stop = range_start + frames.stop
+            range_stop = range_start + (frames.stop - frames.start)
         else:
             range_start = self.raw_range[seq][0]
             range_stop = self.raw_range[seq][1] + 1
@@ -113,6 +113,7 @@ class DataLoader(object):
 
         self.imu_measurements = []
         self.imu_measurements_reversed = []
+        self.imu_timestamps = []
 
         self.__load_imu()
 
@@ -120,6 +121,8 @@ class DataLoader(object):
         num_frames = self.get_num_frames()
 
         for i in range(0, num_frames):
+            self.imu_timestamps.append(self.data_imu_kitti.timestamps[i])
+
             wx = self.data_imu_kitti.oxts[i].packet.wx
             wy = self.data_imu_kitti.oxts[i].packet.wy
             wz = self.data_imu_kitti.oxts[i].packet.wz
@@ -298,6 +301,7 @@ class StatefulRollerDataGen(object):
         self.imu_measurements_mirror = {}
         self.imu_measurements_reverse = {}
         self.imu_measurements_reverse_mirror = {}
+        self.imu_timestamps = {}
 
         # This keeps track of the number of batches in each sequence
         self.batch_counts = {}
@@ -335,6 +339,7 @@ class StatefulRollerDataGen(object):
             self.imu_measurements_mirror[seq] = np.zeros([num_frames - 1, 6], dtype=np.float32)
             self.imu_measurements_reverse[seq] = np.zeros([num_frames - 1, 6], dtype=np.float32)
             self.imu_measurements_reverse_mirror[seq] = np.zeros([num_frames - 1, 6], dtype=np.float32)
+            self.imu_timestamps[seq] = np.zeros([num_frames], dtype=np.float64)
 
             for i_img in range(num_frames):
                 if i_img % 100 == 0:
@@ -354,6 +359,7 @@ class StatefulRollerDataGen(object):
                 mirror_quat = transformations.quaternion_from_matrix(mirror_pose[0:3, 0:3])
                 self.se3_ground_truth[seq][i_img] = np.concatenate([translation, quat])
                 self.se3_mirror_ground_truth[seq][i_img] = np.concatenate([mirror_pose[0:3, 3], mirror_quat])
+                self.imu_timestamps[seq][i_img] = seq_loader.imu_timestamps[i_img].timestamp()
 
                 # relative transformation labels
                 if i_img + 1 < num_frames:
@@ -387,6 +393,8 @@ class StatefulRollerDataGen(object):
                     self.imu_measurements_mirror[seq][i_img] = get_imu(i_img, mirror=True, reverse=False)
                     self.imu_measurements_reverse[seq][i_img] = get_imu(i_img, mirror=False, reverse=True)
                     self.imu_measurements_reverse_mirror[seq][i_img] = get_imu(i_img, mirror=True, reverse=True)
+
+            self.imu_timestamps[seq] = np.ediff1d(self.imu_timestamps[seq])
 
             # How many examples the sequence contains, were it to be processed using a batch size of 1
             sequence_examples = np.ceil((num_frames - self.cfg.timesteps) / self.cfg.sequence_stride).astype(
@@ -424,6 +432,7 @@ class StatefulRollerDataGen(object):
         se3_ground_truth = np.zeros([n, self.cfg.batch_size, 7], dtype=np.float32)
         fc_ground_truth = np.zeros([self.cfg.timesteps, self.cfg.batch_size, 6], dtype=np.float32)
         imu_measurements = np.zeros([self.cfg.timesteps, self.cfg.batch_size, 6], dtype=np.float32)
+        imu_dt = np.zeros([n - 1, self.cfg.batch_size], dtype=np.float64)
 
         # check if at the end of the current sequence, and move to next if required
         cur_seq = self.sequences[self.sequence_ordering[self.current_batch]]
@@ -441,6 +450,7 @@ class StatefulRollerDataGen(object):
                 se3_ground_truth[:, i_b, :] = self.se3_ground_truth[cur_seq][idx:idx + n, :]
                 fc_ground_truth[:, i_b, :] = self.fc_ground_truth[cur_seq][idx:idx + n - 1, :]
                 imu_measurements[:, i_b, :] = self.imu_measurements[cur_seq][idx:idx + n - 1, :]
+                imu_dt[:, i_b] = self.imu_timestamps[cur_seq][idx:idx + n - 1]
             else:
                 # data going backwards
                 idx = start_idx[i_b] - idx_offset
@@ -456,6 +466,7 @@ class StatefulRollerDataGen(object):
                     se3_ground_truth[:, i_b, :] = np.flip(se3_ground_truth[:, i_b, :], axis=0)
                     fc_ground_truth[:, i_b, :] = np.flip(fc_ground_truth[:, i_b, :], axis=0)
                     imu_measurements[:, i_b, :] = np.flip(imu_measurements[:, i_b, :], axis=0)
+                    imu_dt[:, i_b] = np.flip(self.imu_timestamps[cur_seq][idx - n:idx - 1], axis=0)
                 else:
                     batch[:, i_b, :, :] = self.input_frames[cur_seq][idx - n:idx, :, :, :]
                     se3_ground_truth[:, i_b, :] = self.se3_ground_truth[cur_seq][idx - n:idx, :]
@@ -466,6 +477,7 @@ class StatefulRollerDataGen(object):
                     se3_ground_truth[:, i_b, :] = np.flip(se3_ground_truth[:, i_b, :], axis=0)
                     fc_ground_truth[:, i_b, :] = np.flip(fc_ground_truth[:, i_b, :], axis=0)
                     imu_measurements[:, i_b, :] = np.flip(imu_measurements[:, i_b, :], axis=0)
+                    imu_dt[:, i_b] = np.flip(self.imu_timestamps[cur_seq][idx - n:idx - 1], axis=0)
 
         if self.cfg.data_type == "cam":
             batch = np.divide(batch, 255.0, dtype=np.float32)  # ensure float32
@@ -474,7 +486,7 @@ class StatefulRollerDataGen(object):
         self.current_batch += 1
         self.sequence_batch[cur_seq] += 1
 
-        return batch_id, cur_seq, batch, fc_ground_truth, se3_ground_truth, imu_measurements
+        return batch_id, cur_seq, batch, fc_ground_truth, se3_ground_truth, imu_measurements, imu_dt.astype(np.float32)
 
     def has_next_batch(self):
         return self.current_batch < self.batch_cnt
@@ -544,9 +556,11 @@ def get_init_lstm_state(lstm_states, lstm_init_states, cur_seq, batch_id, bidir_
             lstm_init_states[:, :, 0, :] = np.zeros(lstm_init_states[:, :, 0, :].shape, dtype=np.float32)
             lstm_init_states[:, :, 1:, :] = lstm_states[cur_seq][-1, :, :, 0:-1, :]
 
+
 def update_ekf_state(ekf_states, ekf_cov_states, ekf_update, ekf_cov_update, cur_seq, batch_id):
     ekf_states[cur_seq][batch_id, ...] = ekf_update
     ekf_cov_states[cur_seq][batch_id, ...] = ekf_cov_update
+
 
 def get_init_ekf_states(ekf_states, ekf_cov_states, ekf_init_states, ekf_cov_init_states, cur_seq, batch_id, bidir_aug):
     if batch_id > 0:
@@ -571,6 +585,7 @@ def get_init_ekf_states(ekf_states, ekf_cov_states, ekf_init_states, ekf_cov_ini
 
             ekf_cov_init_states[0, ...] = np.identity(ekf_init_states[0, ...].shape[0], dtype=np.float32)
             ekf_cov_init_states[1:, ...] = ekf_cov_states[cur_seq][-1, 0:-1, ...]
+
 
 def reset_select_init_pose(init_pose, mask):
     for i in range(0, len(mask)):

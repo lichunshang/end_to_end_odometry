@@ -51,9 +51,9 @@ class SeqTrainLidarConfig(Configs):
     bidir_aug = True  # train going in reverse as well
 
     # EKF stuff
-    use_ekf = False
-    train_noise_covariance = False  # Train the imu noise covariance for ekf
-    static_nn = False  # don't modify the nn weights if set to true
+    use_ekf = True
+    train_noise_covariance = True  # Train the imu noise covariance for ekf
+    static_nn = True  # don't modify the nn weights if set to true
     fix_fc_covar = False
     fc_covar_fix_val = np.array([0.1] * 6, dtype=np.float32)
     ekf_initial_state_covariance = 100  # initial covariance for all the states
@@ -63,7 +63,7 @@ class SeqTrainLidarConfig(Configs):
     init_acc_covar = 10
 
     train_ekf_with_fcgt = False  # train ekf using fc ground truth instead of nn outputs
-    gt_init_vel_state = False  # use ground truth for initial velocity state for all batches at every epoch
+    gt_init_vel_state = True  # use ground truth for initial velocity state for all batches at every epoch
     gt_init_vel_state_only_first = False  # if gt_init_vel_state=True, but only force the first epoch first batch
 
     # initializer stuff
