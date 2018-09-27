@@ -71,6 +71,8 @@ class SeqTrainLidarConfig(Configs):
     only_train_init = False  # only used when use init is True
     dont_restore_init = True  # only used when use init is True
 
+    dont_restore_fc = True
+
     debug = False
 
     init_prob = 1
@@ -84,7 +86,7 @@ class SeqTrainLidarConfig(Configs):
     k_se3 = 500.0
 
     num_epochs = 200
-    alpha_schedule = {0: 0.8}
+    alpha_schedule = {0: 0.25}
 
     # lr_schedule = {0: 0.000002,
     #                50: 0.000001,
@@ -102,6 +104,28 @@ class SeqTrainLidarConfig(Configs):
     #                150: 0.0008,
     #                175: 0.00001}
 
+    # lr_schedule = {0:   0.000002,
+    #                40:  0.0000010,
+    #                60:  0.0000004,
+    #                100: 0.00000002,
+    #                150: 0.000000001}
+
+    # lr_schedule = {#0: 0.00001,
+    #                0: 0.000002,
+    #                40: 0.0000004,
+    #                80: 0.0000001,
+    #                130: 0.00000001}
+
+    lr_schedule = {0:   0.0001,
+                   50:  0.00002,
+                   100: 0.000004,
+                   135: 0.0000008,
+                   170: 0.0000001}
+
+    # lr_schedule = {0: 0.00005,
+    #                20: 0.000002,
+    #                60: 0.000001,
+    #                80: 0.0000001}
 
 
 def print_configs(cfg):

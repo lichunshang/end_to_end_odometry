@@ -3,8 +3,27 @@ import se3
 import math as m
 
 
+def se3_losses_all_ts(outputs, labels, k):
+    with tf.variable_scope("se3_losses"):
+        diff_p = outputs[:, :, 0:3] - labels[:, :, 0:3]
+        # diff_q = outputs[:, :, 3:] - labels[:, :, 3:]
+        q_dot_squared = tf.square(tf.reduce_sum(tf.multiply(outputs[:, :, 3:], labels[:, :, 3:]), 2))
+        diff_q = tf.subtract(tf.constant(1.0, dtype=tf.float32), q_dot_squared)
+
+        # takes the the dot product and sum it up along time
+        sum_diff_p_dot_p = tf.reduce_sum(tf.multiply(diff_p, diff_p), axis=(0, 2,))
+        # sum_diff_q_dot_q = tf.reduce_sum(tf.multiply(diff_q, diff_q), axis=(0, 2,))
+        sum_diff_q_dot_q = tf.reduce_sum(diff_q, 0)
+
+        t = tf.cast(tf.shape(outputs)[0], tf.float32)
+
+        # multiplies the sum by 1 / t
+        loss = (sum_diff_p_dot_p + k * sum_diff_q_dot_q) / t
+
+        return tf.reduce_mean(loss), tf.reduce_mean(sum_diff_p_dot_p / t), tf.reduce_mean(sum_diff_q_dot_q / t)
+
 # assumes time major
-def se3_losses(outputs, labels, k):
+def se3_losses_last_ts(outputs, labels, k):
     with tf.variable_scope("se3_losses"):
         diff_p = outputs[-1, :, 0:3] - labels[-1, :, 0:3]
         # diff_p = outputs[:, :, 0:3] - labels[:, :, 0:3]
@@ -30,6 +49,8 @@ def se3_losses(outputs, labels, k):
 
         return tf.reduce_mean(loss), tf.reduce_mean(sum_diff_p_dot_p / t), tf.reduce_mean(sum_diff_q_dot_q / t)
 
+def se3_losses(outputs, labels, k):
+    return se3_losses_all_ts(outputs, labels, k)
 
 def pair_train_fc_losses(outputs, labels_u, k):
     with tf.variable_scope("pair_train_fc_losses"):
@@ -68,7 +89,7 @@ def reduce_prod_6(x):
 
 # assumes time major
 def fc_losses(outputs, output_covar, labels_u, k):
-    return pair_train_fc_losses(outputs, labels_u, k)
+    # return pair_train_fc_losses(outputs, labels_u, k)
     with tf.variable_scope("fc_losses"):
         diff_u = tf.subtract(outputs[:, :, 0:6], labels_u, name="diff_u")
         diff_u2 = tf.square(diff_u)
@@ -76,12 +97,12 @@ def fc_losses(outputs, output_covar, labels_u, k):
         # dense covariance
         Q = tf.identity(output_covar, name="Q_check")
 
-        log_det_Q = tf.log(tf.matrix_determinant(Q))
+        log_det_Q = tf.log(tf.matrix_determinant(Q) + 1e-7)
 
         # Need to normalize
         norm1 = tf.tile(tf.expand_dims(tf.diag(1e-5*tf.ones([6], dtype=tf.float32)), axis=0), [Q.shape[1], 1, 1])
         norm2 = tf.tile(tf.expand_dims(norm1, axis=0), [Q.shape[0], 1, 1, 1])
-        inv_Q = tf.matrix_inverse(Q)
+        inv_Q = tf.matrix_inverse(Q + norm2)
 
         # sum of determinants along the time
         sum_det_Q = tf.reduce_sum(log_det_Q, axis=0)

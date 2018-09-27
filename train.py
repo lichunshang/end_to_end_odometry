@@ -12,7 +12,7 @@ import time
 import config
 import debug_filters
 import glob
-
+import re
 
 
 class Train(object):
@@ -118,14 +118,21 @@ class Train(object):
     def __init_tf_savers(self):
         self.tf_saver_checkpoint = tf.train.Saver(max_to_keep=2)
         self.tf_saver_best = tf.train.Saver(max_to_keep=2)
-        if self.cfg.dont_restore_init:
-            varlist = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="cnn_layer") + \
-                      tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="fc_layer") + \
-                      tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="rnn_layer")
-        else:
-            varlist = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
 
-        self.tf_saver_restore = tf.train.Saver(var_list=varlist)
+        var_list = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
+
+        if self.cfg.dont_restore_init:
+            regex = re.compile("initializer_layer")
+            var_list = list(filter(lambda a: not regex.match(a.name), var_list))
+        if self.cfg.dont_restore_fc:
+            regex = re.compile("fc_layer")
+            var_list = list(filter(lambda a: not regex.match(a.name), var_list))
+
+        tools.printf("Variables to load from checkpoint...")
+        for i in range(0, len(var_list)):
+            tools.printf("    " + var_list[i].name)
+
+        self.tf_saver_restore = tf.train.Saver(var_list=var_list)
         self.best_val_path = os.path.join(self.results_dir_path, "best_val")
         self.model_epoch_path = self.results_dir_path
 
@@ -222,6 +229,10 @@ class Train(object):
                 train_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, "imu_noise_params")
             else:
                 train_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
+
+            tools.printf("Variables to be trained by the optimizer...")
+            for i in range(0, len(train_vars)):
+                tools.printf("    " + train_vars[i].name)
 
             self.op_trainer = tf.train.AdamOptimizer(learning_rate=self.t_lr). \
                 minimize(self.t_total_loss, colocate_gradients_with_ops=True, var_list=train_vars)
