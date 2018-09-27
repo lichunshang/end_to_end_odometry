@@ -4,10 +4,10 @@ clear;
 
 disp('Working on it...')
 run('constants.m')
-data = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/artificial_default.dat');
-data_init = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/artificial_default_init.dat');
-% data = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/seq_06.dat');
-% data_init = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/seq_06_init.dat');
+% data = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/artificial_default.dat');
+% data_init = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/artificial_default_init.dat');
+data = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/seq_06.dat');
+data_init = importdata('/home/cs4li/Dev/end_to_end_odometry/test/data/seq_06_init.dat');
 data_size = size(data.data);
 range = 1:data_size(1);
 
@@ -56,7 +56,7 @@ P_prev = eye(15) * 10;
 imu_covar = [1e-6, 1e-7, 1e-3, 1e-3].'; % a w ba bw
 cov_meas = eye(6,6) * 1e-4; % measurement covar
 
-imu_noise_inj = [1e-6, 1e-6, 1e-6, 2e-7, 2e-7, 2e-7];
+imu_noise_inj = [1e-6, 1e-6, 1e-6, 2e-7, 2e-7, 2e-7] * 0;
 meas_noise_inj = [1e-5, 1e-5, 1e-5, 1e-6, 1e-6, 1e-6];
 
 x_est_log = zeros(15, timesteps);
@@ -127,11 +127,11 @@ for i = 1:timesteps
     x_nom_prev = xk_nom_est;
     
     % disp
-    i
-    yk
-    Pk_est
-    xk_est
-    xk_nom_est
+%     i
+%     yk
+%     Pk_est
+%     xk_est
+%     xk_nom_est
 end
 
 disp('Generating figures...')
@@ -203,8 +203,8 @@ ylabel('Dist [m]')
 grid;
 
 figure('visible', figure_visible); hold on; % Yaw
-plot(unwrap(trajectory_eul(1,:)), 'r')
-plot(unwrap(trajectory_gt_eul(:,1)), 'b')
+plot(wrapToPi(trajectory_eul(1,:)), 'r')
+plot(wrapToPi(trajectory_gt_eul(:,1)), 'b')
 title('Global Yaw')
 legend('Estimate', 'Ground Truth')
 xlabel('Frame # []')
@@ -212,8 +212,8 @@ ylabel('Angle [rad]')
 grid;
 
 figure('visible', figure_visible); hold on; % Pitch
-plot(unwrap(trajectory_eul(2,:)), 'r')
-plot(unwrap(trajectory_gt_eul(:,2)), 'b')
+plot(wrapToPi(trajectory_eul(2,:)), 'r')
+plot(wrapToPi(trajectory_gt_eul(:,2)), 'b')
 title('Global Pitch')
 legend('Estimate', 'Ground Truth')
 xlabel('Frame # []')
@@ -221,8 +221,8 @@ ylabel('Angle [rad]')
 grid;
 
 figure('visible', figure_visible); hold on; % Roll
-plot(unwrap(trajectory_eul(3,:)), 'r')
-plot(unwrap(trajectory_gt_eul(:,3)), 'b')
+plot(wrapToPi(trajectory_eul(3,:)), 'r')
+plot(wrapToPi(trajectory_gt_eul(:,3)), 'b')
 title('Global Roll')
 legend('Estimate', 'Ground Truth')
 xlabel('Frame # []')

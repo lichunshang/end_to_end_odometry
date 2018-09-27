@@ -65,7 +65,7 @@ class SineAccel(object):
 class StraightRotate(object):
     name = "default"
     dt = 0.1
-    timesteps = 10000
+    timesteps = 50000
     init_p = np.array([0, 0, 0])
     init_v = np.array([1, 0, 0])
     init_q = np.array([1, 0, 0, 0])
@@ -74,15 +74,16 @@ class StraightRotate(object):
     def excitation_policy(timestep):
         accel = np.array([0, 0, 0], dtype=np.float32)
         gyro = np.array([0, 0, 0], dtype=np.float32)
-        gyro[0] = 0.023
-        gyro[1] = -0.036
-        gyro[2] = 0.029
+
+        if timestep < 25000:
+            gyro[0] = 0.023
+            gyro[1] = -0.036
+            gyro[2] = 0.029
         return gyro, accel
 
     @staticmethod
     def imu_bias(timestep):
         return np.zeros([6])
-
 
 
 class SineAccelRotating(object):
