@@ -2,9 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import transformations
 import config
+import sys
 
 sequences = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]
-save_dir = "/home/cs4li/Dev/end_to_end_odometry/results/train_seq_20180813-12-32-50"
+save_dir = sys.argv[1]
 # data_dir = config.save_path + "/trajectory_results/"
 data_dir = save_dir + "/trajectory_results/"
 
