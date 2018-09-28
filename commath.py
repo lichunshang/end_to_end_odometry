@@ -19,6 +19,7 @@ def unskew(m):
 
 
 def log_map_SO3(R):
+    assert(len(R.shape) == 2 and R.shape[0] == 3 and R.shape[1] == 3)
     phi = np.arccos((np.trace(R) - 1) / 2)
     if abs(phi) > 1e-12:
         u = unskew(R - np.transpose(R)) / (2 * np.sin(phi))

@@ -53,7 +53,6 @@ class SeqTrainLidarConfig(Configs):
     # EKF stuff
     use_ekf = False
     train_noise_covariance = True  # Train the imu noise covariance for ekf
-    static_nn = True  # don't modify the nn weights if set to true
     fix_fc_covar = False
     fc_covar_fix_val = np.array([0.1] * 6, dtype=np.float32)
     ekf_initial_state_covariance = 100  # initial covariance for all the states
@@ -61,15 +60,16 @@ class SeqTrainLidarConfig(Configs):
     init_acc_bias_covar = 10
     init_gyro_covar = 10
     init_acc_covar = 10
-
     train_ekf_with_fcgt = False  # train ekf using fc ground truth instead of nn outputs
     gt_init_vel_state = True  # use ground truth for initial velocity state for all batches at every epoch
     gt_init_vel_state_only_first = False  # if gt_init_vel_state=True, but only force the first epoch first batch
 
+    static_nn = False  # don't modify the nn weights if set to true
+
     # initializer stuff
     use_init = False
     only_train_init = False  # only used when use init is True
-    dont_restore_init = True  # only used when use init is True
+    dont_restore_init = True
 
     dont_restore_fc = True
 
@@ -92,11 +92,11 @@ class SeqTrainLidarConfig(Configs):
     #                50: 0.000001,
     #                100: 0.0000001}
 
-    lr_schedule = {0: 0.0005,
-                   40: 0.00001,
-                   80: 0.000002,
-                   120: 0.000004,
-                   180: 0.0000001}
+    # lr_schedule = {0: 0.0005,
+    #                40: 0.00001,
+    #                80: 0.000002,
+    #                120: 0.000004,
+    #                180: 0.0000001}
 
     # lr_schedule = {  0: 0.1,
     #                100: 0.02,
@@ -116,8 +116,8 @@ class SeqTrainLidarConfig(Configs):
     #                80: 0.0000001,
     #                130: 0.00000001}
 
-    lr_schedule = {0:   0.0001,
-                   50:  0.00002,
+    lr_schedule = {0: 0.0001,
+                   50: 0.00002,
                    100: 0.000004,
                    135: 0.0000008,
                    170: 0.0000001}

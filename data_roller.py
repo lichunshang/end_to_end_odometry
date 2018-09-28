@@ -381,13 +381,13 @@ class StatefulRollerDataGen(object):
                     m_reverse_mirror = np.dot(np.linalg.inv(mirror_pose_next), mirror_pose)
 
                     trans_forward = transformations.translation_from_matrix(m_forward)
-                    so3_forward = commath.log_map_SO3(m_forward)
+                    so3_forward = commath.log_map_SO3(m_forward[0:3, 0:3])
                     trans_forward_mirror = transformations.translation_from_matrix(m_forward_mirror)
-                    so3_forward_mirror = commath.log_map_SO3(m_forward_mirror)
+                    so3_forward_mirror = commath.log_map_SO3(m_forward_mirror[0:3, 0:3])
                     trans_reverse = transformations.translation_from_matrix(m_reverse)
-                    so3_reverse = commath.log_map_SO3(m_reverse)
+                    so3_reverse = commath.log_map_SO3(m_reverse[0:3, 0:3])
                     trans_reverse_mirror = transformations.translation_from_matrix(m_reverse_mirror)
-                    so3_reverse_mirror = commath.log_map_SO3(m_reverse_mirror)
+                    so3_reverse_mirror = commath.log_map_SO3(m_reverse_mirror[0:3, 0:3])
 
                     self.fc_ground_truth[seq][i_img] = np.concatenate([trans_forward, so3_forward])
                     self.fc_mirror_ground_truth[seq][i_img] = np.concatenate([trans_forward_mirror, so3_forward_mirror])

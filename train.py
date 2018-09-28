@@ -225,7 +225,7 @@ class Train(object):
         with tf.variable_scope("optimizer", reuse=tf.AUTO_REUSE):
             if self.cfg.use_init and self.cfg.only_train_init:
                 train_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, "initializer_layer")
-            elif self.cfg.train_noise_covariance and self.cfg.static_nn:
+            elif self.cfg.use_ekf and self.cfg.train_noise_covariance:
                 train_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, "imu_noise_params")
             else:
                 train_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
