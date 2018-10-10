@@ -182,6 +182,16 @@ class DataLoader(object):
         elif self.cfg.data_type == "lidar":
             return self.get_lidar_img(idx)
 
+    @staticmethod
+    def clean_SO3(T):
+        # ensure the rotational matrix is orthogonal
+        q = transformations.quaternion_from_matrix(T)
+        n = np.sqrt(q[0] ** 2 + q[1] ** 2 + q[2] ** 2 + q[3] ** 2)
+        q = q / n
+        T_new = transformations.quaternion_matrix(q)
+        T_new[0:3, 3] = T[0:3, 3]
+        return T_new
+
     def get_poses_in_corresponding_frame(self):
         if self.cfg.input_channels == 1:
             return self.data_odom_kitti.poses
@@ -200,7 +210,7 @@ class DataLoader(object):
         for i in range(0, len(poses)):
             T_cam0_xxx_inv = np.linalg.inv(T_cam0_xxx)
             transformed_pose = np.dot(T_cam0_xxx_inv, np.dot(poses[i], T_cam0_xxx))
-            transformed_poses.append(transformed_pose)
+            transformed_poses.append(DataLoader.clean_SO3(transformed_pose))
 
         return transformed_poses
 

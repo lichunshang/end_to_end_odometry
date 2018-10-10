@@ -17,7 +17,9 @@ kitti_seqs = ["00", "01", "02", "04", "05", "06", "07", "08", "09", "10"]
 # kitti_seqs = ["08"]
 # restore_model_file = "/home/cs4li/Dev/end_to_end_odometry/results/train_seq_20180813-12-32-50/model_epoch_checkpoint-145"
 
-restore_model_file = sys.argv[1]
+restore_model_file_dir = sys.argv[1]
+restore_model_file_name = sys.argv[2]
+restore_model_file = os.path.join(restore_model_file_dir, restore_model_file_name)
 
 save_ground_truth = True
 config_class = config.SeqTrainLidarConfig

@@ -2,19 +2,20 @@ import numpy as np
 import matplotlib.pyplot as plt
 import transformations
 import config
+import os
 import sys
 
 sequences = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]
 save_dir = sys.argv[1]
 # data_dir = config.save_path + "/trajectory_results/"
-data_dir = save_dir + "/trajectory_results/"
+data_dir = os.path.join(save_dir, "trajectory_results")
 
 for i, sequence in enumerate(sequences):
 
     file_not_found = False
     try:
-        trajectory = np.load(data_dir + "%s_trajectory.npy" % sequence)
-        trajectory_gt = np.load(data_dir + "%s_ground_truth.npy" % sequence)
+        trajectory = np.load(os.path.join(data_dir, "%s_trajectory.npy" % sequence))
+        trajectory_gt = np.load(os.path.join(data_dir, "%s_ground_truth.npy" % sequence))
     except FileNotFoundError:
         file_not_found = True
         print("Cannot find trajectory for seq %s" % sequence)
@@ -113,9 +114,9 @@ for i, sequence in enumerate(sequences):
 
     # plot the ekf states
     file_not_found = False
-    ekf_state_fp = data_dir + "%s_ekf_states.npy" % sequence
-    fc_ground_truth_fp = data_dir + "%s_fc_ground_truth.npy" % sequence
-    imu_measurements_fp = data_dir + "%s_imu_measurements.npy" % sequence
+    ekf_state_fp = os.path.join(data_dir, "%s_ekf_states.npy" % sequence)
+    fc_ground_truth_fp = os.path.join(data_dir, "%s_fc_ground_truth.npy" % sequence)
+    imu_measurements_fp = os.path.join(data_dir, "%s_imu_measurements.npy" % sequence)
 
     ekf_state_labels = ["Delta X", "Delta Y", "Delta Z",
 
@@ -177,6 +178,6 @@ for i, sequence in enumerate(sequences):
             plt.grid()
 
             plt.title("Seq. %s %s" % (sequence, ekf_state_labels[j]))
-            plt.savefig(data_dir + "%s_#%02d_%s.png" % (sequence, j + 1, ekf_state_labels[j].lower().replace(" ", "_")))
+            plt.savefig(os.path.join(data_dir, "%s_#%02d_%s.png" % (sequence, j + 1, ekf_state_labels[j].lower().replace(" ", "_"))))
 
         print("State plot saved for sequence %s" % sequence)

@@ -77,8 +77,10 @@ def pose_so3_to_quat(pose_so3):
         phi = tf.sqrt(tf.square(p[3]) + tf.square(p[4]) + tf.square(p[5]))
         u = (p[3:6] / phi) * tf.sin(phi / 2)
 
-        q = tf.where(tf.less(phi, 1e-12), tf.constant([1, 0, 0, 0], dtype=tf.float32),
-                     tf.stack([tf.cos(phi / 2), u[0], u[1], u[2]]))
+        # q = tf.where(tf.less(phi, 1e-12), tf.constant([1, 0, 0, 0], dtype=tf.float32),
+        #              tf.stack([tf.cos(phi / 2), u[0], u[1], u[2]]))
+        q = tf.stack([tf.cos(phi / 2), u[0], u[1], u[2]])
+        tf.assert_greater(phi, 1e-15)
 
         n = tf.sqrt(q[0] ** 2 + q[1] ** 2 + q[2] ** 2 + q[3] ** 2)
 
