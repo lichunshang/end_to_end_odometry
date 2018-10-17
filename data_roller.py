@@ -347,7 +347,7 @@ class StatefulRollerDataGen(object):
         self.input_frames = {}
         self.poses = {}
 
-        # Mirror in y-z plane
+        # Mirror in x-z plane
         self.H = np.identity(3, dtype=np.float32)
         self.H[1][1] = -1.0
 
@@ -382,7 +382,11 @@ class StatefulRollerDataGen(object):
         self.total_frames = 0
 
         for i_seq, seq in enumerate(sequences):
-            seq_loader = DataProcessor(self.cfg, source, seq, frames=frames[i_seq])
+
+            # this would allow us to train duplicate sequences
+            seq_number = seq.split("_")[0]
+
+            seq_loader = DataProcessor(self.cfg, source, seq_number, frames=frames[i_seq])
             num_frames = seq_loader.get_num_frames()
 
             self.initial_states[seq] = seq_loader.get_initial_states()
