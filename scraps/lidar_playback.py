@@ -14,7 +14,7 @@ for seq in sequences:
     cnt_range = 0
     cnt_mask = 0
 
-    with (open(pickle_dir + seq + "_range.pik", "rb")) as opfile:
+    with (open(os.path.join(pickle_dir, seq + "_range.pik"), "rb")) as opfile:
         while True:
             try:
                 cur_image = pickle.load(opfile)
@@ -25,7 +25,7 @@ for seq in sequences:
             except EOFError:
                 break
 
-    with (open(pickle_dir + seq + "_intensity.pik", "rb")) as opfile:
+    with (open(os.path.join(pickle_dir, seq + "_intensity.pik"), "rb")) as opfile:
         while True:
             try:
                 cur_image = pickle.load(opfile)
@@ -35,7 +35,7 @@ for seq in sequences:
             except EOFError:
                 break
 
-    with (open(pickle_dir + seq + "_mask.pik", "rb")) as opfile:
+    with (open(os.path.join(pickle_dir, seq + "_mask.pik"), "rb")) as opfile:
         while True:
             try:
                 cur_image = pickle.load(opfile)

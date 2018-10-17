@@ -7,18 +7,21 @@ import pickle
 import config
 import tools
 import cv2
+import os
+import data_roller
 
-base_dir = config.dataset_path
+data_source = "KITTI_raw"
+
 output_dir = config.kitti_lidar_pickles_path
-sequences = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]
-# sequences = ["00"]
+# sequences = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]
+sequences = ["00"]
 
 # modes
 # one of horizontal_interp, no_interp, depth_completion
 HORIZONTAL_INTERP = 0
 NO_INTERP = 1
 DEPTH_COMPLETION = 2
-mode = DEPTH_COMPLETION
+mode = NO_INTERP
 
 # channel, height, width
 img_shape = [64, 1152]
@@ -28,13 +31,28 @@ enc_angles = np.linspace(-np.pi, np.pi, num=(img_shape[1] + 1), endpoint=False)
 averaged_masks = []
 
 for seq in sequences:
+
+    if data_source == "KITTI":
+        base_dir = config.dataset_path
+        data_kitti_odom = pykitti.odometry(base_dir, seq, frames=None)
+        length = len(data_kitti_odom.poses)
+        get_scan = lambda idx: data_kitti_odom.get_velo(idx)
+    elif data_source == "KITTI_raw":
+        base_dir = config.dataset_path
+        data_kitti_raw = data_roller.map_kitti_raw_to_odometry(base_dir, seq, frames=None)
+        length = len(data_kitti_raw.timestamps)
+        get_scan = lambda idx: data_kitti_raw.get_velo(idx)
+    else:
+        raise NotImplementedError("%s data source not valid" % data_source)
+
     data = pykitti.odometry(base_dir, seq, frames=None)
-    length = [len(data.poses)]
-    images = np.zeros(length + img_channels + img_shape, dtype=np.float32)
+
+    images = np.zeros([length] + img_channels + img_shape, dtype=np.float32)
     scan_idx = 0
 
     # first need to convert each xyz
-    for scan in data.velo:
+    for i in range(0, length):
+        scan = get_scan(i)
         theta = np.arctan2(scan[:, 1], scan[:, 0])
         xy = np.sqrt(np.square(scan[:, 0]) + np.square(scan[:, 1]))
         az = np.arctan2(scan[:, 2], xy)
@@ -81,9 +99,9 @@ for seq in sequences:
     averaged_masks.append(averaged_mask)
 
     # save sequence to a pickle
-    range_out = open(tools.ensure_file_dir_exists(output_dir + str(seq) + "_range.pik"), "wb")
-    int_out = open(tools.ensure_file_dir_exists(output_dir + str(seq) + "_intensity.pik"), "wb")
-    mask_out = open(tools.ensure_file_dir_exists(output_dir + str(seq) + "_mask.pik"), "wb")
+    range_out = open(tools.ensure_file_dir_exists(os.path.join(output_dir, str(seq) + "_range.pik")), "wb")
+    int_out = open(tools.ensure_file_dir_exists(os.path.join(output_dir, str(seq) + "_intensity.pik")), "wb")
+    mask_out = open(tools.ensure_file_dir_exists(os.path.join(output_dir, str(seq) + "_mask.pik")), "wb")
 
     for i in range(0, len(data.poses)):
         # need to flip them horizontally because the bins are from -pi to pi, we want the
@@ -103,7 +121,7 @@ if mode == DEPTH_COMPLETION:
     no_ret_mask = np.fliplr(np.average(np.stack(averaged_masks), axis=0) < 0.1)
     for seq in sequences:
         images = []
-        with (open(output_dir + str(seq) + "_range.pik", "rb")) as opfile:
+        with (open(os.path.join(output_dir, str(seq) + "_range.pik"), "rb")) as opfile:
             while True:
                 try:
                     images.append(pickle.load(opfile))
@@ -111,7 +129,7 @@ if mode == DEPTH_COMPLETION:
                     break
         images = np.stack(images, axis=0)
 
-        range_out = open(tools.ensure_file_dir_exists(output_dir + str(seq) + "_range.pik"), "wb")
+        range_out = open(tools.ensure_file_dir_exists(os.path.join(output_dir, str(seq) + "_range.pik")), "wb")
         for i in range(0, images.shape[0]):
             depth_map = images[i, :, :].astype(np.float32)
             depth_map[no_ret_mask] = 0
@@ -126,7 +144,6 @@ if mode == DEPTH_COMPLETION:
             op = cv2.dilate(depth_map, np.ones((1, 3)))
             op = cv2.morphologyEx(op, cv2.MORPH_CLOSE, np.ones((2, 2)))
             op = cv2.dilate(depth_map, np.ones((2, 2)))
-
 
             op_empty = op < 0.1
             op_dilated = cv2.dilate(op, np.ones((3, 7)))

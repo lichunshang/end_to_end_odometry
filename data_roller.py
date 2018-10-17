@@ -55,8 +55,7 @@ class LidarDataLoader(object):
         return self.data[idx]
 
 
-# This class manages the loading of RAW data
-class DataLoader(object):
+def map_kitti_raw_to_odometry(base_dir, seq, frames):
     kitti_raw_range = {
         "00": (0, 4540),
         "01": (0, 1100),
@@ -85,6 +84,25 @@ class DataLoader(object):
         "10": ("2011_09_30", "0034"),
     }
 
+    if seq == "03" or seq not in kitti_raw_path.keys():
+        raise ValueError("%s sequence not supported" % seq)
+
+    if frames:
+        range_start = kitti_raw_range[seq][0] + frames.start
+        range_stop = range_start + (frames.stop - frames.start)
+    else:
+        range_start = kitti_raw_range[seq][0]
+        range_stop = kitti_raw_range[seq][1] + 1
+
+    data_raw_kitti = pykitti.raw(base_dir, kitti_raw_path[seq][0], kitti_raw_path[seq][1],
+                                 frames=range(range_start, range_stop))
+
+    return data_raw_kitti
+
+
+# This class manages the loading of RAW data
+class DataLoader(object):
+
     def __init__(self, cfg, data_source, seq, frames=None):
 
         self.cfg = cfg
@@ -101,27 +119,13 @@ class DataLoader(object):
 
         if data_source == "KITTI":
 
-            if seq == "03" or seq not in self.kitti_raw_path.keys():
-                raise ValueError("%s sequence not supported" % seq)
-
             base_dir = config.kitti_dataset_path
 
-            if frames:
-                range_start = self.kitti_raw_range[seq][0] + frames.start
-                range_stop = range_start + (frames.stop - frames.start)
-            else:
-                range_start = self.kitti_raw_range[seq][0]
-                range_stop = self.kitti_raw_range[seq][1] + 1
-
-            data_raw_kitti = pykitti.raw(base_dir, self.kitti_raw_path[seq][0], self.kitti_raw_path[seq][1],
-                                         frames=range(range_start, range_stop))
-            data_imu_kitti = pykitti.raw(base_dir, self.kitti_raw_path[seq][0], self.kitti_raw_path[seq][1],
-                                         frames=range(range_start, range_stop))
+            data_raw_kitti = map_kitti_raw_to_odometry(base_dir, seq, frames)
             data_odom_kitti = pykitti.odometry(base_dir, seq, frames=frames)
             self.data_lidar_image = LidarDataLoader(self.cfg, base_dir, seq, frames=frames)
 
             assert (len(data_raw_kitti.oxts) == len(data_odom_kitti.poses) and
-                    len(data_imu_kitti.oxts) == len(data_odom_kitti.poses) and
                     len(data_odom_kitti.poses) == self.data_lidar_image.num_frames)
 
             # calibrations
@@ -132,24 +136,24 @@ class DataLoader(object):
 
             # load all data other than images
             for i in range(self.num_frames):
-                wx = data_imu_kitti.oxts[i].packet.wx
-                wy = data_imu_kitti.oxts[i].packet.wy
-                wz = data_imu_kitti.oxts[i].packet.wz
-                ax = data_imu_kitti.oxts[i].packet.ax
-                ay = data_imu_kitti.oxts[i].packet.ay
-                az = data_imu_kitti.oxts[i].packet.az
+                wx = data_raw_kitti.oxts[i].packet.wx
+                wy = data_raw_kitti.oxts[i].packet.wy
+                wz = data_raw_kitti.oxts[i].packet.wz
+                ax = data_raw_kitti.oxts[i].packet.ax
+                ay = data_raw_kitti.oxts[i].packet.ay
+                az = data_raw_kitti.oxts[i].packet.az
 
-                roll = data_imu_kitti.oxts[i].packet.roll
-                pitch = data_imu_kitti.oxts[i].packet.pitch
-                yaw = data_imu_kitti.oxts[i].packet.yaw
-                vx = data_imu_kitti.oxts[i].packet.vf
-                vy = data_imu_kitti.oxts[i].packet.vl
-                vz = data_imu_kitti.oxts[i].packet.vu
-                lat = data_imu_kitti.oxts[i].packet.lat
-                lon = data_imu_kitti.oxts[i].packet.lon
-                alt = data_imu_kitti.oxts[i].packet.alt
+                roll = data_raw_kitti.oxts[i].packet.roll
+                pitch = data_raw_kitti.oxts[i].packet.pitch
+                yaw = data_raw_kitti.oxts[i].packet.yaw
+                vx = data_raw_kitti.oxts[i].packet.vf
+                vy = data_raw_kitti.oxts[i].packet.vl
+                vz = data_raw_kitti.oxts[i].packet.vu
+                lat = data_raw_kitti.oxts[i].packet.lat
+                lon = data_raw_kitti.oxts[i].packet.lon
+                alt = data_raw_kitti.oxts[i].packet.alt
 
-                self.imu_timestamps.append(data_imu_kitti.timestamps[i])
+                self.imu_timestamps.append(data_raw_kitti.timestamps[i])
                 self.imu_measurements.append(np.array([wx, wy, wz, ax, ay, az, ]))
                 self.gt_states.append(np.array([roll, pitch, yaw, vx, vy, vz, lat, lon, alt]))
 
