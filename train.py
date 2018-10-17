@@ -97,10 +97,10 @@ class Train(object):
 
     def __load_data_set(self):
         tools.printf("Loading training data...")
-        self.train_data_gen = data_roller.StatefulRollerDataGen(self.cfg, config.dataset_path, self.train_sequences,
+        self.train_data_gen = data_roller.StatefulRollerDataGen(self.cfg, "KITTI", self.train_sequences,
                                                                 frames=self.train_frames_range)
         tools.printf("Loading validation data...")
-        self.val_data_gen = data_roller.StatefulRollerDataGen(self.cfg, config.dataset_path, [self.val_sequence],
+        self.val_data_gen = data_roller.StatefulRollerDataGen(self.cfg, "KITTI", [self.val_sequence],
                                                               frames=self.val_frames_range)
 
     def __log_files_and_configs(self):

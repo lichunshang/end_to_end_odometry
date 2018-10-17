@@ -11,11 +11,7 @@ import sys
 
 convert_to_camera_frame = False
 dir_name = "trajectory_results"
-# kitti_seqs = ["00", "01", "02", "08", "09"]
-# kitti_seqs = ["04", "05", "06", "07", "10"]
 kitti_seqs = ["00", "01", "02", "04", "05", "06", "07", "08", "09", "10"]
-# kitti_seqs = ["08"]
-# restore_model_file = "/home/cs4li/Dev/end_to_end_odometry/results/train_seq_20180813-12-32-50/model_epoch_checkpoint-145"
 
 restore_model_file_dir = sys.argv[1]
 restore_model_file_name = sys.argv[2]

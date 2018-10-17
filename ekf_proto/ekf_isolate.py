@@ -75,7 +75,7 @@ for kitti_seq in kitti_seqs:
 
     se3_outputs = model.se3_layer(rel_disp, initial_poses)
 
-    data_gen = data_roller.StatefulRollerDataGen(cfg, config.dataset_path, [kitti_seq], frames=frames)
+    data_gen = data_roller.StatefulRollerDataGen(cfg, "KITTI", [kitti_seq], frames=frames)
 
     results_dir_path = os.path.join(config.save_path, "ekf_debug")
     if not os.path.exists(results_dir_path):
@@ -85,9 +85,9 @@ for kitti_seq in kitti_seqs:
         sess.run(tf.global_variables_initializer())
 
         total_batches = data_gen.total_batches()
-        export_init_states_dict = data_gen.get_initial_state(kitti_seq)._asdict()
-        matlab_data_initial_state_file_str += " ".join(export_init_states_dict.keys()) + "\n"
-        matlab_data_initial_state_file_str += " ".join(["%.15f" % x for x in export_init_states_dict.values()])
+        export_init_states = data_gen.get_initial_state(kitti_seq)
+        matlab_data_initial_state_file_str += " ".join(["roll", "pitch", "yaw", "vx", "vy", "vz", "lat", "lon", "alt"]) + "\n"
+        matlab_data_initial_state_file_str += " ".join(["%.15f" % x for x in export_init_states])
 
         tools.printf("Start evaluation loop...")
 
@@ -184,10 +184,10 @@ for kitti_seq in kitti_seqs:
         # plt.show()
 
         # print(matlab_data_file_str)
-        f = open("/home/cs4li/Dev/end_to_end_odometry/test/data/seq_%s.dat" % kitti_seq, "w")
+        f = open("/home/cs4li/Dev/end_to_end_odometry/ekf_proto/matlab_data/seq_%s.dat" % kitti_seq, "w")
         f.write(matlab_data_file_str)
         f.close()
 
-        f = open("/home/cs4li/Dev/end_to_end_odometry/test/data/seq_%s_init.dat" % kitti_seq, "w")
+        f = open("/home/cs4li/Dev/end_to_end_odometry/ekf_proto/matlab_data/seq_%s_init.dat" % kitti_seq, "w")
         f.write(matlab_data_initial_state_file_str)
         f.close()

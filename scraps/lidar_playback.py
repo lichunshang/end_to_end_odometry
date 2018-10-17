@@ -5,7 +5,7 @@ import config
 import tools
 import numpy as np
 
-pickle_dir = config.lidar_pickles_path
+pickle_dir = config.kitti_lidar_pickles_path
 # sequences = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]
 sequences = ["00"]
 

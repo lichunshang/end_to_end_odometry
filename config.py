@@ -7,11 +7,9 @@ machine = getpass.getuser()
 if machine == "cs4li":
     save_path = "/home/cs4li/Dev/end_to_end_odometry/results/"
     dataset_path = "/home/cs4li/Dev/KITTI/dataset/"
-    lidar_pickles_path = "/home/cs4li/Dev/KITTI/dataset/sequences/lidar_pickles_no_interp"
-elif machine == "bapskiko":
-    save_path = "/home/bapskiko/git/end_to_end_visual_odometry/results"
-    dataset_path = "/media/bapskiko/SpinDrive/kitti/dataset"
-    lidar_pickles_path = "/home/bapskiko/git/end_to_end_visual_odometry/pickles"
+
+    kitti_dataset_path = "/home/cs4li/Dev/KITTI/dataset/"
+    kitti_lidar_pickles_path = "/home/cs4li/Dev/KITTI/dataset/sequences/lidar_pickles_no_interp"
 
 
 class Configs(object):
@@ -116,8 +114,8 @@ class SeqTrainLidarConfig(Configs):
     #                80: 0.0000001,
     #                130: 0.00000001}
 
-    lr_schedule = {0:   0.0001,
-                   50:  0.00002,
+    lr_schedule = {0: 0.0001,
+                   50: 0.00002,
                    100: 0.000004,
                    135: 0.0000008,
                    170: 0.0000001}

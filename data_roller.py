@@ -13,7 +13,7 @@ import commath
 
 class LidarDataLoader(object):
     def __init__(self, cfg, base_dir, seq, frames=None):
-        pickles_dir = config.lidar_pickles_path
+        pickles_dir = config.kitti_lidar_pickles_path
         seq_data = pykitti.odometry(base_dir, seq)
         self.num_frames = len(seq_data.poses)
         self.data = np.zeros([self.num_frames, cfg.input_channels, cfg.input_height, cfg.input_width], dtype=np.float16)
@@ -55,9 +55,9 @@ class LidarDataLoader(object):
         return self.data[idx]
 
 
-# to facilitate loading of raw data
+# This class manages the loading of RAW data
 class DataLoader(object):
-    raw_range = {
+    kitti_raw_range = {
         "00": (0, 4540),
         "01": (0, 1100),
         "02": (0, 4660),
@@ -71,7 +71,7 @@ class DataLoader(object):
         "10": (0, 1200),
     }
 
-    raw_path = {
+    kitti_raw_path = {
         "00": ("2011_10_03", "0027"),
         "01": ("2011_10_03", "0042"),
         "02": ("2011_10_03", "0034"),
@@ -85,32 +85,113 @@ class DataLoader(object):
         "10": ("2011_09_30", "0034"),
     }
 
-    def __init__(self, cfg, base_dir, seq, frames=None):
-
-        if seq == "03" or seq not in self.raw_path.keys():
-            raise ValueError("%s sequence not supported" % seq)
+    def __init__(self, cfg, data_source, seq, frames=None):
 
         self.cfg = cfg
-        self.imu_time_sync_shift = 0  # we discovered IMU seems to be delayed, so we shifted it forward
+        self.imu_measurements = []
+        self.imu_timestamps = []
+        self.poses = []  # ground truth in original frame
+        self.gt_states = []  # roll pitch yaw in original frame
+        self.T_gt_xxx = None
+        self.T_xxx_imu = None
+        self.num_frames = None
 
-        if frames:
-            range_start = self.raw_range[seq][0] + frames.start
-            range_stop = range_start + (frames.stop - frames.start)
+        if self.cfg.data_type == "cam":
+            raise NotImplementedError("Camera images not supported")
+
+        if data_source == "KITTI":
+
+            if seq == "03" or seq not in self.kitti_raw_path.keys():
+                raise ValueError("%s sequence not supported" % seq)
+
+            base_dir = config.kitti_dataset_path
+
+            if frames:
+                range_start = self.kitti_raw_range[seq][0] + frames.start
+                range_stop = range_start + (frames.stop - frames.start)
+            else:
+                range_start = self.kitti_raw_range[seq][0]
+                range_stop = self.kitti_raw_range[seq][1] + 1
+
+            data_raw_kitti = pykitti.raw(base_dir, self.kitti_raw_path[seq][0], self.kitti_raw_path[seq][1],
+                                         frames=range(range_start, range_stop))
+            data_imu_kitti = pykitti.raw(base_dir, self.kitti_raw_path[seq][0], self.kitti_raw_path[seq][1],
+                                         frames=range(range_start, range_stop))
+            data_odom_kitti = pykitti.odometry(base_dir, seq, frames=frames)
+            self.data_lidar_image = LidarDataLoader(self.cfg, base_dir, seq, frames=frames)
+
+            assert (len(data_raw_kitti.oxts) == len(data_odom_kitti.poses) and
+                    len(data_imu_kitti.oxts) == len(data_odom_kitti.poses) and
+                    len(data_odom_kitti.poses) == self.data_lidar_image.num_frames)
+
+            # calibrations
+            self.T_gt_xxx = data_odom_kitti.calib.T_cam0_velo
+            self.T_xxx_imu = data_raw_kitti.calib.T_velo_imu
+            self.num_frames = len(data_odom_kitti.poses)
+            self.poses = data_odom_kitti.poses[:]
+
+            # load all data other than images
+            for i in range(self.num_frames):
+                wx = data_imu_kitti.oxts[i].packet.wx
+                wy = data_imu_kitti.oxts[i].packet.wy
+                wz = data_imu_kitti.oxts[i].packet.wz
+                ax = data_imu_kitti.oxts[i].packet.ax
+                ay = data_imu_kitti.oxts[i].packet.ay
+                az = data_imu_kitti.oxts[i].packet.az
+
+                roll = data_imu_kitti.oxts[i].packet.roll
+                pitch = data_imu_kitti.oxts[i].packet.pitch
+                yaw = data_imu_kitti.oxts[i].packet.yaw
+                vx = data_imu_kitti.oxts[i].packet.vf
+                vy = data_imu_kitti.oxts[i].packet.vl
+                vz = data_imu_kitti.oxts[i].packet.vu
+                lat = data_imu_kitti.oxts[i].packet.lat
+                lon = data_imu_kitti.oxts[i].packet.lon
+                alt = data_imu_kitti.oxts[i].packet.alt
+
+                self.imu_timestamps.append(data_imu_kitti.timestamps[i])
+                self.imu_measurements.append(np.array([wx, wy, wz, ax, ay, az, ]))
+                self.gt_states.append(np.array([roll, pitch, yaw, vx, vy, vz, lat, lon, alt]))
+
+        elif data_source == "MOOSE":
+            raise NotImplementedError("Moose data not implemented yet")
+
         else:
-            range_start = self.raw_range[seq][0]
-            range_stop = self.raw_range[seq][1] + 1
+            raise NotImplementedError("%s not valid" % data_source)
 
-        self.data_raw_kitti = pykitti.raw(base_dir, self.raw_path[seq][0], self.raw_path[seq][1],
-                                          frames=range(range_start, range_stop))
-        self.data_imu_kitti = pykitti.raw(base_dir, self.raw_path[seq][0], self.raw_path[seq][1],
-                                          frames=range(range_start + self.imu_time_sync_shift,
-                                                       range_stop + self.imu_time_sync_shift))
-        self.data_odom_kitti = pykitti.odometry(base_dir, seq, frames=frames)
-        self.data_lidar_image = LidarDataLoader(self.cfg, base_dir, seq, frames=frames)
+    # index is lidar/cam frame idx
+    def get_imu(self, idx):
+        return self.imu_measurements[idx]
 
-        assert (len(self.data_raw_kitti.oxts) == len(self.data_odom_kitti.poses) and
-                len(self.data_imu_kitti.oxts) == len(self.data_odom_kitti.poses) and
-                len(self.data_odom_kitti.poses) == self.data_lidar_image.num_frames)
+    def get_imu_ts(self, idx):
+        return self.imu_timestamps[idx]
+
+    def get_gt_state(self, idx):
+        return self.gt_states[idx]
+
+    def get_img(self, idx):
+        return self.data_lidar_image.get(idx)
+
+    def get_pose(self, idx):
+        return self.poses[idx]
+
+    def get_T_gt_xxx(self):
+        return self.T_gt_xxx
+
+    def get_T_xxx_imu(self):
+        return self.T_xxx_imu
+
+    def get_num_frames(self):
+        return self.num_frames
+
+
+# This class process the data into the correct frames
+class DataProcessor(object):
+
+    def __init__(self, cfg, data_source, seq, frames=None):
+
+        self.cfg = cfg
+        self.data_loader = DataLoader(cfg, data_source, seq, frames)
 
         self.imu_measurements = []
         self.imu_measurements_reversed = []
@@ -119,27 +200,26 @@ class DataLoader(object):
         self.__load_imu()
 
     def get_initial_states(self):
-        return self.data_imu_kitti.oxts[0].packet
+        return self.data_loader.get_gt_state(0)
 
     def __load_imu(self):
-        num_frames = self.get_num_frames()
+        num_frames = self.data_loader.get_num_frames()
+        self.imu_timestamps = self.data_loader.imu_timestamps[:]
+        self.imu_measurements = self.data_loader.imu_measurements[:]
 
         for i in range(0, num_frames):
-            self.imu_timestamps.append(self.data_imu_kitti.timestamps[i])
-
-            wx = self.data_imu_kitti.oxts[i].packet.wx
-            wy = self.data_imu_kitti.oxts[i].packet.wy
-            wz = self.data_imu_kitti.oxts[i].packet.wz
-            ax = self.data_imu_kitti.oxts[i].packet.ax
-            ay = self.data_imu_kitti.oxts[i].packet.ay
-            az = self.data_imu_kitti.oxts[i].packet.az
-
-            self.imu_measurements.append(np.array([wx, wy, wz, ax, ay, az, ]))
-
             # now we need to simulate IMU measurements in the reverse direction
-            roll = self.data_imu_kitti.oxts[i].packet.roll
-            pitch = self.data_imu_kitti.oxts[i].packet.pitch
-            yaw = self.data_imu_kitti.oxts[i].packet.yaw
+            gt_state = self.data_loader.get_gt_state(i)
+            roll = gt_state[0]
+            pitch = gt_state[1]
+            yaw = gt_state[2]
+
+            wx = self.imu_measurements[i][0]
+            wy = self.imu_measurements[i][1]
+            wz = self.imu_measurements[i][2]
+            ax = self.imu_measurements[i][3]
+            ay = self.imu_measurements[i][4]
+            az = self.imu_measurements[i][5]
 
             # for accelerometer need to remove gravity vector and negate the values
             # first put the acceleration measurement in earth frame
@@ -157,30 +237,10 @@ class DataLoader(object):
                     [-wx, -wy, -wz, c_accel_cc_reversed[0], c_accel_cc_reversed[1], c_accel_cc_reversed[2]])
             self.imu_measurements_reversed.append(imu_reversed)
 
-    def get_cam_img(self, idx):
-        if self.cfg.input_channels == 1:
-            img = self.data_odom_kitti.get_cam0(idx)
-        elif self.cfg.input_channels == 3:
-            img = self.data_odom_kitti.get_cam2(idx)
-        else:
-            raise ValueError("Invalid number of channels for data")
-        img = img.resize((self.cfg.input_width, self.cfg.input_height))
-        img = np.array(img)
-        if self.cfg.input_channels == 3:
-            img = img[..., [2, 1, 0]]
-        img = np.reshape(img, [img.shape[0], img.shape[1], self.cfg.input_channels])
-        img = np.moveaxis(np.array(img), 2, 0)
-
-        return img
-
-    def get_lidar_img(self, idx):
-        return self.data_lidar_image.get(idx)
+        assert (len(self.imu_measurements) == len(self.imu_measurements_reversed))
 
     def get_img(self, idx):
-        if self.cfg.data_type == "cam":
-            return self.get_cam_img(idx)
-        elif self.cfg.data_type == "lidar":
-            return self.get_lidar_img(idx)
+        return self.data_loader.get_img(idx)
 
     @staticmethod
     def clean_SO3(T):
@@ -193,31 +253,19 @@ class DataLoader(object):
         return T_new
 
     def get_poses_in_corresponding_frame(self):
-        if self.cfg.input_channels == 1:
-            return self.data_odom_kitti.poses
-
-        poses = self.data_odom_kitti.poses
         transformed_poses = []
 
-        T_cam0_xxx = None
-        if self.cfg.data_type == "cam" and self.cfg.input_channels == 3:
-            T_cam2_cam0 = self.data_odom_kitti.calib.T_cam2_velo. \
-                dot(np.linalg.inv(self.data_odom_kitti.calib.T_cam0_velo))
-            T_cam0_xxx = np.linalg.inv(T_cam2_cam0)
-        elif self.cfg.data_type == "lidar":
-            T_cam0_xxx = self.data_odom_kitti.calib.T_cam0_velo
+        T_gt_xxx = self.data_loader.get_T_gt_xxx()
 
-        for i in range(0, len(poses)):
-            T_cam0_xxx_inv = np.linalg.inv(T_cam0_xxx)
-            transformed_pose = np.dot(T_cam0_xxx_inv, np.dot(poses[i], T_cam0_xxx))
-            transformed_poses.append(DataLoader.clean_SO3(transformed_pose))
+        for i in range(0, self.data_loader.get_num_frames()):
+            T_gt_xxx_inv = np.linalg.inv(T_gt_xxx)
+            transformed_pose = np.dot(T_gt_xxx_inv, np.dot(self.data_loader.get_pose(i), T_gt_xxx))
+            transformed_poses.append(DataProcessor.clean_SO3(transformed_pose))
 
         return transformed_poses
 
-    def get_num_frames(self):
-        return len(self.data_odom_kitti.poses)
-
-    def mirror_imu_on_xz(self, imu_meas):
+    @staticmethod
+    def mirror_imu_on_xz(imu_meas):
         rate_imu = imu_meas[0:3]
         accel_imu = imu_meas[3:6]
 
@@ -230,55 +278,53 @@ class DataLoader(object):
 
         return np.concatenate((rate_imu, accel_imu))
 
-    def transform_imu_into_corresponding_frame(self, imu_meas):
-        rate_c = imu_meas[0:3]
-        accel_c = imu_meas[3:6]
+    def get_num_frames(self):
+        return self.data_loader.get_num_frames()
 
-        # transformation that maps measurement from car imu (c) to other sensor (x)
-        T_xc = None
-        if self.cfg.data_type == "cam" and self.cfg.input_channels == 1:
-            T_xc = self.data_raw_kitti.calib.T_cam0_imu
-        elif self.cfg.data_type == "cam" and self.cfg.input_channels == 3:
-            T_xc = self.data_raw_kitti.calib.T_cam2_imu
-        elif self.cfg.data_type == "lidar":
-            T_xc = self.data_raw_kitti.calib.T_velo_imu
+    def transform_imu_into_corresponding_frame(self, imu_meas):
+        rate_imu = imu_meas[0:3]
+        accel_imu = imu_meas[3:6]
+
+        # transformation that maps measurement from car imu frame to some sensor (xxx, camera/lidar)
+        T_xxx_imu = self.data_loader.get_T_xxx_imu()
 
         # transforms angular rate to xxx
-        rate_x = T_xc[0:3, 0:3].dot(rate_c)
+        rate_xxx = T_xxx_imu[0:3, 0:3].dot(rate_imu)
 
-        r = T_xc[0:3, 3]  # vector from imu to xxx
-        w = rate_c
-        a = accel_c
+        r = T_xxx_imu[0:3, 3]  # vector from imu to xxx
+        w = rate_imu
+        a = accel_imu
         # this transformation of linear acceleration assumes the angular acceleration is zero
-        accel_x = T_xc[0:3, 0:3].dot(a + np.cross(w, np.cross(w, r)))
+        accel_xxx = T_xxx_imu[0:3, 0:3].dot(a + np.cross(w, np.cross(w, r)))
 
-        return np.concatenate((rate_x, accel_x))
+        return np.concatenate((rate_xxx, accel_xxx))
 
     def get_averaged_imu_in_corresponding_frame(self, idx, reverse=False, mirror=False):
         if reverse:
             imu_meas_t = self.imu_measurements_reversed[idx + 1]
-            imu_meas_tm1 = self.imu_measurements_reversed[idx - 1]
+            imu_meas_tp1 = self.imu_measurements_reversed[idx]
         else:
             imu_meas_t = self.imu_measurements[idx]
-            imu_meas_tm1 = self.imu_measurements[idx - 1]
-
-        if mirror:
-            imu_meas_t = self.mirror_imu_on_xz(imu_meas_t)
-            imu_meas_tm1 = self.mirror_imu_on_xz(imu_meas_tm1)
+            imu_meas_tp1 = self.imu_measurements[idx + 1]
 
         imu_meas_t = self.transform_imu_into_corresponding_frame(imu_meas_t)
-        imu_meas_tm1 = self.transform_imu_into_corresponding_frame(imu_meas_tm1)
+        imu_meas_tp1 = self.transform_imu_into_corresponding_frame(imu_meas_tp1)
+
+        if mirror:
+            imu_meas_t = DataProcessor.mirror_imu_on_xz(imu_meas_t)
+            imu_meas_tp1 = DataProcessor.mirror_imu_on_xz(imu_meas_tp1)
 
         # average the two imu measurements
-        imu_meas_ave = (imu_meas_t + imu_meas_tm1) / 2
+        imu_meas_ave = (imu_meas_t + imu_meas_tp1) / 2
 
         return imu_meas_t
 
 
+# this class formats the data for NN
 class StatefulRollerDataGen(object):
 
     # This version of the data generator slides along n frames at a time
-    def __init__(self, cfg, base_dir, sequences, frames=None):
+    def __init__(self, cfg, source, sequences, frames=None):
         self.cfg = cfg
         self.sequences = sequences
         self.curr_batch_sequence = 0
@@ -336,7 +382,7 @@ class StatefulRollerDataGen(object):
         self.total_frames = 0
 
         for i_seq, seq in enumerate(sequences):
-            seq_loader = DataLoader(self.cfg, base_dir, seq, frames=frames[i_seq])
+            seq_loader = DataProcessor(self.cfg, source, seq, frames=frames[i_seq])
             num_frames = seq_loader.get_num_frames()
 
             self.initial_states[seq] = seq_loader.get_initial_states()
@@ -379,7 +425,7 @@ class StatefulRollerDataGen(object):
                 self.imu_timestamps[seq][i_img] = seq_loader.imu_timestamps[i_img].timestamp()
 
                 # relative transformation labels
-                if i_img + 1 < num_frames:
+                if i_img + 1 < num_frames:  # only looks at indices from i_img=0 to num_frames - 1
                     mirror_pose_next = np.identity(4, dtype=np.float32)
                     mirror_pose_next[0:3, 0:3] = np.dot(self.H, np.dot(self.poses[seq][i_img + 1][0:3, 0:3], self.H))
                     trans_next = transformations.translation_from_matrix(self.poses[seq][i_img + 1])
