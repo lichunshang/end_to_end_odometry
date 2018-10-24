@@ -440,8 +440,9 @@ class StatefulRollerDataGen(object):
                     tools.printf("Loading sequence %s %.1f%% " % (seq, (i_img / num_frames) * 100))
 
                 img = seq_loader.get_img(i_img)
+                img_raw = seq_loader_raw.get_img(i_img)
                 self.input_frames[seq][i_img, :] = img
-                self.input_frames_raw[seq][i_img, :] = img
+                self.input_frames_raw[seq][i_img, :] = img_raw
 
                 # now convert all the ground truth from 4x4 to xyz + quat, this is after the SE3 layer
                 translation = transformations.translation_from_matrix(self.poses[seq][i_img])
@@ -569,6 +570,7 @@ class StatefulRollerDataGen(object):
                     imu_dt[:, i_b] = np.flip(self.imu_timestamps[cur_seq][idx - n:idx - 1], axis=0)
                 else:
                     batch[:, i_b, :, :] = self.input_frames[cur_seq][idx - n:idx, :, :, :]
+                    batch_raw[:, i_b, :, :] = self.input_frames_raw[cur_seq][idx - n:idx, :, :, :]
                     se3_ground_truth[:, i_b, :] = self.se3_ground_truth[cur_seq][idx - n:idx, :]
                     fc_ground_truth[:, i_b, :] = self.fc_reverse_ground_truth[cur_seq][idx - n:idx - 1, :]
                     imu_measurements[:, i_b, :] = self.imu_measurements_reverse[cur_seq][idx - n:idx - 1, :]
