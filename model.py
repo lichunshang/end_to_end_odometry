@@ -162,14 +162,18 @@ def pair_train_fc_layer_1024(inputs):
 
 
 def cnn_over_timesteps(inputs, cnn_model, is_training, get_activations):
+    input = inputs[0]
+    input_raw = inputs[1]
+
     with tf.variable_scope("cnn_over_timesteps"):
-        unstacked_inputs = tf.unstack(inputs, axis=0)
+        unstacked_input = tf.unstack(input, axis=0)
+        unstacked_input_raw = tf.unstack(input_raw, axis=0)
 
         outputs = []
 
-        for i in range(len(unstacked_inputs) - 1):
+        for i in range(len(unstacked_input) - 1):
             # stack images along channels
-            image_stacked = tf.concat((unstacked_inputs[i], unstacked_inputs[i + 1]), axis=1)
+            image_stacked = tf.concat((unstacked_input[i], unstacked_input_raw[i + 1]), axis=1)
             outputs.append(cnn_model(image_stacked, is_training, get_activations))
 
         return tf.stack(outputs, axis=0)

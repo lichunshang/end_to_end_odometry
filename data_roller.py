@@ -12,8 +12,13 @@ import commath
 
 
 class LidarDataLoader(object):
-    def __init__(self, cfg, base_dir, seq, frames=None):
-        pickles_dir = config.kitti_lidar_pickles_path
+    def __init__(self, cfg, base_dir, data_source, seq, frames=None):
+
+        if data_source == "KITTI_raw":
+            pickles_dir = config.kitti_lidar_pickles_raw_path
+        else:
+            pickles_dir = config.kitti_lidar_pickles_path
+
         seq_data = pykitti.odometry(base_dir, seq)
         self.num_frames = len(seq_data.poses)
         self.data = np.zeros([self.num_frames, cfg.input_channels, cfg.input_height, cfg.input_width], dtype=np.float16)
@@ -117,13 +122,13 @@ class DataLoader(object):
         if self.cfg.data_type == "cam":
             raise NotImplementedError("Camera images not supported")
 
-        if data_source == "KITTI":
+        if data_source == "KITTI" or data_source == "KITTI_raw":
 
             base_dir = config.kitti_dataset_path
 
             data_raw_kitti = map_kitti_raw_to_odometry(base_dir, seq, frames)
             data_odom_kitti = pykitti.odometry(base_dir, seq, frames=frames)
-            self.data_lidar_image = LidarDataLoader(self.cfg, base_dir, seq, frames=frames)
+            self.data_lidar_image = LidarDataLoader(self.cfg, base_dir, data_source, seq, frames=frames)
 
             assert (len(data_raw_kitti.oxts) == len(data_odom_kitti.poses) and
                     len(data_odom_kitti.poses) == self.data_lidar_image.num_frames)
@@ -349,6 +354,7 @@ class StatefulRollerDataGen(object):
 
         self.initial_states = {}
         self.input_frames = {}
+        self.input_frames_raw = {}
         self.poses = {}
 
         # Mirror in x-z plane
@@ -390,12 +396,16 @@ class StatefulRollerDataGen(object):
             # this would allow us to train duplicate sequences
             seq_number = seq.split("_")[0]
 
-            seq_loader = DataProcessor(self.cfg, source, seq_number, frames=frames[i_seq])
+            seq_loader = DataProcessor(self.cfg, "KITTI", seq_number, frames=frames[i_seq])
+            seq_loader_raw = DataProcessor(self.cfg, "KITTI_raw", seq_number, frames=frames[i_seq])
             num_frames = seq_loader.get_num_frames()
 
             self.initial_states[seq] = seq_loader.get_initial_states()
 
             self.input_frames[seq] = np.zeros(
+                    [num_frames, self.cfg.input_channels, self.cfg.input_height, self.cfg.input_width],
+                    dtype=frames_data_type)
+            self.input_frames_raw[seq] = np.zeros(
                     [num_frames, self.cfg.input_channels, self.cfg.input_height, self.cfg.input_width],
                     dtype=frames_data_type)
             self.poses[seq] = seq_loader.get_poses_in_corresponding_frame()
@@ -418,6 +428,7 @@ class StatefulRollerDataGen(object):
 
                 img = seq_loader.get_img(i_img)
                 self.input_frames[seq][i_img, :] = img
+                self.input_frames_raw[seq][i_img, :] = img
 
                 # now convert all the ground truth from 4x4 to xyz + quat, this is after the SE3 layer
                 translation = transformations.translation_from_matrix(self.poses[seq][i_img])
@@ -500,6 +511,9 @@ class StatefulRollerDataGen(object):
         # prepare a batch from huge matrix of training data
         batch = np.zeros([n, self.cfg.batch_size, self.cfg.input_channels, self.cfg.input_height, self.cfg.input_width],
                          dtype=np.float32)
+        batch_raw = np.zeros(
+                [n, self.cfg.batch_size, self.cfg.input_channels, self.cfg.input_height, self.cfg.input_width],
+                dtype=np.float32)
         se3_ground_truth = np.zeros([n, self.cfg.batch_size, 7], dtype=np.float32)
         fc_ground_truth = np.zeros([self.cfg.timesteps, self.cfg.batch_size, 6], dtype=np.float32)
         imu_measurements = np.zeros([self.cfg.timesteps, self.cfg.batch_size, 6], dtype=np.float32)
@@ -518,6 +532,7 @@ class StatefulRollerDataGen(object):
                 # data going forwards
                 idx = start_idx[i_b] + idx_offset
                 batch[:, i_b, :, :, :] = self.input_frames[cur_seq][idx:idx + n, :, :, :]
+                batch_raw[:, i_b, :, :, :] = self.input_frames_raw[cur_seq][idx:idx + n, :, :, :]
                 se3_ground_truth[:, i_b, :] = self.se3_ground_truth[cur_seq][idx:idx + n, :]
                 fc_ground_truth[:, i_b, :] = self.fc_ground_truth[cur_seq][idx:idx + n - 1, :]
                 imu_measurements[:, i_b, :] = self.imu_measurements[cur_seq][idx:idx + n - 1, :]
@@ -527,6 +542,7 @@ class StatefulRollerDataGen(object):
                 idx = start_idx[i_b] - idx_offset
                 if self.cfg.data_type == "lidar":
                     batch[:, i_b, :, :] = self.input_frames[cur_seq][idx - n:idx, :, :, :]
+                    batch_raw[:, i_b, :, :] = self.input_frames_raw[cur_seq][idx - n:idx, :, :, :]
                     se3_ground_truth[:, i_b, :] = self.se3_mirror_ground_truth[cur_seq][idx - n:idx, :]
                     fc_ground_truth[:, i_b, :] = self.fc_reverse_mirror_ground_truth[cur_seq][idx - n:idx - 1, :]
                     imu_measurements[:, i_b, :] = self.imu_measurements_reverse_mirror[cur_seq][idx - n:idx - 1, :]
@@ -557,7 +573,9 @@ class StatefulRollerDataGen(object):
         self.current_batch += 1
         self.sequence_batch[cur_seq] += 1
 
-        return batch_id, cur_seq, batch, fc_ground_truth, se3_ground_truth, imu_measurements, imu_dt.astype(np.float32)
+        batch_out = np.stack([batch, batch_raw], axis=0)
+
+        return batch_id, cur_seq, batch_out, fc_ground_truth, se3_ground_truth, imu_measurements, imu_dt.astype(np.float32)
 
     def has_next_batch(self):
         return self.current_batch < self.batch_cnt

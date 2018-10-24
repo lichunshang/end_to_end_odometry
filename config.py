@@ -9,7 +9,9 @@ if machine == "cs4li":
     dataset_path = "/home/cs4li/Dev/KITTI/dataset/"
 
     kitti_dataset_path = "/home/cs4li/Dev/KITTI/dataset/"
-    kitti_lidar_pickles_path = "/home/cs4li/Dev/KITTI/dataset/sequences/lidar_pickles_raw_no_interp"
+
+    kitti_lidar_pickles_path = "/home/cs4li/Dev/KITTI/dataset/sequences/lidar_pickles_no_interp"
+    kitti_lidar_pickles_raw_path = "/home/cs4li/Dev/KITTI/dataset/sequences/lidar_pickles_raw_no_interp"
 
 
 class Configs(object):
