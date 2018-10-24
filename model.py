@@ -303,7 +303,7 @@ def seq_model_inputs(cfg):
     is_training = tf.placeholder(tf.bool, name="is_training", shape=[])
 
     # switch between previous states and state initializer
-    use_initializer = tf.placeholder(tf.bool, name="use_initializer", shape=[])
+    use_init_train = tf.placeholder(tf.bool, name="use_init_train", shape=[])
 
     if cfg.use_ekf:
         with tf.variable_scope("imu_noise_params", reuse=tf.AUTO_REUSE):
@@ -327,11 +327,11 @@ def seq_model_inputs(cfg):
                                                                                  dtype=tf.float32),
                                              dtype=tf.float32, trainable=cfg.train_noise_covariance)
 
-    return inputs, lstm_initial_state, initial_poses, imu_data, ekf_initial_state, ekf_initial_covariance, is_training, use_initializer, dt
+    return inputs, lstm_initial_state, initial_poses, imu_data, ekf_initial_state, ekf_initial_covariance, is_training, use_init_train, dt
 
 
 def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ekf_initial_state, ekf_initial_covariance,
-                    dt, is_training, get_activations=False, use_initializer=False, use_ekf=False, fc_labels=None):
+                    dt, is_training, get_activations=False, use_init_train=False, fc_labels=None):
     print("Building CNN...")
     cnn_outputs = cnn_layer(inputs, cnn_model_lidar, is_training, get_activations)
 
@@ -341,8 +341,12 @@ def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ek
     def f2():
         return lstm_initial_state, ekf_initial_state, ekf_initial_covariance
 
-    with tf.name_scope("use_initializer_cond"):
-        feed_init_states, feed_ekf_init_state, feed_ekf_init_covar = tf.cond(use_initializer, true_fn=f1, false_fn=f2)
+    if cfg.use_init:
+        with tf.name_scope("use_initializer_cond"):
+            feed_init_states, feed_ekf_init_state, feed_ekf_init_covar = \
+                tf.cond(use_init_train, true_fn=f1, false_fn=f2)
+    else:
+        feed_init_states, feed_ekf_init_state, feed_ekf_init_covar = f2()
 
     print("Building RNN...")
     lstm_outputs, lstm_states = rnn_layer(cfg, cnn_outputs, feed_init_states)
@@ -372,7 +376,7 @@ def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ek
 
         nn_covar = tf.stack(stack1, axis=0)
 
-    if use_ekf:
+    if cfg.use_ekf:
         print("Building EKF...")
         # at this point the outputs from the fully connected layer are  [x, y, z, yaw, pitch, roll, 6 x covars]
 
