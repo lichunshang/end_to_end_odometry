@@ -7,12 +7,13 @@ import numpy as np
 
 pickle_dir = config.kitti_lidar_pickles_path
 # sequences = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]
-sequences = ["00"]
+sequences = ["08"]
 
 for seq in sequences:
     cnt_intensity = 0
     cnt_range = 0
     cnt_mask = 0
+    cnt_time = 0
 
     with (open(os.path.join(pickle_dir, seq + "_range.pik"), "rb")) as opfile:
         while True:
@@ -44,5 +45,17 @@ for seq in sequences:
                 toimage(cur_image).save(tools.ensure_file_dir_exists(
                         os.path.join(pickle_dir, "%s_viz" % seq, "mask", str(cnt_mask) + ".png")))
                 cnt_mask += 1
+            except EOFError:
+                break
+
+    with (open(os.path.join(pickle_dir, seq + "_time.pik"), "rb")) as opfile:
+        while True:
+            try:
+                cur_image = pickle.load(opfile)
+                # cur_image = cur_image.astype(np.uint8)
+                cur_image *= 512
+                toimage(cur_image).save(tools.ensure_file_dir_exists(
+                        os.path.join(pickle_dir, "%s_viz" % seq, "time", str(cnt_time) + ".png")))
+                cnt_time += 1
             except EOFError:
                 break

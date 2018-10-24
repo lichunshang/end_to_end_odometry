@@ -13,8 +13,8 @@ import data_roller
 data_source = "KITTI_raw"
 
 output_dir = config.kitti_lidar_pickles_path
-# sequences = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]
-sequences = ["00"]
+sequences = ["00", "01", "02", "04", "05", "06", "07", "08", "09", "10"]
+# sequences = ["00"]
 
 # modes
 # one of horizontal_interp, no_interp, depth_completion
@@ -25,7 +25,7 @@ mode = NO_INTERP
 
 # channel, height, width
 img_shape = [64, 1152]
-img_channels = [3]
+img_channels = [4]
 
 enc_angles = np.linspace(-np.pi, np.pi, num=(img_shape[1] + 1), endpoint=False)
 averaged_masks = []
@@ -37,11 +37,13 @@ for seq in sequences:
         data_kitti_odom = pykitti.odometry(base_dir, seq, frames=None)
         length = len(data_kitti_odom.poses)
         get_scan = lambda idx: data_kitti_odom.get_velo(idx)
+        get_timestamp = lambda idx: data_kitti_odom.timestamps[idx]
     elif data_source == "KITTI_raw":
         base_dir = config.dataset_path
         data_kitti_raw = data_roller.map_kitti_raw_to_odometry(base_dir, seq, frames=None)
         length = len(data_kitti_raw.timestamps)
         get_scan = lambda idx: data_kitti_raw.get_velo(idx)
+        get_timestamp = lambda idx: data_kitti_raw.timestamps[idx]
     else:
         raise NotImplementedError("%s data source not valid" % data_source)
 
@@ -88,6 +90,14 @@ for seq in sequences:
                 # save the mask
                 images[scan_idx, 2, 63 - i, :] = ~mask
 
+            # timestamp image
+            if data_source == "KITTI":
+                images[scan_idx, 3, :, :] = get_timestamp(i)
+            elif data_source == "KITTI_raw":
+                images[scan_idx, 3, :, :] = i * 0.1 + np.linspace(0, 0.1, num=img_shape[1], endpoint=False)
+            else:
+                raise NotImplementedError("%s data source not valid" % data_source)
+
         if scan_idx % 100 == 0:
             print("Loading sequence %s %.1f%% " % (seq, (scan_idx / len(data.poses)) * 100))
 
@@ -102,6 +112,7 @@ for seq in sequences:
     range_out = open(tools.ensure_file_dir_exists(os.path.join(output_dir, str(seq) + "_range.pik")), "wb")
     int_out = open(tools.ensure_file_dir_exists(os.path.join(output_dir, str(seq) + "_intensity.pik")), "wb")
     mask_out = open(tools.ensure_file_dir_exists(os.path.join(output_dir, str(seq) + "_mask.pik")), "wb")
+    time_out = open(tools.ensure_file_dir_exists(os.path.join(output_dir, str(seq) + "_time.pik")), "wb")
 
     for i in range(0, len(data.poses)):
         # need to flip them horizontally because the bins are from -pi to pi, we want the
@@ -109,12 +120,14 @@ for seq in sequences:
         pickle.dump(np.fliplr(images[i, 0, :, :].astype(np.float16)), range_out)
         pickle.dump(np.fliplr((images[i, 1, :, :] * 255.0).astype(np.uint8)), int_out)
         pickle.dump(np.fliplr((images[i, 2, :, :]).astype(np.bool)), mask_out)
+        pickle.dump(images[i, 3, :, :], time_out)
         if i % 100 == 0:
             print("Saving sequence %s %.1f%% " % (seq, (i / len(data.poses)) * 100))
 
     range_out.close()
     int_out.close()
     mask_out.close()
+    time_out.close()
 
 if mode == DEPTH_COMPLETION:
     # now we re-read the the saved pickles again to apply the mask and depth completion
