@@ -71,7 +71,7 @@ for i, sequence in enumerate(sequences):
         plt.ylabel("y [m]")
         plt.title("KITTI Seq. %s Trajectory XY Plane" % sequence)
         plt.legend()
-        plt.savefig(data_dir + "%s_#00_0_fig_xy_trajectory.png" % sequence)
+        plt.savefig(os.path.join(data_dir, "%s_#00_0_fig_xy_trajectory.png" % sequence))
 
         plt.figure(2)
         # plt.axis("equal")
@@ -79,7 +79,7 @@ for i, sequence in enumerate(sequences):
         plt.ylabel("z [m]")
         plt.title("KITTI Seq. %s Trajectory XZ Plane" % sequence)
         plt.legend()
-        plt.savefig(data_dir + "%s_#00_1_fig_xz_trajectory.png" % sequence)
+        plt.savefig(os.path.join(data_dir, "%s_#00_1_fig_xz_trajectory.png" % sequence))
 
         plt.figure(3)
         # plt.axis("equal")
@@ -87,28 +87,28 @@ for i, sequence in enumerate(sequences):
         plt.ylabel("z [m]")
         plt.title("KITTI Seq. %s Trajectory YZ Plane" % sequence)
         plt.legend()
-        plt.savefig(data_dir + "%s_#00_2_fig_yz_trajectory.png" % sequence)
+        plt.savefig(os.path.join(data_dir, "%s_#00_2_fig_yz_trajectory.png" % sequence))
 
         plt.figure(4)
         plt.xlabel("frame # []")
         plt.ylabel("angle [rad]")
         plt.title("KITTI Seq. %s Yaw " % sequence)
         plt.legend()
-        plt.savefig(data_dir + "%s_#00_3_fig_yaw_trajectory.png" % sequence)
+        plt.savefig(os.path.join(data_dir, "%s_#00_3_fig_yaw_trajectory.png" % sequence))
 
         plt.figure(5)
         plt.xlabel("frame # []")
         plt.ylabel("angle [rad]")
         plt.title("KITTI Sequence %s Pitch" % sequence)
         plt.legend()
-        plt.savefig(data_dir + "%s_#00_4_fig_pitch_trajectory.png" % sequence)
+        plt.savefig(os.path.join(data_dir, "%s_#00_4_fig_pitch_trajectory.png" % sequence))
 
         plt.figure(6)
         plt.xlabel("frame # []")
         plt.ylabel("angle [rad]")
         plt.title("KITTI Sequence %s Roll" % sequence)
         plt.legend()
-        plt.savefig(data_dir + "%s_#00_5_fig_roll_trajectory.png" % sequence)
+        plt.savefig(os.path.join(data_dir, "%s_#00_5_fig_roll_trajectory.png" % sequence))
 
         print("Plot saved for sequence %s" % sequence)
 
