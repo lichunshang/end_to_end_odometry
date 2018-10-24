@@ -162,8 +162,8 @@ def pair_train_fc_layer_1024(inputs):
 
 
 def cnn_over_timesteps(inputs, cnn_model, is_training, get_activations):
-    input = inputs[0]
-    input_raw = inputs[1]
+    input = inputs[..., 0]
+    input_raw = inputs[..., 1]
 
     with tf.variable_scope("cnn_over_timesteps"):
         unstacked_input = tf.unstack(input, axis=0)
@@ -284,7 +284,7 @@ def seq_model_inputs(cfg):
     # All time major
     inputs = tf.placeholder(tf.float32, name="inputs",
                             shape=[cfg.timesteps + 1, cfg.batch_size, cfg.input_channels,
-                                   cfg.input_height, cfg.input_width])
+                                   cfg.input_height, cfg.input_width, 2])
 
     imu_data = tf.placeholder(tf.float32, name="imu_inputs", shape=[cfg.timesteps, cfg.batch_size, 6])
 

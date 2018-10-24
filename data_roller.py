@@ -586,7 +586,7 @@ class StatefulRollerDataGen(object):
         self.current_batch += 1
         self.sequence_batch[cur_seq] += 1
 
-        batch_out = np.stack([batch, batch_raw], axis=0)
+        batch_out = np.stack([batch, batch_raw], axis=-1)
 
         return batch_id, cur_seq, batch_out, fc_ground_truth, se3_ground_truth, imu_measurements, imu_dt.astype(np.float32)
 
