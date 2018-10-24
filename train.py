@@ -46,7 +46,7 @@ class Train(object):
         self.t_ekf_initial_covariance = None
         self.t_initial_poses = None
         self.t_is_training = None
-        self.t_use_initializer = None
+        self.t_use_init_train = None
         self.t_se3_labels = None
         self.t_fc_labels = None
         self.t_lstm_states = None
@@ -138,7 +138,7 @@ class Train(object):
 
     def __build_model_inputs_and_labels(self):
         self.t_inputs, self.t_lstm_initial_state, self.t_initial_poses, self.t_imu_data, self.t_ekf_initial_state, \
-        self.t_ekf_initial_covariance, self.t_is_training, self.t_use_initializer, self.t_dt = \
+        self.t_ekf_initial_covariance, self.t_is_training, self.t_use_init_train, self.t_dt = \
             model.seq_model_inputs(self.cfg)
 
         # 7 for translation + quat
@@ -188,8 +188,7 @@ class Train(object):
                     model.build_seq_model(self.cfg, ts_inputs[i], ts_lstm_initial_state[i], ts_initial_poses[i],
                                           ts_imu_data[i], ts_ekf_initial_state[i], ts_ekf_initial_covar[i], ts_dt[i],
                                           self.t_is_training, get_activations=True,
-                                          use_initializer=self.t_use_initializer,
-                                          use_ekf=self.cfg.use_ekf, fc_labels=ts_fc_labels[i])
+                                          use_initializer=self.t_use_init_train, fc_labels=ts_fc_labels[i])
 
                 # this returns lstm states as a tuple, we need to stack them
                 lstm_states = tf.stack(lstm_states, 0)
@@ -312,7 +311,7 @@ class Train(object):
                             self.t_initial_poses: init_poses,
                             self.t_alpha: alpha_set,
                             self.t_is_training: False,
-                            self.t_use_initializer: use_init_val,
+                            self.t_use_init_train: use_init_val,
                             self.t_ekf_initial_state: curr_ekf_state,
                             self.t_ekf_initial_covariance: curr_ekf_cov_state,
                             self.t_imu_data: imu_measurements,
@@ -444,7 +443,7 @@ class Train(object):
                                 self.t_lr: lr_set,
                                 self.t_alpha: alpha_set,
                                 self.t_is_training: True,
-                                self.t_use_initializer: use_init_train,
+                                self.t_use_init_train: use_init_train,
                                 self.t_sequence_id: int(curr_seq),
                                 self.t_epoch: i_epoch,
                                 self.t_ekf_initial_state: curr_ekf_state,

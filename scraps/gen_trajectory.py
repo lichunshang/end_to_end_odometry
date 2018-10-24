@@ -45,8 +45,7 @@ fc_outputs, fc_covar, se3_outputs, lstm_states, ekf_out_states, ekf_out_covar, _
                           dt,
                           tf.constant(False, dtype=tf.bool),  # is training
                           False,  # get_activation
-                          tf.constant(False, dtype=tf.bool),  # use initializer
-                          cfg.use_ekf)  # use ekf
+                          tf.constant(False, dtype=tf.bool))  # use initializer
 
 if cfg_si.use_init:
     tools.printf("Building eval model for initial LSTM states...")
@@ -63,15 +62,14 @@ if cfg_si.use_init:
                               tf.constant(0.1, dtype=tf.float32),
                               tf.constant(False, dtype=tf.bool),  # is training
                               False,
-                              tf.constant(True, dtype=tf.bool),  # use initializer
-                              cfg_si.use_ekf)
+                              tf.constant(True, dtype=tf.bool))  # use initializer
 
 for kitti_seq in kitti_seqs:
     tools.printf("Loading eval data...")
-    data_gen = data.StatefulRollerDataGen(cfg, config.dataset_path, [kitti_seq])
+    data_gen = data.StatefulRollerDataGen(cfg, "KITTI", [kitti_seq])
     if cfg_si.use_init:
         tools.printf("Loading eval data for initial LSTM states...")
-        data_gen_si = data.StatefulRollerDataGen(cfg_si, config.dataset_path, [kitti_seq],
+        data_gen_si = data.StatefulRollerDataGen(cfg_si, "KITTI", [kitti_seq],
                                                  frames=[range(0, cfg_si.timesteps + 1)])
 
     # results_dir_path = os.path.join(config.save_path, dir_name)
