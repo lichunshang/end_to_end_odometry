@@ -51,6 +51,19 @@ class LidarDataLoader(object):
                     tools.printf("Loading lidar intensity seq. %s %.1f%% " % (seq, (i / self.num_frames) * 100))
             assert (i == self.num_frames)
 
+        # with (open(os.path.join(pickles_dir, seq + "_time.pik"), "rb")) as opfile:
+        #     i = 0
+        #     while True:
+        #         try:
+        #             cur_image = pickle.load(opfile)
+        #             self.data[i, 2, :, :] = cur_image
+        #         except EOFError:
+        #             break
+        #         i += 1
+        #         if i % 1000 == 0:
+        #             tools.printf("Loading lidar time seq. %s %.1f%% " % (seq, (i / self.num_frames) * 100))
+        #     assert (i == self.num_frames)
+
         # select the range of frames
         if frames:
             self.data = self.data[frames]
