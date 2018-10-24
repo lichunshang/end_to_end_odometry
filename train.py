@@ -188,7 +188,7 @@ class Train(object):
                     model.build_seq_model(self.cfg, ts_inputs[i], ts_lstm_initial_state[i], ts_initial_poses[i],
                                           ts_imu_data[i], ts_ekf_initial_state[i], ts_ekf_initial_covar[i], ts_dt[i],
                                           self.t_is_training, get_activations=True,
-                                          use_initializer=self.t_use_init_train, fc_labels=ts_fc_labels[i])
+                                          use_init_train=self.t_use_init_train, fc_labels=ts_fc_labels[i])
 
                 # this returns lstm states as a tuple, we need to stack them
                 lstm_states = tf.stack(lstm_states, 0)
