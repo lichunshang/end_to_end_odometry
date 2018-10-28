@@ -36,7 +36,7 @@ class SeqTrainConfigs(Configs):
     k_se3 = 500
 
 
-class SeqTrainCamonfig(Configs):
+class SeqTrainCamConfig(Configs):
     timesteps = 8
     sequence_stride = timesteps
     init_length = 1
