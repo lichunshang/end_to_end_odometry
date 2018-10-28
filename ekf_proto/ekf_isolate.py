@@ -9,7 +9,7 @@ import model
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-kitti_seqs = ["00", "01", "02", "04", "05", "06", "07", "08", "09", "10"]
+kitti_seqs = ["00"]
 frames = [None]
 
 

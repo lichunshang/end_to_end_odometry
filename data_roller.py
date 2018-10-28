@@ -141,6 +141,8 @@ class DataLoader(object):
 
             data_raw_kitti = map_kitti_raw_to_odometry(base_dir, seq, frames)
             data_odom_kitti = pykitti.odometry(base_dir, seq, frames=frames)
+            self.data_raw_kitti = data_raw_kitti
+            self.data_odom_kitti = data_odom_kitti
             self.data_lidar_image = LidarDataLoader(self.cfg, base_dir, data_source, seq, frames=frames)
 
             assert (len(data_raw_kitti.oxts) == len(data_odom_kitti.poses) and
@@ -413,6 +415,9 @@ class StatefulRollerDataGen(object):
             seq_loader_raw = DataProcessor(self.cfg, "KITTI_raw", seq_number, frames=frames[i_seq])
             num_frames = seq_loader.get_num_frames()
 
+            test_img1 = covert_to_point_cloud(seq_loader.get_img(0))
+            test_img2 = covert_to_point_cloud(seq_loader_raw.get_img(0))
+
             self.initial_states[seq] = seq_loader.get_initial_states()
 
             self.input_frames[seq] = np.zeros(
@@ -590,7 +595,8 @@ class StatefulRollerDataGen(object):
 
         batch_out = np.stack([batch, batch_raw], axis=-1)
 
-        return batch_id, cur_seq, batch_out, fc_ground_truth, se3_ground_truth, imu_measurements, imu_dt.astype(np.float32)
+        return batch_id, cur_seq, batch_out, fc_ground_truth, se3_ground_truth, imu_measurements, imu_dt.astype(
+                np.float32)
 
     def has_next_batch(self):
         return self.current_batch < self.batch_cnt
@@ -637,6 +643,62 @@ class StatefulRollerDataGen(object):
 
     def get_initial_state(self, seq):
         return self.initial_states[seq]
+
+
+def covert_to_point_cloud(dist_img):
+    dist_img = dist_img[0]
+    horiz_angles = np.tile(np.linspace(0, -2 * np.pi, dist_img.shape[1], endpoint=True), [dist_img.shape[0], 1])
+    vert_angles = np.tile(np.reshape(np.linspace(0.08022707, -0.4155978, dist_img.shape[0], endpoint=True), [dist_img.shape[0], 1]), [1, dist_img.shape[1]])
+
+    xy_img = dist_img * np.cos(vert_angles)
+    x_img = xy_img * np.cos(horiz_angles)
+    y_img = xy_img * np.sin(horiz_angles)
+    z_img = dist_img * np.sin(vert_angles)
+
+    x = np.squeeze(np.concatenate(np.split(x_img, x_img.shape[0]), 1))
+    y = np.squeeze(np.concatenate(np.split(y_img, y_img.shape[0]), 1))
+    z = np.squeeze(np.concatenate(np.split(z_img, z_img.shape[0]), 1))
+
+    scan = np.stack([x, y, z], axis=1)
+
+    return scan
+
+
+def plot_lidar(img1, img2):
+    from mayavi import mlab
+    velo1 = covert_to_point_cloud(img1)
+    velo2 = covert_to_point_cloud(img2)
+
+    fig = mlab.figure(bgcolor=(0, 0, 0), size=(640, 360))
+    mlab.points3d(
+            velo1[:, 0],  # x
+            velo1[:, 1],  # y
+            velo1[:, 2],  # z (height)
+            velo1[:, 2],  # Height data used for shading
+            # velo[:, 3], # reflectance values
+            mode="point",  # How to render each point {'point', 'sphere' , 'cube' }
+            # colormap='spectral',  # 'bone', 'copper','spectral','hsv','hot','CMRmap','Blues'
+
+            color=(1, 0, 0),  # Used a fixed (r,g,b) color instead of colormap
+            scale_factor=100,  # scale of the points
+            line_width=10,  # Scale of the line, if any
+            figure=fig,
+    )
+    mlab.points3d(
+            velo2[:, 0],  # x
+            velo2[:, 1],  # y
+            velo2[:, 2],  # z (height)
+            velo2[:, 2],  # Height data used for shading
+            # velo[:, 3], # reflectance values
+            mode="point",  # How to render each point {'point', 'sphere' , 'cube' }
+            colormap='spectral',  # 'bone', 'copper','spectral','hsv','hot','CMRmap','Blues'
+
+            color=(0, 1, 0),  # Used a fixed (r,g,b) color instead of colormap
+            scale_factor=100,  # scale of the points
+            line_width=10,  # Scale of the line, if any
+            figure=fig,
+    )
+    mlab.show()
 
 
 # lstm_states: dictionary indexed by sequence ids, each elem being [batch_count, 2, num_layers, batch_size, lstm_size]
