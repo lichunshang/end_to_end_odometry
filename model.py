@@ -88,6 +88,66 @@ def cnn_model(inputs, is_training, get_activations=False):
         return dropout_conv_6
 
 
+def simple_cnn_model(inputs, is_training, get_activations=False):
+    with tf.variable_scope("cnn_model"):
+        conv_1 = tf.contrib.layers.conv2d(inputs, num_outputs=32, kernel_size=(7, 7,),
+                                          stride=(2, 2), padding="same", scope="conv_1", data_format="NCHW",
+                                          weights_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
+                                          biases_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
+                                          activation_fn=tf.nn.leaky_relu)
+
+        if get_activations:
+            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, conv_1)
+
+        dropout_conv_1 = tf.contrib.layers.dropout(conv_1, keep_prob=1.0, is_training=is_training,
+                                                   scope="dropout_conv_1")
+        conv_2 = tf.contrib.layers.conv2d(dropout_conv_1, num_outputs=60, kernel_size=(5, 5,),
+                                          stride=(2, 2), padding="same", scope="conv_2", data_format="NCHW",
+                                          weights_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
+                                          biases_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
+                                          activation_fn=tf.nn.leaky_relu)
+        dropout_conv_2 = tf.contrib.layers.dropout(conv_2, keep_prob=1.0, is_training=is_training,
+                                                   scope="dropout_conv_2")
+
+        conv_3 = tf.contrib.layers.conv2d(dropout_conv_2, num_outputs=60, kernel_size=(5, 5,),
+                                          stride=(2, 2), padding="same", scope="conv_3", data_format="NCHW",
+                                          weights_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
+                                          biases_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
+                                          activation_fn=tf.nn.leaky_relu)
+        dropout_conv_3 = tf.contrib.layers.dropout(conv_3, keep_prob=0.9, is_training=is_training,
+                                                   scope="dropout_conv_3")
+
+        conv_4 = tf.contrib.layers.conv2d(dropout_conv_3, num_outputs=100, kernel_size=(3, 3,),
+                                          stride=(2, 2), padding="same", scope="conv_4", data_format="NCHW",
+                                          weights_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
+                                          biases_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
+                                          activation_fn=tf.nn.leaky_relu)
+        dropout_conv_4 = tf.contrib.layers.dropout(conv_4, keep_prob=0.85, is_training=is_training,
+                                                   scope="dropout_conv_4")
+
+        conv_5 = tf.contrib.layers.conv2d(dropout_conv_4, num_outputs=200, kernel_size=(3, 3,),
+                                          stride=(2, 2), padding="same", scope="conv_5", data_format="NCHW",
+                                          weights_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
+                                          biases_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
+                                          activation_fn=tf.nn.leaky_relu)
+        dropout_conv_5 = tf.contrib.layers.dropout(conv_5, keep_prob=0.8, is_training=is_training,
+                                                   scope="dropout_conv_5")
+
+        conv_6 = tf.contrib.layers.conv2d(dropout_conv_5, num_outputs=300, kernel_size=(3, 3,),
+                                          stride=(2, 2), padding="same", scope="conv_6", data_format="NCHW",
+                                          activation_fn=None,
+                                          weights_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
+                                          biases_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004))
+
+        dropout_conv_6 = tf.contrib.layers.dropout(conv_6, keep_prob=0.75, is_training=is_training,
+                                                   scope="dropout_conv_6")
+
+        if get_activations:
+            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, conv_6)
+
+    return dropout_conv_6
+
+
 def cnn_model_lidar(inputs, is_training, get_activations=False):
     with tf.variable_scope("cnn_model"):
         # The first kernel is a 1d convolution
@@ -333,7 +393,7 @@ def seq_model_inputs(cfg):
 def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ekf_initial_state, ekf_initial_covariance,
                     dt, is_training, get_activations=False, use_init_train=False, fc_labels=None):
     print("Building CNN...")
-    cnn_outputs = cnn_layer(inputs, cnn_model, is_training, get_activations)
+    cnn_outputs = cnn_layer(inputs, simple_cnn_model, is_training, get_activations)
 
     def f1():
         return initializer_layer(cnn_outputs, cfg)
