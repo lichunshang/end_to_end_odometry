@@ -135,17 +135,24 @@ class DataLoader(object):
             base_dir = config.kitti_dataset_path
 
             data_raw_kitti = map_kitti_raw_to_odometry(base_dir, seq, frames)
-            data_odom_kitti = pykitti.odometry(base_dir, seq, frames=frames)
+            self.data_odom_kitti = pykitti.odometry(base_dir, seq, frames=frames)
             self.data_lidar_image = LidarDataLoader(self.cfg, base_dir, seq, frames=frames)
 
-            assert (len(data_raw_kitti.oxts) == len(data_odom_kitti.poses) and
-                    len(data_odom_kitti.poses) == self.data_lidar_image.num_frames)
+            assert (len(data_raw_kitti.oxts) == len(self.data_odom_kitti.poses) and
+                    len(self.data_odom_kitti.poses) == self.data_lidar_image.num_frames)
 
             # calibrations
-            self.T_gt_xxx = data_odom_kitti.calib.T_cam0_velo
-            self.T_xxx_imu = data_raw_kitti.calib.T_velo_imu
-            self.num_frames = len(data_odom_kitti.poses)
-            self.poses = data_odom_kitti.poses[:]
+            # for LiDAR
+            # self.T_gt_xxx = self.data_odom_kitti.calib.T_cam0_velo
+            # self.T_xxx_imu = data_raw_kitti.calib.
+
+            # for cam2
+            self.T_gt_xxx = np.linalg.inv(self.data_odom_kitti.calib.T_cam2_velo. \
+                                          dot(np.linalg.inv(self.data_odom_kitti.calib.T_cam0_velo)))
+            self.T_xxx_imu = data_raw_kitti.calib.T_cam2_imu
+
+            self.num_frames = len(self.data_odom_kitti.poses)
+            self.poses = self.data_odom_kitti.poses[:]
 
             # load all data other than images
             for i in range(self.num_frames):
@@ -187,7 +194,22 @@ class DataLoader(object):
         return self.gt_states[idx]
 
     def get_img(self, idx):
-        return self.data_lidar_image.get(idx)
+        # return self.data_lidar_image.get(idx)
+
+        if self.cfg.input_channels == 1:
+            img = self.data_odom_kitti.get_cam0(idx)
+        elif self.cfg.input_channels == 3:
+            img = self.data_odom_kitti.get_cam2(idx)
+        else:
+            raise ValueError("Invalid number of channels for data")
+        img = img.resize((self.cfg.input_width, self.cfg.input_height))
+        img = np.array(img)
+        if self.cfg.input_channels == 3:
+            img = img[..., [2, 1, 0]]
+        img = np.reshape(img, [img.shape[0], img.shape[1], self.cfg.input_channels])
+        img = np.moveaxis(np.array(img), 2, 0)
+
+        return img
 
     def get_pose(self, idx):
         return self.poses[idx]

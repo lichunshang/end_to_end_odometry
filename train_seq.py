@@ -2,7 +2,7 @@ from __future__ import absolute_import, division, print_function
 import config
 import train
 
-cfg = config.SeqTrainLidarConfig
+cfg = config.SeqTrainCamConfig
 
 trainer = train.Train(num_gpu=2,
                       cfg=cfg,

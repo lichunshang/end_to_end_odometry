@@ -36,17 +36,17 @@ class SeqTrainConfigs(Configs):
     k_se3 = 500
 
 
-class SeqTrainLidarConfig(Configs):
-    timesteps = 16
+class SeqTrainCamonfig(Configs):
+    timesteps = 8
     sequence_stride = timesteps
     init_length = 1
-    batch_size = 8
+    batch_size = 16
 
-    input_width = 1152
-    input_height = 64
-    input_channels = 2
+    input_width = 1280
+    input_height = 384
+    input_channels = 3
 
-    bidir_aug = True  # train going in reverse as well
+    bidir_aug = False  # train going in reverse as well
 
     # EKF stuff
     use_ekf = False
@@ -75,7 +75,7 @@ class SeqTrainLidarConfig(Configs):
 
     init_prob = 1
 
-    data_type = "lidar"
+    data_type = "cam"
 
     lstm_size = 256
     lstm_layers = 1
@@ -86,44 +86,11 @@ class SeqTrainLidarConfig(Configs):
     num_epochs = 200
     alpha_schedule = {0: 0.25}
 
-    # lr_schedule = {0: 0.000002,
-    #                50: 0.000001,
-    #                100: 0.0000001}
-
-    # lr_schedule = {0: 0.0005,
-    #                40: 0.00001,
-    #                80: 0.000002,
-    #                120: 0.000004,
-    #                180: 0.0000001}
-
-    # lr_schedule = {  0: 0.1,
-    #                100: 0.02,
-    #                125: 0.004,
-    #                150: 0.0008,
-    #                175: 0.00001}
-
-    # lr_schedule = {0:   0.000002,
-    #                40:  0.0000010,
-    #                60:  0.0000004,
-    #                100: 0.00000002,
-    #                150: 0.000000001}
-
-    # lr_schedule = {#0: 0.00001,
-    #                0: 0.000002,
-    #                40: 0.0000004,
-    #                80: 0.0000001,
-    #                130: 0.00000001}
-
     lr_schedule = {0: 0.0001,
                    50: 0.00002,
                    100: 0.000004,
                    135: 0.0000008,
                    170: 0.0000001}
-
-    # lr_schedule = {0: 0.00005,
-    #                20: 0.000002,
-    #                60: 0.000001,
-    #                80: 0.0000001}
 
 
 def print_configs(cfg):

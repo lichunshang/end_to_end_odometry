@@ -40,7 +40,7 @@ def cnn_model(inputs, is_training, get_activations=False):
                                           activation_fn=tf.nn.leaky_relu)
         dropout_conv_3 = tf.contrib.layers.dropout(conv_3, keep_prob=1, is_training=is_training,
                                                    scope="dropout_conv_3")
-        conv_3_1 = tf.contrib.layers.conv2d(conv_3, num_outputs=256, kernel_size=(3, 3,),
+        conv_3_1 = tf.contrib.layers.conv2d(dropout_conv_3, num_outputs=256, kernel_size=(3, 3,),
                                             stride=(1, 1), padding="same", scope="conv_3_1", data_format="NCHW",
                                             weights_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
                                             biases_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
@@ -48,7 +48,7 @@ def cnn_model(inputs, is_training, get_activations=False):
         dropout_conv_3_1 = tf.contrib.layers.dropout(conv_3_1, keep_prob=1, is_training=is_training,
                                                      scope="dropout_conv_3_1")
 
-        conv_4 = tf.contrib.layers.conv2d(conv_3_1, num_outputs=512, kernel_size=(3, 3,),
+        conv_4 = tf.contrib.layers.conv2d(dropout_conv_3_1, num_outputs=512, kernel_size=(3, 3,),
                                           stride=(2, 2), padding="same", scope="conv_4", data_format="NCHW",
                                           weights_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
                                           biases_regularizer=tf.contrib.layers.l2_regularizer(scale=0.0004),
@@ -333,7 +333,7 @@ def seq_model_inputs(cfg):
 def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ekf_initial_state, ekf_initial_covariance,
                     dt, is_training, get_activations=False, use_init_train=False, fc_labels=None):
     print("Building CNN...")
-    cnn_outputs = cnn_layer(inputs, cnn_model_lidar, is_training, get_activations)
+    cnn_outputs = cnn_layer(inputs, cnn_model, is_training, get_activations)
 
     def f1():
         return initializer_layer(cnn_outputs, cfg)
