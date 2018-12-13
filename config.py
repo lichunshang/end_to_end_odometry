@@ -40,13 +40,13 @@ class SeqTrainCamConfig(Configs):
     timesteps = 8
     sequence_stride = timesteps
     init_length = 1
-    batch_size = 16
+    batch_size = 8
 
     input_width = 1280
     input_height = 384
     input_channels = 3
 
-    bidir_aug = False  # train going in reverse as well
+    bidir_aug = True  # train going in reverse as well
 
     # EKF stuff
     use_ekf = False
@@ -68,8 +68,8 @@ class SeqTrainCamConfig(Configs):
     use_init = False
     only_train_init = False  # only used when use init is True
     dont_restore_init = True
-
     dont_restore_fc = True
+    dont_restore_lstm = True
 
     debug = False
 

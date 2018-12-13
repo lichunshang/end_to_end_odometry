@@ -127,8 +127,8 @@ class DataLoader(object):
         self.T_xxx_imu = None
         self.num_frames = None
 
-        if self.cfg.data_type == "cam":
-            raise NotImplementedError("Camera images not supported")
+        # if self.cfg.data_type == "cam":
+        #     raise NotImplementedError("Camera images not supported")
 
         if data_source == "KITTI":
 
@@ -136,10 +136,10 @@ class DataLoader(object):
 
             data_raw_kitti = map_kitti_raw_to_odometry(base_dir, seq, frames)
             self.data_odom_kitti = pykitti.odometry(base_dir, seq, frames=frames)
-            self.data_lidar_image = LidarDataLoader(self.cfg, base_dir, seq, frames=frames)
+            # self.data_lidar_image = LidarDataLoader(self.cfg, base_dir, seq, frames=frames)
 
-            assert (len(data_raw_kitti.oxts) == len(self.data_odom_kitti.poses) and
-                    len(self.data_odom_kitti.poses) == self.data_lidar_image.num_frames)
+            # assert (len(data_raw_kitti.oxts) == len(self.data_odom_kitti.poses) and
+            #         len(self.data_odom_kitti.poses) == self.data_lidar_image.num_frames)
 
             # calibrations
             # for LiDAR

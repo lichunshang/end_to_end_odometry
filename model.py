@@ -393,7 +393,7 @@ def seq_model_inputs(cfg):
 def build_seq_model(cfg, inputs, lstm_initial_state, initial_poses, imu_data, ekf_initial_state, ekf_initial_covariance,
                     dt, is_training, get_activations=False, use_init_train=False, fc_labels=None):
     print("Building CNN...")
-    cnn_outputs = cnn_layer(inputs, simple_cnn_model, is_training, get_activations)
+    cnn_outputs = cnn_layer(inputs, cnn_model, is_training, get_activations)
 
     def f1():
         return initializer_layer(cnn_outputs, cfg)

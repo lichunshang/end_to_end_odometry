@@ -127,6 +127,9 @@ class Train(object):
         if self.cfg.dont_restore_fc:
             regex = re.compile("fc_layer")
             var_list = list(filter(lambda a: not regex.match(a.name), var_list))
+        if self.cfg.dont_restore_lstm:
+            regex = re.compile("rnn_layer")
+            var_list = list(filter(lambda a: not regex.match(a.name), var_list))
 
         tools.printf("Variables to load from checkpoint...")
         for i in range(0, len(var_list)):
